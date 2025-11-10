@@ -14,66 +14,66 @@ class ComplyingOfficesTable
     public static function configure(Table $table): Table
     {
         // dd(auth()->user()->department_code);
-        return $table
-            ->modifyQueryUsing(function (Builder $query) {
-            // Filter to only show records that match the user's department_code
-            $user = auth()->user();
+        return $table->modifyQueryUsing(function (Builder $query) {
+                    // Filter to only show records that match the user's department_code
+                    $user = auth()->user();
 
-            // Prevent null errors if user is not authenticated
-            if ($user && $user->department_code != 25) {
-                $query->where('complying_offices.department_code', $user->department_code);
-            }
-        })->columns([
-                // TextColumn::make('department_code')
-                //     ->searchable(),
-                TextColumn::make('office.office')
-                    ->label('Office Name') // Optional custom label
-                    ->searchable()
-                    ->sortable(),
-                // TextColumn::make('requirement_id')
-                //     ->searchable(),
-                TextColumn::make('requiredDocument.requirement')
-                    ->label('Requirement')
-                    ->searchable()
-                    ->sortable(),
-                TextColumn::make('status')
-                    ->label('Status')
-                    ->formatStateUsing(function ($state) {
-                        return match ($state) {
-                            '-1' => 'Not Complied',
-                            '0'  => 'Partially Complied',
-                            '1'  => 'Complied',
-                            default => 'Unknown',
-                        };
-                    })
-                    ->badge() // optional: shows as colored badge
-                    ->colors([
-                        'danger' => '-1',
-                        'warning' => '0',
-                        'success' => '1',
-                    ])
-                    ->html()
-                    ->sortable()
-                    ->searchable(),
-                TextColumn::make('created_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('updated_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-            ])
-            ->filters([
-                //
-            ])
-            ->recordActions([
-                EditAction::make(),
-            ])
-            ->toolbarActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                ]),
-            ]);
+                    // Prevent null errors if user is not authenticated
+                    if ($user && $user->department_code != 25) {
+                        $query->where('complying_offices.department_code', $user->department_code);
+                    }
+                })
+                ->columns([
+                    // TextColumn::make('department_code')
+                    //     ->searchable(),
+                    TextColumn::make('office.office')
+                        ->label('Office Name') // Optional custom label
+                        ->searchable()
+                        ->sortable(),
+                    // TextColumn::make('requirement_id')
+                    //     ->searchable(),
+                    TextColumn::make('requiredDocument.requirement')
+                        ->label('Requirement')
+                        ->searchable()
+                        ->sortable(),
+                    TextColumn::make('status')
+                        ->label('Status')
+                        ->formatStateUsing(function ($state) {
+                            return match ($state) {
+                                '-1' => 'Not Complied',
+                                '0'  => 'Partially Complied',
+                                '1'  => 'Complied',
+                                default => 'Unknown',
+                            };
+                        })
+                        ->badge() // optional: shows as colored badge
+                        ->colors([
+                            'danger' => '-1',
+                            'warning' => '0',
+                            'success' => '1',
+                        ])
+                        ->html()
+                        ->sortable()
+                        ->searchable(),
+                    TextColumn::make('created_at')
+                        ->dateTime()
+                        ->sortable()
+                        ->toggleable(isToggledHiddenByDefault: true),
+                    TextColumn::make('updated_at')
+                        ->dateTime()
+                        ->sortable()
+                        ->toggleable(isToggledHiddenByDefault: true),
+                ])
+                ->filters([
+                    //
+                ])
+                ->recordActions([
+                    EditAction::make(),
+                ])
+                ->toolbarActions([
+                    BulkActionGroup::make([
+                        DeleteBulkAction::make(),
+                    ]),
+                ]);
     }
 }

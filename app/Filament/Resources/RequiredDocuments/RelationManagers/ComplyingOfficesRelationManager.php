@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\RequiredDocuments\RelationManagers;
 
+use App\Models\Office;
 use Filament\Actions\AssociateAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
@@ -10,11 +11,13 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\DissociateAction;
 use Filament\Actions\DissociateBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Validation\Rule;
 
 class ComplyingOfficesRelationManager extends RelationManager
 {
@@ -24,10 +27,36 @@ class ComplyingOfficesRelationManager extends RelationManager
     {
         return $schema
             ->components([
-                TextInput::make('department_code')
+                // TextInput::make('department_code')
+                //     ->required(),
+                Select::make('department_code')
+                    ->label('Office')
+                    ->options(Office::all()->pluck('office', 'department_code'))
+                    ->required()
+                    ->rules(function (callable $get) {
+                        // Get the current requirement ID from the parent record
+                        $requirementId = $this->getOwnerRecord()->id;
+
+                        return [
+                            Rule::unique('complying_offices', 'department_code')
+                                ->where(fn($query) =>
+                                    $query->where('requirement_id', $requirementId)
+                                )
+                                ->ignore($get('id')) // ignore self when editing
+                        ];
+                    })
+                    ->helperText('Each office can only be added once per requirement.'),
+                Select::make('status')
+                    ->label('Compliance Status')
+                    ->options([
+                        -1 => 'Not Complied',
+                        0  => 'Partially Complied',
+                        1  => 'Complied',
+                    ])
+                    ->default(-1)
                     ->required(),
-                TextInput::make('status')
-                    ->required(),
+                // TextInput::make('status')
+                //     ->required(),
             ]);
     }
 
