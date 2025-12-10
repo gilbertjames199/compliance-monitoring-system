@@ -18,9 +18,12 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Blade;
+use App\Models\RequiredDocument;
 
 class RequiredDocumentsTable extends Resource
 {
+    protected static ?string $model = RequiredDocument::class;
+
     public static function configure(Table $table): Table
     {
         // dd(auth()->user());
