@@ -2,11 +2,13 @@
 
 namespace App\Filament\Resources\Users\Tables;
 
+use Filament\Tables\Table;
+use Filament\Actions\EditAction;
+use Filament\Resources\Resource;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Table;
+use STS\FilamentImpersonate\Actions\Impersonate;
 
 class UsersTable
 {
@@ -24,11 +26,23 @@ class UsersTable
                 TextColumn::make('email_verified_at')
                     ->dateTime()
                     ->sortable(),
-                TextColumn::make('userEmployee.employee_name')
-                    ->name('Name')
-                    ->searchable(),
+                // TextColumn::make('userEmployee.employee_name')
+                //     ->name('Name')
+                //     ->searchable(),
                 TextColumn::make('office.short_name')
                     ->label('Department')
+                    ->searchable(),
+                TextColumn::make('roles.name')
+                    ->label('Role')
+                    ->badge()
+                    ->color(fn (string $state) => collect([
+                        'primary',
+                        'success',
+                        'warning',
+                        'danger',
+                        'info',
+                        'gray',
+                    ])[abs(crc32($state)) % 6])
                     ->searchable(),
                 TextColumn::make('created_at')
                     ->dateTime()
@@ -39,10 +53,12 @@ class UsersTable
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
+            ->defaultSort('created_at', 'desc')
             ->filters([
                 //
             ])
             ->recordActions([
+                Impersonate::make(),
                 EditAction::make(),
             ])
             ->toolbarActions([

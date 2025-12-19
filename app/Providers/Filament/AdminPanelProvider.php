@@ -33,6 +33,10 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('')
             ->login(CustomLogin::class)
+            ->passwordReset()
+            ->emailVerification()
+            ->emailChangeVerification()
+            ->profile()
             ->colors([
                 'danger' => Color::Rose,
                 'gray' => Color::Gray,
@@ -42,7 +46,8 @@ class AdminPanelProvider extends PanelProvider
                 'warning' => Color::Orange,
                 'sidebar-bg' => '#1e293b',
             ])
-            ->font('Inter', provider: GoogleFontProvider::class)
+            // ->font('Inter', provider: GoogleFontProvider::class)
+            ->font('Poppins')
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')
             ->pages([
@@ -77,7 +82,8 @@ class AdminPanelProvider extends PanelProvider
                 url: asset('css/fonts/fonts.css'),
                 provider: LocalFontProvider::class,
             )
-            ->maxContentWidth('full')
-            ->sidebarWidth('16rem');
+            // ->maxContentWidth('full')
+            // ->sidebarWidth('16rem')
+            ;
     }
 }

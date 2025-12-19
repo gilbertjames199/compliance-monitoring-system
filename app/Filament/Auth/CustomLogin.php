@@ -35,8 +35,6 @@ class CustomLogin extends Login
             ]);
     }
 
-
-
     protected function getUsernameFormComponent(): Component
     {
         return TextInput::make('username')

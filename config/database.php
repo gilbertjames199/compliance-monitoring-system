@@ -31,6 +31,8 @@ return [
 
     'connections' => [
 
+        env('SESSION_CONNECTION', null),
+        
         'sqlite' => [
             'driver' => 'sqlite',
             'url' => env('DB_URL'),
@@ -48,9 +50,9 @@ return [
             'url' => env('DB_URL'),
             'host' => env('DB_HOST', '127.0.0.1'),
             'port' => env('DB_PORT', '3306'),
-            'database' => env('DB_DATABASE', 'laravel'),
-            'username' => env('DB_USERNAME', 'root'),
-            'password' => env('DB_PASSWORD', ''),
+            'database' => env('DB_DATABASE', 'compliance_monitoring_db'),
+            'username' => env('DB_USERNAME', 'kristine'),
+            'password' => env('DB_PASSWORD', 'Kristine@04'),
             'unix_socket' => env('DB_SOCKET', ''),
             'charset' => env('DB_CHARSET', 'utf8mb4'),
             'collation' => env('DB_COLLATION', 'utf8mb4_unicode_ci'),
@@ -67,9 +69,9 @@ return [
             'url' => env('DATABASE_URL'),
             'host' => env('DB_HOST_2', '127.0.0.1'),
             'port' => env('DB_PORT_2', '3306'),
-            'database' => env('DB_DATABASE_2', 'forge'),
-            'username' => env('DB_USERNAME_2', 'forge'),
-            'password' => env('DB_PASSWORD_2', ''),
+            'database' => env('DB_DATABASE_2', 'fms'),
+            'username' => env('DB_USERNAME_2', 'kristine'),
+            'password' => env('DB_PASSWORD_2', 'Kristine@04'),
             'unix_socket' => env('DB_SOCKET', ''),
             'charset' => 'utf8mb4',
             'collation' => 'utf8mb4_unicode_ci',
@@ -86,9 +88,9 @@ return [
             'url' => env('DATABASE_URL'),
             'host' => env('DB_HOST_3', '127.0.0.1'),
             'port' => env('DB_PORT_3', '3306'),
-            'database' => env('DB_DATABASE_3', 'forge'),
-            'username' => env('DB_USERNAME_3', 'forge'),
-            'password' => env('DB_PASSWORD_3', ''),
+            'database' => env('DB_DATABASE_3', 'opcr'),
+            'username' => env('DB_USERNAME_3', 'kristine'),
+            'password' => env('DB_PASSWORD_3', 'Kristine@04'),
             'unix_socket' => env('DB_SOCKET', ''),
             'charset' => 'utf8mb4',
             'collation' => 'utf8mb4_unicode_ci',

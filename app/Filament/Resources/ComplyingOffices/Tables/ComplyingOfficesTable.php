@@ -14,7 +14,8 @@ class ComplyingOfficesTable
     public static function configure(Table $table): Table
     {
         // dd(auth()->user()->department_code);
-        return $table->modifyQueryUsing(function (Builder $query) {
+        return $table
+                ->modifyQueryUsing(function (Builder $query) {
                     // Filter to only show records that match the user's department_code
                     $user = auth()->user();
 
@@ -23,19 +24,27 @@ class ComplyingOfficesTable
                         $query->where('complying_offices.department_code', $user->department_code);
                     }
                 })
+                ->defaultGroup('office.office')
                 ->columns([
                     // TextColumn::make('department_code')
                     //     ->searchable(),
                     TextColumn::make('office.office')
-                        ->label('Office Name') // Optional custom label
+                        ->label('Complying Office') // Optional custom label
                         ->searchable()
-                        ->sortable(),
-                    // TextColumn::make('requirement_id')
-                    //     ->searchable(),
+                        ->sortable()
+                        ->wrap(),
+                    TextColumn::make('requirement_id')
+                        ->searchable(),
                     TextColumn::make('requiredDocument.requirement')
                         ->label('Requirement')
                         ->searchable()
-                        ->sortable(),
+                        ->sortable()
+                        ,
+                    TextColumn::make('requiredDocument.agency_name')
+                        ->label('Requiring Agency')
+                        ->sortable()
+                        ->searchable() 
+                        ->wrap(),
                     TextColumn::make('status')
                         ->label('Status')
                         ->formatStateUsing(function ($state) {
@@ -55,6 +64,13 @@ class ComplyingOfficesTable
                         ->html()
                         ->sortable()
                         ->searchable(),
+                    TextColumn::make('requiredDocument.due_date')
+                        ->label('Due Date')
+                        ->sortable()
+                        // ->getStateUsing(fn ($record) => $record->due_date ?? $record->requiredDocument->due_date)
+                        ->formatStateUsing(fn ($state, $record) => $record->requirement?->due_date)
+                        ->date()
+                        ->searchable(),
                     TextColumn::make('created_at')
                         ->dateTime()
                         ->sortable()
@@ -64,6 +80,7 @@ class ComplyingOfficesTable
                         ->sortable()
                         ->toggleable(isToggledHiddenByDefault: true),
                 ])
+                ->defaultSort('created_at', 'desc')
                 ->filters([
                     //
                 ])

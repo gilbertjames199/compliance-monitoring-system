@@ -21,7 +21,8 @@ class RequiredDocumentResource extends Resource
 {
     protected static ?string $model = RequiredDocument::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-clipboard-document';
+
 
     protected static ?string $recordTitleAttribute = 'Required Documents';
 
@@ -65,7 +66,7 @@ class RequiredDocumentResource extends Resource
 
     public static function afterCreate(RequiredDocument $record, array $data): void
     {
-        dd($record, $data);
+        // dd($record, $data);
         $selectedOffices = $data['_selected_offices'] ?? [];
         $status = $data['_status'] ?? -1;
 
@@ -82,6 +83,12 @@ class RequiredDocumentResource extends Resource
             ->success()
             ->send();
     }
+
+    public static function getModel(): string
+    {
+        return \App\Models\RequiredDocument::class;
+    }
+
 
     // public static function table(Table $table): Table
     // {

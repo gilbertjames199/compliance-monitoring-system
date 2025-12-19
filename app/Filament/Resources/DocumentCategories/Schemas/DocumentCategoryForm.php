@@ -4,19 +4,20 @@ namespace App\Filament\Resources\DocumentCategories\Schemas;
 
 use App\Models\Office;
 use Filament\Actions\Action;
-use Filament\Forms\Components\DatePicker;
-use Filament\Forms\Components\MultiSelect;
-use Filament\Forms\Components\Repeater;
+use Filament\Schemas\Schema;
+use App\Models\ComplyingOffice;
 use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Schemas\Components\View;
+use Illuminate\Support\Facades\Blade;
+use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Section;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\MultiSelect;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
-use Filament\Schemas\Components\View;
-use Filament\Schemas\Schema;
-use Illuminate\Support\Facades\Blade;
 
 class DocumentCategoryForm
 {
@@ -51,51 +52,173 @@ class DocumentCategoryForm
 
                 Repeater::make('requiredDocuments')
                     ->label('Required Documents')
-                    ->relationship('requiredDocuments')
+                    ->relationship('requiredDocuments') // 🔑 must match the model method exactly
                     ->schema([
                         Section::make('Details')
                         ->columns(2)
                         ->schema([
-                            TextInput::make('requirement')->required(),
-                            TextInput::make('requiring_agency_internal'),
-                            TextInput::make('agency_name')->label('Requiring Agency'),
-                            DatePicker::make('date_from'),
-                            DatePicker::make('due_date'),
-                            TextInput::make('year'),
-                            Toggle::make('is_confidential')->label('Confidential'),
-                            Toggle::make('is_external')->label('External'),
-                            Toggle::make('is_recurring')->label('Recurring'),
+                            TextInput::make('requirement')
+                                ->required(),
+                            TextInput::make('year')
+                                // ->required()
+                                ->numeric()
+                                ->default(date('Y')) // automatically sets the current year
+                                ->readOnly(),
+                            // TextInput::make('requiring_agency_internal')
+                            //     ->required(),
+                            // TextInput::make('agency_name')
+                            //     ->label('Requiring Agency')
+                            //     ->required(),
+                            // Select::make('agency_name')
+                            //     ->label('Requiring Agency')
+                            //     ->searchable()
+                            //     ->preload()
+                            //     ->options(
+                            //         Office::query()->pluck('office', 'office') // key = office name, value = office name
+                            //     )
+                            //     ->createOptionForm([
+                            //         TextInput::make('office')
+                            //             ->label('Office Name')
+                            //             ->required(),
+                            //     ])
+                            //     ->createOptionUsing(function (array $data) {
+                            //         // Creates new office inside the fms database
+                            //         $office = Office::create([
+                            //             'office' => $data['office'],
+                            //         ]);
+
+                            //         // return the value that will be saved to the field
+                            //         return $office->office; 
+                            //     })
+                            //     ->required(),
+
+                           Select::make('agency_type')
+                                ->label('Agency Type')
+                                ->options([
+                                    'internal' => 'Internal',
+                                    'external' => 'External',
+                                ])
+                                ->reactive()
+                                ->required(),
+
+                            Select::make('agency_name')
+                                ->label('Requiring Agency')
+                                ->searchable()
+                                ->reactive()
+                                ->options(function ($get) {
+                                    $type = $get('agency_type');
+
+                                    if ($type === 'internal') {
+                                        return Office::on('mysql2')
+                                            ->whereBetween('id', [1, 26]) // adjust your range if needed
+                                            ->pluck('office', 'office'); // key and value are the name itself
+                                    }
+
+                                    if ($type === 'external') {
+                                        return Office::on('mysql2')
+                                            ->where('id', '>=', 27)
+                                            ->pluck('office', 'office');
+                                    }
+
+                                    return [];
+                                })
+                                ->required()
+                                ->afterStateHydrated(function ($component, $get, $state) {
+                                    if (!$state) return;
+                                    // If editing, pre-select agency name
+                                    $component->state($state);
+                                })
+                                ->createOptionForm([
+                                    TextInput::make('agency_name')
+                                        ->label('New External Agency Name')
+                                        ->required(),
+                                ])
+                                ->createOptionUsing(function (array $data) {
+                                    // Save new external agency to FMS database
+                                    return Office::on('mysql2')->create([
+                                        'office' => $data['agency_name'],
+                                    ])->office; // return the office name so it gets saved in required_documents
+                                     
+                                }),
+
+
+                            DatePicker::make('date_from')  
+                                ->label('Date From')
+                                ->required(),
+                            DatePicker::make('due_date')
+                                ->label('Due Date')
+                                ->after('date_from')
+                                ->required(),
+                            Toggle::make('is_confidential')
+                                ->label('Confidential')
+                                ->required(),
+                            // Toggle::make('is_external')
+                            //     ->label('External')
+                            //     ->required(),
+                            Toggle::make('is_recurring')
+                                ->label('Recurring')
+                                ->required(),
                         ]),
 
                         Section::make('Complying Offices')
+                            // ->columns(2)
                             ->schema([
-                                Select::make('complying_offices')
-                                ->label('Complying Offices')
-                                ->multiple()
-                                ->options(Office::all()->pluck('office', 'department_code'))
-                                ->preload()
-                                ->searchable()
-                                ->helperText('Select one or more offices that must comply with this requirement.')
-                                ->suffixAction(
-                                    Action::make('addAll')
-                                        ->label('Add All Offices')
-                                        ->icon('heroicon-o-plus')
-                                        ->action(function ($state, callable $set) {
-                                            $set('complying_offices', Office::pluck('department_code')->toArray());
-                                        })
+ 
+                          Select::make('complying_offices')
+                            ->label('Complying Offices')
+                            ->multiple()
+                            ->required()
+                            ->options(
+                                Office::orderBy('office')->pluck('office', 'department_code')
+                            )
+                            ->preload()
+                            ->searchable()
+
+                            ->loadStateFromRelationshipsUsing(fn ($component, $record) =>
+                                $component->state(
+                                    $record->complyingOffices
+                                        ->pluck('department_code')
+                                        ->toArray()
+                                )
+                            )
+
+                            ->saveRelationshipsUsing(function ($component, $record, $state) {
+                                $record->complyingOffices()->delete();
+
+                                foreach ($state ?? [] as $departmentCode) {
+                                    ComplyingOffice::create([
+                                        'requirement_id'  => $record->id,
+                                        'department_code' => $departmentCode,
+                                        'status'          => -1,
+                                    ]);
+                                }
+                            })
+
+                            ->suffixActions([
+                                Action::make('selectAll')
+                                    ->icon('heroicon-o-check-circle')
+                                    ->action(fn (callable $set) =>
+                                        $set('complying_offices', Office::pluck('department_code')->toArray())
                                     ),
-                                Select::make('status')
-                                    ->options([
-                                        -1 => 'Not Complied',
-                                        0 => 'Partially Complied',
-                                        1 => 'Complied',
-                                    ])
-                                    ->default(-1),
+
+                                Action::make('clear')
+                                    ->icon('heroicon-o-x-circle')
+                                    ->color('danger')
+                                    ->action(fn (callable $set) =>
+                                        $set('complying_offices', [])
+                                    ),
                             ])
-                    ])
-            ->columnSpanFull()
-            ]);
+
+
+                                ]),
+                                ])
+                                ->columnSpanFull()
+                                ->reorderable()
+                                ->collapsible()
+                                ->cloneable()
+                            ]);
     }
+}
 // ->visible(fn ($get) => blank($get('id')))
     //     Repeater::make('complyingOffices')
             //         ->relationship()
@@ -167,4 +290,4 @@ class DocumentCategoryForm
             //     //             $set('selected_offices', $allOffices);
             //     //         }),
             //     //     ]),
-}
+// }

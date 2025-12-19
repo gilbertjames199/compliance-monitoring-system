@@ -2,26 +2,27 @@
 
 namespace App\Filament\Resources\Users\Schemas;
 
-use App\Models\Permission;
 use App\Models\Role;
-use Filament\Actions\Action;
-use Filament\Forms\Components\CheckboxList;
-use Filament\Forms\Components\DateTimePicker;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
-use Filament\Schemas\Components\Actions;
-use Filament\Schemas\Components\Grid;
-use Filament\Schemas\Components\Section;
-use Filament\Schemas\Schema;
+use App\Models\Office;
+use App\Models\Permission;
 use Illuminate\Support\Str;
+use Filament\Actions\Action;
+use Filament\Schemas\Schema;
+use Filament\Facades\Filament;
+use Filament\Forms\Components\Select;
+use Filament\Schemas\Components\Form;
+use Filament\Schemas\Components\Grid;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\Rules\Unique;
+use Filament\Forms\Components\TextInput;
 
 //FILAMENT
-use BezhanSalleh\FilamentShield\Support\Utils;
-use Filament\Facades\Filament;
+use Filament\Schemas\Components\Actions;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Fieldset;
-use Filament\Schemas\Components\Form;
-use Illuminate\Database\Eloquent\Model;
+use Filament\Forms\Components\CheckboxList;
+use Filament\Forms\Components\DateTimePicker;
+use BezhanSalleh\FilamentShield\Support\Utils;
 
 class UserForm
 {
@@ -35,20 +36,42 @@ class UserForm
                 TextInput::make('name')
                     ->required(),
                 TextInput::make('username')
-                    ->required(),
+                    ->required()
+                    ->unique(),
                 TextInput::make('email')
                     ->label('Email address')
                     ->email()
-                    ->required(),
-                DateTimePicker::make('email_verified_at'),
+                    ->required()
+                    ->unique(),
+                // DateTimePicker::make('email_verified_at'),
                 TextInput::make('cats_number')
-                    ->required(),
-                TextInput::make('department_code')
+                    ->required()
+                    ->unique(),
+                // TextInput::make('department_code')
+                //     ->required(),
+                Select::make('department_code')
+                    ->label('Office')
+                    ->options(Office::all()->pluck('office', 'department_code'))
+                    ->searchable()
                     ->required(),
                 TextInput::make('password')
+                     ->label('Password')
                     ->password()
-                    ->required(),
+                    ->minLength(8)
+                    ->required(fn ($livewire, $record) => !$record) // required on create only
+                    ->dehydrateStateUsing(function ($state, $record) {
+                        if ($state) {
+                            return bcrypt($state); // hash if provided
+                        }
 
+                        // if editing and left empty, keep current password
+                        if ($record) {
+                            return $record->password;
+                        }
+
+                        // if creating and empty (should not happen due to required), return dummy to prevent null
+                        return ''; // or throw exception if you want strict
+                    }),
                 // 🧩 Roles
                 Select::make('roles')
                     ->label('Roles')

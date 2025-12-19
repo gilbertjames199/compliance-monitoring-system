@@ -21,6 +21,8 @@ class DatabaseSeeder extends Seeder
         //     'name' => 'Test User',
         //     'email' => 'test@example.com',
         // ]);
+
+        
         User::factory()->create([
             'name' => 'Admin PIAO',
             'username'=>'admin',
@@ -47,5 +49,8 @@ class DatabaseSeeder extends Seeder
             'department_code'=>'26',
             'password'=>bcrypt('secret')
         ]);
+        
+
+        
     }
 }

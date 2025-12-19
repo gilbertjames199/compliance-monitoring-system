@@ -14,8 +14,11 @@ class DocumentCategoriesTable
     {
         return $table
             ->columns([
-                TextColumn::make('category')
+                TextColumn::make('id')
                     ->searchable(),
+                TextColumn::make('category')
+                    ->searchable()
+                    ->wrap(),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
@@ -25,6 +28,7 @@ class DocumentCategoriesTable
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
+            ->defaultSort('created_at', 'desc')
             ->filters([
                 //
             ])

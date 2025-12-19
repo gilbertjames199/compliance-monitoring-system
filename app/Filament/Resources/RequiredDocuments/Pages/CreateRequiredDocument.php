@@ -2,9 +2,10 @@
 
 namespace App\Filament\Resources\RequiredDocuments\Pages;
 
+use App\Models\ComplyingOffice;
+use Filament\Resources\Pages\CreateRecord;
 use App\Filament\Resources\RequiredDocuments\RequiredDocumentResource;
 use App\Filament\Resources\RequiredDocuments\Schemas\RequiredDocumentForm;
-use Filament\Resources\Pages\CreateRecord;
 
 class CreateRequiredDocument extends CreateRecord
 {
@@ -26,9 +27,23 @@ class CreateRequiredDocument extends CreateRecord
         return RequiredDocumentForm::mutateFormDataBeforeCreate($data);
     }
 
+    
+
     protected function afterCreate(): void
     {
-        dd($this->record, $this->data);
-        RequiredDocumentForm::afterCreate($this->record, $this->data);
+        // dd($this->record, $this->data);
+            RequiredDocumentForm::afterCreate($this->record, $this->data);
+        $selectedOffices = $this->form->getState()['complying_offices'] ?? [];
+        $status = '-1'; // default or whatever you want
+
+        foreach ($selectedOffices as $deptCode) {
+            ComplyingOffice::create([
+                'department_code' => $deptCode,
+                'requirement_id'  => $this->record->id,
+                'status'          => $status,
+            ]);
+        }
     }
+
+
 }

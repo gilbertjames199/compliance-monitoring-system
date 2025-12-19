@@ -46,19 +46,32 @@ class RequiredDocumentsTable extends Resource
         return $table
             ->columns([
                 TextColumn::make('requirement')
-                    ->searchable(),
+                    ->searchable()
+                    ->wrap(),
                 TextColumn::make('agency_name')
-                    ->searchable(),
+                    ->label('Requiring Agency')
+                    ->searchable()
+                    ->wrap(),
                 TextColumn::make('year')
                     ->searchable(),
                 TextColumn::make('category.category')
                     ->label('Category')
+                    ->searchable()
+                    ->wrap(),
+                TextColumn::make('date_from')
+                    ->label('Date From')
+                    ->date()
+                    ->searchable(),
+                TextColumn::make('due_date')
+                    ->label('Due Date')
+                    ->date()
                     ->searchable(),
 
             ])
+            ->defaultSort('created_at', 'desc')
             ->filters([
                 //
-            ])// 👈 show actions column
+            ])// show actions column
             ->recordActions([
                 Action::make('manage_compliance')
                     ->label('View / Update Complying Offices')

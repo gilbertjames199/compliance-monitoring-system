@@ -90,37 +90,31 @@ class EditDocumentCategory extends EditRecord
     }
 
     protected function afterSave(): void
-    {
-            // dd($this->record->load('requiredDocuments.complyingOffices'), $this->data, "after save");
-            // The newly created Category record
-            $category = $this->record;
+{
+    $category = $this->record;
 
-            // These RequiredDocuments are already saved (hasMany relationship)
-            $requiredDocuments = $this->data['requiredDocuments'] ?? [];
-            dd($requiredDocuments, $this->data);
-            foreach ($requiredDocuments as $uuid => $doc) {
-                // Get the actual RequiredDocument that was just created under this category
-                // You can match it by some unique field (requirement name + category, etc.)
-                $requiredDocument = $category->requiredDocuments()
-                    ->where('requirement', $doc['requirement'])
-                    ->latest('id')
-                    ->first();
+    foreach ($this->data['requiredDocuments'] ?? [] as $doc) {
 
-                if (! $requiredDocument) {
-                    continue; // Skip if not found
-                }
+        $requiredDocument = $category->requiredDocuments()
+            ->where('requirement', $doc['requirement'])
+            ->first();
 
-                // Create ComplyingOffices for this already-existing RequiredDocument
-                $complyingOffices = $doc['complying_offices'] ?? [];
-                $status = $doc['status'] ?? -1;
-
-                foreach ($complyingOffices as $departmentCode) {
-                    ComplyingOffice::create([
-                        'department_code' => $departmentCode,
-                        'requirement_id'  => $requiredDocument->id, // existing RequiredDocument ID
-                        'status'          => $status,
-                    ]);
-                }
-            }
+        if (! $requiredDocument) {
+            continue;
         }
+
+        // 🔥 IMPORTANT: delete old complying offices
+        $requiredDocument->complyingOffices()->delete();
+
+        // ✅ Insert updated ones
+        foreach ($doc['complying_offices'] ?? [] as $departmentCode) {
+            ComplyingOffice::create([
+                'requirement_id'  => $requiredDocument->id,
+                'department_code' => $departmentCode,
+                'status'          => $doc['status'] ?? -1,
+            ]);
+        }
+    }
+}
+
 }

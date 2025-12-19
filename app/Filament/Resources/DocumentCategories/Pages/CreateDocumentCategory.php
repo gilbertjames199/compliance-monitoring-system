@@ -113,41 +113,30 @@ class CreateDocumentCategory extends CreateRecord
         return $data;
     }
 
-    protected function afterCreate(): void
-    {
-        // dd($this->record, $this->data);
-        // The newly created Category record
-        $category = $this->record;
+//     protected function afterCreate(): void
+// {
+//     $category = $this->record;
 
-        // These RequiredDocuments are already saved (hasMany relationship)
-        $requiredDocuments = $this->data['requiredDocuments'] ?? [];
-        // dd($requiredDocuments);
-        foreach ($requiredDocuments as $uuid => $doc) {
-            // Get the actual RequiredDocument that was just created under this category
-            // You can match it by some unique field (requirement name + category, etc.)
-            $requiredDocument = $category->requiredDocuments()
-                ->where('requirement', $doc['requirement'])
-                ->latest('id')
-                ->first();
+//     foreach ($this->data['requiredDocuments'] ?? [] as $doc) {
 
-            if (! $requiredDocument) {
-                continue; // Skip if not found
-            }
+//         $requiredDocument = $category->requiredDocuments()
+//             ->where('requirement', $doc['requirement'])
+//             ->latest('id')
+//             ->first();
 
-            // Create ComplyingOffices for this already-existing RequiredDocument
-            $complyingOffices = $doc['complying_offices'] ?? [];
-            $status = $doc['status'] ?? -1;
+//         if (! $requiredDocument) {
+//             continue;
+//         }
 
-            foreach ($complyingOffices as $departmentCode) {
-                ComplyingOffice::create([
-                    'department_code' => $departmentCode,
-                    'requirement_id'  => $requiredDocument->id, // existing RequiredDocument ID
-                    'status'          => $status,
-                ]);
-            }
-        }
-        // RequiredDocumentForm::afterCreate($this->record, $this->data);
-        // return $this->data;
-    }
+//         foreach ($doc['complying_offices'] ?? [] as $departmentCode) {
+//             ComplyingOffice::create([
+//                 'requirement_id'  => $requiredDocument->id,
+//                 'department_code' => $departmentCode,
+//                 'status'          => $doc['status'] ?? -1,
+//             ]);
+//         }
+//     }
+// }
+
 
 }

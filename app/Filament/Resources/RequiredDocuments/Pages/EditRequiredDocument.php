@@ -51,5 +51,22 @@ class EditRequiredDocument extends EditRecord
         return $data;
     }
 
+    protected function afterSave(): void
+    {
+        $selected = $this->form->getState()['complying_offices'] ?? [];
+
+        // Remove old entries
+        $this->record->complyingOffices()->delete();
+
+        // Insert new selections
+        foreach ($selected as $deptCode) {
+            $this->record->complyingOffices()->create([
+                'department_code' => $deptCode,
+                'status' => '-1', // or your default
+            ]);
+        }
+    }
+
+
 
 }

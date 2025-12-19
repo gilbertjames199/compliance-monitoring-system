@@ -2,23 +2,26 @@
 
 namespace App\Filament\Resources\ComplyingOffices;
 
-use App\Filament\Resources\ComplyingOffices\Pages\CreateComplyingOffice;
+use BackedEnum;
+use Filament\Tables\Table;
+use Filament\Schemas\Schema;
+use App\Models\ComplyingOffice;
+use Filament\Resources\Resource;
+use Filament\Support\Icons\Heroicon;
 use App\Filament\Resources\ComplyingOffices\Pages\EditComplyingOffice;
+use App\Filament\Resources\ComplyingOffices\Pages\ViewComplyingOffice;
 use App\Filament\Resources\ComplyingOffices\Pages\ListComplyingOffices;
+use App\Filament\Resources\ComplyingOffices\Pages\CreateComplyingOffice;
 use App\Filament\Resources\ComplyingOffices\Schemas\ComplyingOfficeForm;
 use App\Filament\Resources\ComplyingOffices\Tables\ComplyingOfficesTable;
-use App\Models\ComplyingOffice;
-use BackedEnum;
-use Filament\Resources\Resource;
-use Filament\Schemas\Schema;
-use Filament\Support\Icons\Heroicon;
-use Filament\Tables\Table;
 
 class ComplyingOfficeResource extends Resource
 {
     protected static ?string $model = ComplyingOffice::class;
 
-    protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
+    protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-building-office';
+
+
 
     protected static ?string $recordTitleAttribute = 'Complying Officesw';
 
@@ -44,6 +47,7 @@ class ComplyingOfficeResource extends Resource
         return [
             'index' => ListComplyingOffices::route('/'),
             'create' => CreateComplyingOffice::route('/create'),
+            'view' => ViewComplyingOffice::route('/{record}'),
             'edit' => EditComplyingOffice::route('/{record}/edit'),
         ];
     }
