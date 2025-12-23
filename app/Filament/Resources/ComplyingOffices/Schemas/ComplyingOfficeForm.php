@@ -8,6 +8,8 @@ use Illuminate\Validation\Rule;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\ToggleButtons;
 
 class ComplyingOfficeForm
 {
@@ -89,16 +91,33 @@ class ComplyingOfficeForm
                     //     }),
 
                     
-                Select::make('status')
+                ToggleButtons::make('status')
                     ->label('Compliance Status')
+                    ->inline()
                     ->options([
                         -1 => 'Not Complied',
                         0  => 'Partially Complied',
                         1  => 'Complied',
                     ])
+                    ->colors([
+                    '-1' => 'danger',
+                    '0' => 'warning',
+                    '1' => 'success',
+                                ])
                     ->default(-1)
                     ->required(),
-                
+
+                FileUpload::make('attachment')
+                    ->multiple()
+                    ->downloadable()
+                    ->openable()
+                    ->previewable()
+                    ->directory('compliance-attachments')
+                    ->afterStateUpdated(function ($state, callable $set) {
+                        if (! empty($state)) {
+                            $set('status', 'submitted');
+                        }
+                    })
                 // Select::make('require')
                 //     ->label('Compliance Status')
                 //     ->options([

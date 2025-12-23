@@ -2,23 +2,26 @@
 
 namespace App\Filament\Resources\RequiredDocuments\Tables;
 
+use App\Models\User;
 use App\Models\Office;
+use Filament\Tables\Table;
 use Filament\Actions\Action;
-use Filament\Actions\BulkActionGroup;
-use Filament\Actions\DeleteBulkAction;
+use App\Models\RequiredDocument;
 use Filament\Actions\EditAction;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
-use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\RequirementDeadlineMail;
+use Filament\Actions\BulkActionGroup;
+use Filament\Forms\Components\Select;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\View;
-use Filament\Tables\Columns\Layout\View as LayoutView;
-use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Blade;
-use App\Models\RequiredDocument;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
+use Illuminate\Database\Eloquent\Builder;
+use Filament\Tables\Columns\Layout\View as LayoutView;
 
 class RequiredDocumentsTable extends Resource
 {
@@ -43,6 +46,8 @@ class RequiredDocumentsTable extends Resource
             //         $q->where('department_code', $departmentCode);
             //     });
             // })
+            
+            
         return $table
             ->columns([
                 TextColumn::make('requirement')
@@ -73,13 +78,27 @@ class RequiredDocumentsTable extends Resource
                 //
             ])// show actions column
             ->recordActions([
+
+                Action::make('Notify Office')
+
+                    ->action(function ($record, $data) {
+                        $users = User::where('id', 12)->First();
+
+                        // foreach ($users as $user) {
+                            Mail::to($users->email)->send(new RequirementDeadlineMail($record));
+                        // }
+                    })
+                    ->color('primary')
+                    ->icon('heroicon-o-bell'),
+
                 Action::make('manage_compliance')
-                    ->label('View / Update Complying Offices')
+                    ->label('View/Update Complying Offices')
                     ->icon('heroicon-o-building-office')
                     ->color('info')
                     ->modalHeading(fn($record) => "Complying Offices for '{$record->requirement}'")
                     ->modalSubmitActionLabel('Save Changes')
                     ->modalWidth('4xl')
+                    
                     ->schema(function ($record) {
                         // 🔹 Retrieve complying offices with office name via relationship
                         $offices = $record->complyingOffices()->get()->map(function ($complying) {
@@ -128,6 +147,7 @@ class RequiredDocumentsTable extends Resource
 
                         return $fields;
                     })
+                    
                     ->action(function ($record, array $data) {
                         // 🔹 Update each complying office’s status
                         $offices = $record->complyingOffices;
@@ -142,6 +162,11 @@ class RequiredDocumentsTable extends Resource
                             ->success()
                             ->send();
                     }),
+
+
+
+
+                    
                 EditAction::make(),
             ])
             ->toolbarActions([

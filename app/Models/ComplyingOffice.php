@@ -14,6 +14,10 @@ class ComplyingOffice extends Model
         'status',
     ];
 
+    protected $casts = [
+        'attachments' => 'array',
+    ];
+
     public function office()
     {
         return $this->belongsTo(Office::class, 'department_code', 'department_code');

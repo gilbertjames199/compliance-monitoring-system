@@ -11,6 +11,9 @@ class RequirementDue extends Notification
 {
     use Queueable;
 
+
+    
+
     protected $requirement;
 
     /**

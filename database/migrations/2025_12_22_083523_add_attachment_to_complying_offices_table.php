@@ -11,12 +11,9 @@ return new class extends Migration
      */
     public function up(): void
     {
-        // Column already exists — do nothing
-        if (! Schema::hasColumn('complying_offices', 'is_verified')) {
-            Schema::table('complying_offices', function (Blueprint $table) {
-                $table->string('is_verified')->default('0')->after('status');
-            });
-        }
+        Schema::table('complying_offices', function (Blueprint $table) {
+            $table->json('attachments')->nullable();
+        });
     }
 
     /**

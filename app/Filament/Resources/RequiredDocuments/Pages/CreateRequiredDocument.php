@@ -2,7 +2,10 @@
 
 namespace App\Filament\Resources\RequiredDocuments\Pages;
 
+use App\Models\User;
+use Filament\Actions\Action;
 use App\Models\ComplyingOffice;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use App\Filament\Resources\RequiredDocuments\RequiredDocumentResource;
 use App\Filament\Resources\RequiredDocuments\Schemas\RequiredDocumentForm;
@@ -28,14 +31,15 @@ class CreateRequiredDocument extends CreateRecord
     }
 
     
-
     protected function afterCreate(): void
     {
-        // dd($this->record, $this->data);
-            RequiredDocumentForm::afterCreate($this->record, $this->data);
-        $selectedOffices = $this->form->getState()['complying_offices'] ?? [];
-        $status = '-1'; // default or whatever you want
+        // Original afterCreate logic
+        RequiredDocumentForm::afterCreate($this->record, $this->data);
 
+        $selectedOffices = $this->form->getState()['complying_offices'] ?? [];
+        $status = '-1';
+
+        // Create ComplyingOffice records
         foreach ($selectedOffices as $deptCode) {
             ComplyingOffice::create([
                 'department_code' => $deptCode,
@@ -43,7 +47,37 @@ class CreateRequiredDocument extends CreateRecord
                 'status'          => $status,
             ]);
         }
+
+        // --------------------------
+        // Filament Bell Notifications
+        // --------------------------
+
+        // Get all users in the selected offices
+        $users = User::whereIn('department_code', $selectedOffices)->get();
+        $requirementTitle = $this->record->requirement;
+        $requiringAgency = $this->record->agency_name;
+        $deadline = $this->record->due_date;
+
+        foreach ($users as $user) {
+            Notification::make()
+                ->title('New Requirement Assigned')
+                ->icon('heroicon-o-document-text')
+                ->body("**{$requiringAgency}** assigned a new requirement: **{$requirementTitle}**. Deadline: **{$deadline->format('F j, Y')}**.")
+                ->actions([
+                    Action::make('View')
+                        ->url(
+                            RequiredDocumentResource::getUrl(
+                                'edit',
+                                ['record' => $this->record]
+                            )
+                        ),
+                ])
+                ->sendToDatabase($user);
+        }
     }
+
+    
+
 
 
 }

@@ -33,13 +33,12 @@ class ComplyingOfficesTable
                         ->searchable()
                         ->sortable()
                         ->wrap(),
-                    TextColumn::make('requirement_id')
-                        ->searchable(),
                     TextColumn::make('requiredDocument.requirement')
                         ->label('Requirement')
                         ->searchable()
-                        ->sortable()
-                        ,
+                        ->sortable(),
+                    TextColumn::make('requirement_id')
+                        ->searchable(),
                     TextColumn::make('requiredDocument.agency_name')
                         ->label('Requiring Agency')
                         ->sortable()
