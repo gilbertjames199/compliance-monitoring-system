@@ -15,6 +15,8 @@ use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
+use App\Models\User;
+use App\Notifications\RequiredDocumentCreatedNotification;
 use Filament\Tables\Table;
 
 class RequiredDocumentResource extends Resource
@@ -82,7 +84,22 @@ class RequiredDocumentResource extends Resource
             ->title('Required Document and Complying Offices saved successfully!')
             ->success()
             ->send();
+
+         // Get complying offices
+        $complyingOfficeCodes = $record->complyingOffices()->pluck('department_code');
+
+        if ($complyingOfficeCodes->isNotEmpty()) {
+            // Get users in those offices
+            $users = User::whereIn('department_code', $complyingOfficeCodes)->get();
+
+            // Send notifications
+            foreach ($users as $user) {
+                $user->notify(new RequiredDocumentCreatedNotification($record));
+            }
+        }
     }
+
+     
 
     public static function getModel(): string
     {

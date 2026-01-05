@@ -8,11 +8,14 @@ use Illuminate\Database\Eloquent\Model;
 
 class ComplyingOffice extends Model
 {
-    protected $fillable = [
-        'requirement_id',
-        'department_code',
-        'status',
-    ];
+    // protected $fillable = [
+    //     'requirement_id',
+    //     'department_code',
+    //     'status',
+    // ];
+
+    protected $guarded = [];
+
 
     protected $casts = [
         'attachments' => 'array',

@@ -2,11 +2,12 @@
 
 namespace App\Filament\Resources\ComplyingOffices\Tables;
 
+use Filament\Tables\Table;
+use Filament\Actions\EditAction;
+use Filament\Actions\ViewAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 
 class ComplyingOfficesTable
@@ -23,6 +24,8 @@ class ComplyingOfficesTable
                     if ($user && $user->department_code != 25) {
                         $query->where('complying_offices.department_code', $user->department_code);
                     }
+                    
+                    
                 })
                 ->defaultGroup('office.office')
                 ->columns([
@@ -37,8 +40,8 @@ class ComplyingOfficesTable
                         ->label('Requirement')
                         ->searchable()
                         ->sortable(),
-                    TextColumn::make('requirement_id')
-                        ->searchable(),
+                    // TextColumn::make('requirement_id')
+                    //     ->searchable(),
                     TextColumn::make('requiredDocument.agency_name')
                         ->label('Requiring Agency')
                         ->sortable()
@@ -84,6 +87,7 @@ class ComplyingOfficesTable
                     //
                 ])
                 ->recordActions([
+                    ViewAction::make(),
                     EditAction::make(),
                 ])
                 ->toolbarActions([

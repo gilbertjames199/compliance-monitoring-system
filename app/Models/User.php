@@ -62,4 +62,20 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->belongsToMany(\App\Models\RequiredDocument::class, 'document_user', 'user_id', 'document_id');
     }
 
+
+     public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
+
+    public function isOffice(): bool
+    {
+        return $this->role === 'office';
+    }
+
+    public function isAdminOrSuperAdmin(): bool
+    {
+        return in_array($this->role, ['admin', 'super_admin']);
+    }
+
 }

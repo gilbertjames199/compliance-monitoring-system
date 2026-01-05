@@ -16,6 +16,9 @@ return new class extends Migration
             $table->string('department_code');
             $table->string('requirement_id');
             $table->string('status')->comment('-1 -not complied; 0 -Partially Complied; 1 -Complied');
+            $table->text('admin_remarks')->nullable();
+            $table->timestamp('submitted_at')->nullable();
+            $table->text('submission_notes')->nullable();
             $table->timestamps();
         });
     }

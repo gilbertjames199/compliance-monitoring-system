@@ -49,6 +49,7 @@ class RequiredDocumentsTable extends Resource
             
             
         return $table
+        
             ->columns([
                 TextColumn::make('requirement')
                     ->searchable()
@@ -145,6 +146,8 @@ class RequiredDocumentsTable extends Resource
                             ]);
                         }
 
+                        
+
                         return $fields;
                     })
                     
@@ -157,6 +160,8 @@ class RequiredDocumentsTable extends Resource
                                 $office->update(['status' => (int) $data[$fieldKey]]);
                             }
                         }
+
+                        
                         Notification::make()
                             ->title('Compliance statuses updated successfully!')
                             ->success()
