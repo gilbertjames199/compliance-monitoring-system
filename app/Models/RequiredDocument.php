@@ -10,6 +10,9 @@ class RequiredDocument extends Model
 
     protected $casts = [
         'due_date' => 'date',
+        'date_from' => 'date',
+        'is_confidential' => 'boolean',
+        'is_recurring' => 'boolean',
     ];
 
     public function category()
@@ -31,9 +34,28 @@ class RequiredDocument extends Model
 
     protected static function booted()
     {
+        // static::created(function ($requiredDocument) {
+        //     foreach ($requiredDocument->complyingOffices as $office) {
+        //         $users = \App\Models\User::where('department_code', $office->department_code)->get();
+        //         foreach ($users as $user) {
+        //             \Illuminate\Support\Facades\Mail::to($user->email)
+        //                 ->queue(new \App\Mail\RequirementDeadlineMail($requiredDocument));
+        //         }
+        //     }
+        // });
+
         static::created(function ($requiredDocument) {
             foreach ($requiredDocument->complyingOffices as $office) {
-                $users = \App\Models\User::where('department_code', $office->department_code)->get();
+                $query = \App\Models\User::where('department_code', $office->department_code);
+                
+                // If confidential, only notify super_admin and dept head
+
+                if ($requiredDocument->is_confidential) {
+                    $query->whereIn('role', ['super_admin', 'department_head']);
+                }
+                
+                $users = $query->get();
+                
                 foreach ($users as $user) {
                     \Illuminate\Support\Facades\Mail::to($user->email)
                         ->queue(new \App\Mail\RequirementDeadlineMail($requiredDocument));

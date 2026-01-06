@@ -2,6 +2,7 @@
 
 namespace App\Notifications;
 
+use App\Models\RequiredDocument;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
@@ -13,7 +14,7 @@ class RequiredDocumentCreatedNotification extends Notification
 
     protected $requirement;
 
-    public function __construct(Requirement $requirement)
+    public function __construct(RequiredDocument $requirement)
     {
         $this->requirement = $requirement;
     }

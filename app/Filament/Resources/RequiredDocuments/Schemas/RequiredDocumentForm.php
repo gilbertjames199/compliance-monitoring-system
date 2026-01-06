@@ -10,6 +10,7 @@ use App\Models\DocumentCategory;
 use Filament\Forms\Components\Field;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Toggle;
+use Filament\Schemas\Components\Grid;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Section;
@@ -100,45 +101,45 @@ class RequiredDocumentForm
                                 ->reactive()
                                 ->required(),
 
-                            Select::make('agency_name')
-                                ->label('Requiring Agency')
-                                ->searchable()
-                                ->reactive()
-                                ->options(function ($get) {
-                                    $type = $get('agency_type');
+                        Select::make('agency_name')
+                            ->label('Requiring Agency')
+                            ->searchable()
+                            ->reactive()
+                            ->options(function ($get) {
+                                $type = $get('agency_type');
 
-                                    if ($type === 'internal') {
-                                        return Office::on('mysql2')
-                                            ->whereBetween('id', [1, 26]) // adjust your range if needed
-                                            ->pluck('office', 'office'); // key and value are the name itself
-                                    }
+                                if ($type === 'internal') {
+                                    return Office::on('mysql2')
+                                        ->whereBetween('id', [1, 26]) // adjust your range if needed
+                                        ->pluck('office', 'office'); // key and value are the name itself
+                                }
 
-                                    if ($type === 'external') {
-                                        return Office::on('mysql2')
-                                            ->where('id', '>=', 27)
-                                            ->pluck('office', 'office');
-                                    }
+                                if ($type === 'external') {
+                                    return Office::on('mysql2')
+                                        ->where('id', '>=', 27)
+                                        ->pluck('office', 'office');
+                                }
 
-                                    return [];
-                                })
-                                ->required()
-                                ->afterStateHydrated(function ($component, $get, $state) {
-                                    if (!$state) return;
-                                    // If editing, pre-select agency name
-                                    $component->state($state);
-                                })
-                                ->createOptionForm([
-                                    TextInput::make('agency_name')
-                                        ->label('New External Agency Name')
-                                        ->required(),
-                                ])
-                                ->createOptionUsing(function (array $data) {
-                                    // Save new external agency to FMS database
-                                    return Office::on('mysql2')->create([
-                                        'office' => $data['agency_name'],
-                                    ])->office; // return the office name so it gets saved in required_documents
-                                     
-                                }),
+                                return [];
+                            })
+                            ->required()
+                            ->afterStateHydrated(function ($component, $get, $state) {
+                                if (!$state) return;
+                                // If editing, pre-select agency name
+                                $component->state($state);
+                            })
+                            ->createOptionForm([
+                                TextInput::make('agency_name')
+                                    ->label('New External Agency Name')
+                                    ->required(),
+                            ])
+                            ->createOptionUsing(function (array $data) {
+                                // Save new external agency to FMS database
+                                return Office::on('mysql2')->create([
+                                    'office' => $data['agency_name'],
+                                ])->office; // return the office name so it gets saved in required_documents
+                                    
+                            }),
                         // TextInput::make('agency_type')
                         //     ->label('Requiring Agency Type')
                         //     ->required(),
@@ -151,55 +152,81 @@ class RequiredDocumentForm
                         Toggle::make('is_confidential')
                             ->label('Confidential')
                             ->required(),
-                        Toggle::make('is_recurring')
-                            ->label('Recurring?')
-                            ->required(),
-                        
-                    ])->columns(2)
-                    ->columnSpanFull(),
-
-
-                Section::make('Complying Offices')
-                            // ->columns(2)
+                        Grid::make(1) // parent grid: 2 columns
                             ->schema([
- 
-                           Select::make('complying_offices')
-                                ->label('Complying Offices')
-                                ->required()
-                                ->multiple()
-                                ->options(
-                                    Office::orderBy('office')
-                                        ->pluck('office', 'department_code')
-                                        ->toArray()
-                                )
-                                ->preload()
-                                ->searchable()
-                                ->afterStateHydrated(function ($component, $state, $record) {
-                                    if ($record) {
-                                        $component->state(
-                                            $record->complyingOffices()->pluck('department_code')->toArray()
-                                        );
-                                    }
-                                })
+                                // Left column
+                                Toggle::make('is_recurring')
+                                    ->label('Recurring?')
+                                    ->reactive()
+                                    ->required(),
 
-                                ->helperText('Select one or more offices that must comply with this requirement.')
-                                ->suffixActions([
-                                    Action::make('selectAll')
-                                        ->label('Select All')
-                                        ->icon('heroicon-o-check-circle')
-                                        ->action(fn (callable $set) =>
-                                            $set('complying_offices', Office::pluck('department_code')->toArray())
-                                        ),
+                                // Right column: nested grid
+                                Grid::make(2) // one column grid to stack the two fields vertically
+                                    ->schema([
+                                        Select::make('recurrence_type')
+                                            ->label('Recurrence Type')
+                                            ->options([
+                                                'monthly' => 'Monthly',
+                                                'quarterly' => 'Quarterly',
+                                                'yearly' => 'Yearly',
+                                                'custom' => 'Custom',
+                                            ])
+                                            ->reactive()
+                                            ->visible(fn($get) => $get('is_recurring'))
+                                            ->required(),
 
-                                    Action::make('clearAll')
-                                        ->label('Clear')
-                                        ->icon('heroicon-o-x-circle')
-                                        ->color('danger')
-                                        ->action(fn (callable $set) =>
-                                            $set('complying_offices', [])
-                                        ),
+                                        TextInput::make('recurrence_interval')
+                                            ->label('Custom Interval (months)')
+                                            ->numeric()
+                                            ->visible(fn($get) => $get('is_recurring') && $get('recurrence_type') === 'custom')
+                                            ->required(),
                                     ]),
-                            
+                                ]),
+                                            ])->columns(2)
+                                            ->columnSpanFull(),
+
+
+                        Section::make('Complying Offices')
+                                    // ->columns(2)
+                                    ->schema([
+        
+                                Select::make('complying_offices')
+                                        ->label('Complying Offices')
+                                        ->required()
+                                        ->multiple()
+                                        ->options(
+                                            Office::orderBy('office')
+                                                ->pluck('office', 'department_code')
+                                                ->toArray()
+                                        )
+                                        ->preload()
+                                        ->searchable()
+                                        ->afterStateHydrated(function ($component, $state, $record) {
+                                            if ($record) {
+                                                $component->state(
+                                                    $record->complyingOffices()->pluck('department_code')->toArray()
+                                                );
+                                            }
+                                        })
+
+                                        ->helperText('Select one or more offices that must comply with this requirement.')
+                                        ->suffixActions([
+                                            Action::make('selectAll')
+                                                ->label('Select All')
+                                                ->icon('heroicon-o-check-circle')
+                                                ->action(fn (callable $set) =>
+                                                    $set('complying_offices', Office::pluck('department_code')->toArray())
+                                                ),
+
+                                            Action::make('clearAll')
+                                                ->label('Clear')
+                                                ->icon('heroicon-o-x-circle')
+                                                ->color('danger')
+                                                ->action(fn (callable $set) =>
+                                                    $set('complying_offices', [])
+                                                ),
+                                            ]),
+                                    
 
                                 ])->columnSpanFull(),
 

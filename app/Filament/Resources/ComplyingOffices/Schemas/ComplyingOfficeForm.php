@@ -20,7 +20,7 @@ class ComplyingOfficeForm
 {
     public static function configure(Schema $schema): Schema
     {
-        $isAdmin = auth()->user()->hasAnyRole(['admin', 'super_admin']);
+        $isAdmin = auth()->user()->hasAnyRole(['super_admin']);
 
         return $schema
             ->components([
@@ -134,7 +134,7 @@ class ComplyingOfficeForm
                             '1' => 'success',
                                         ])
                             ->default(-1)
-                            ->disabled(fn () => !auth()->user()->hasAnyRole(['super_admin', 'admin']))
+                            ->disabled(fn () => !auth()->user()->hasAnyRole(['super_admin']))
                             ->dehydrated()
                             ->columnSpanFull(),
 

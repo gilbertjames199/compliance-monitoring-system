@@ -17,15 +17,34 @@ class ComplyingOfficesTable
         // dd(auth()->user()->department_code);
         return $table
                 ->modifyQueryUsing(function (Builder $query) {
+
+                    // dd(auth()->user()->department_code);
+
+
                     // Filter to only show records that match the user's department_code
                     $user = auth()->user();
+
+                    if (! $user) {
+                        return;
+                    }
 
                     // Prevent null errors if user is not authenticated
                     if ($user && $user->department_code != 25) {
                         $query->where('complying_offices.department_code', $user->department_code);
+
+                        //  // 2️⃣ Hide confidential requirements for AO & Admin
+                        // $query->whereHas('requiredDocument', function (Builder $q) {
+                        //     $q->where('is_confidential', false);
+                        // });
                     }
-                    
-                    
+
+                    // Hide confidential ONLY from AO & Admin
+                    if ($user->hasAnyRole(['AO', 'admin'])) {
+                            $query
+                                ->join('required_documents', 'required_documents.id', '=', 'complying_offices.requirement_id')
+                                ->where('required_documents.is_confidential', false)
+                                ->select('complying_offices.*');
+                    }  
                 })
                 ->defaultGroup('office.office')
                 ->columns([
