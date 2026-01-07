@@ -66,6 +66,16 @@ class RequiredDocumentResource extends Resource
         return $data;
     }
 
+    public static function mutateFormDataBeforeSave(array $data, $record = null): array
+    {
+        // If the document is not recurring or the type is not 'custom', clear the interval
+        if (empty($data['is_recurring']) || ($data['recurrence_type'] ?? null) !== 'custom') {
+            $data['recurrence_interval'] = null;
+        }
+
+        return $data;
+    }
+
     public static function afterCreate(RequiredDocument $record, array $data): void
     {
         // dd($record, $data);
