@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Models\User;
 use Illuminate\Console\Command;
 use App\Models\RequiredDocument;
 use App\Mail\DueDateReminderMail;
@@ -36,9 +37,14 @@ class SendDueDateReminders extends Command
         $documents = RequiredDocument::where('due_date', now()->addDays(2)->toDateString())->get();
 
         foreach ($documents as $document) {
-            $users = $document->getResponsibleUsers(); // Automatically get users in department
 
+            $doc = $document->complyingOffices; // Automatically get users in department
+            
+            // dd($document->requirement, $doc->pluck('department_code'));
+            $users = User::whereIn('department_code', $doc->pluck('department_code'))->get();
+            
             foreach ($users as $user) {
+                // dd($document);
                 Mail::to($user->email)->send(new DueDateReminderMail($document));
             }
         }

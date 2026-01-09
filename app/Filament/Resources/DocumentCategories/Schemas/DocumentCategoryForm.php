@@ -8,6 +8,7 @@ use Filament\Schemas\Schema;
 use App\Models\ComplyingOffice;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Toggle;
+use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\View;
 use Illuminate\Support\Facades\Blade;
 use Filament\Forms\Components\Repeater;
@@ -155,9 +156,36 @@ class DocumentCategoryForm
                             // Toggle::make('is_external')
                             //     ->label('External')
                             //     ->required(),
-                            Toggle::make('is_recurring')
-                                ->label('Recurring')
-                                ->required(),
+                            Grid::make(1) // parent grid: 2 columns
+                            ->schema([
+                                // Left column
+                                Toggle::make('is_recurring')
+                                    ->label('Recurring?')
+                                    ->reactive()
+                                    ->required(),
+
+                                // Right column: nested grid
+                                Grid::make(2) // one column grid to stack the two fields vertically
+                                    ->schema([
+                                        Select::make('recurrence_type')
+                                            ->label('Recurrence Type')
+                                            ->options([
+                                                'monthly' => 'Monthly',
+                                                'quarterly' => 'Quarterly',
+                                                'yearly' => 'Yearly',
+                                                'custom' => 'Custom',
+                                            ])
+                                            ->reactive()
+                                            ->visible(fn($get) => $get('is_recurring'))
+                                            ->required(),
+
+                                        TextInput::make('recurrence_interval')
+                                            ->label('Custom Interval (months)')
+                                            ->numeric()
+                                            ->visible(fn($get) => $get('is_recurring') && $get('recurrence_type') === 'custom')
+                                            ->required(),
+                                    ]),
+                                ]),
                         ]),
 
                         Section::make('Complying Offices')

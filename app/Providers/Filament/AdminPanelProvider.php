@@ -40,11 +40,6 @@ class AdminPanelProvider extends PanelProvider
             ->emailChangeVerification()
             ->databaseNotifications()
             ->profile()
-
-
-
-           
-
            ->userMenuItems([
             'account' => MenuItem::make()
                ->label(fn() => auth()->user()->name . ' • ' . auth()->user()->getRoleNames()->first())
@@ -69,7 +64,7 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([
-                AccountWidget::class,
+                // AccountWidget::class,
                 // FilamentInfoWidget::class,
             ])
             ->middleware([
@@ -96,7 +91,7 @@ class AdminPanelProvider extends PanelProvider
                 url: asset('css/fonts/fonts.css'),
                 provider: LocalFontProvider::class,
             )
-            // ->maxContentWidth('full')
+            ->maxContentWidth('full')
             // ->sidebarWidth('16rem')
             ;
     }

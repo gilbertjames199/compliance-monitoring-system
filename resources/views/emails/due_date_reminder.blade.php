@@ -3,6 +3,8 @@
 <p>
 This is a reminder that the requirement
 <strong>{{ $document->requirement }}</strong>
+from
+<strong>{{ $requirement->agency_name }}</strong>
 is due on
 <strong>{{ \Carbon\Carbon::parse($document->due_date)->format('F d, Y') }}</strong>.
 </p>

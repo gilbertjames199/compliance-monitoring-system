@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use App\Jobs\SendRequirementNotification;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class RequiredDocument extends Model
 {
@@ -25,10 +27,17 @@ class RequiredDocument extends Model
         return $this->hasMany(ComplyingOffice::class, 'requirement_id', 'id');
     }
 
+    // public function complyingOffices(): BelongsToMany
+    // {
+    //     return $this->belongsToMany(Office::class, 'compliance_monitoring_db.complying_offices', 'department_code', 'requirement_id');
+    // }
+
     public function requiringAgency()
     {
         return $this->belongsTo(Office::class, 'requiring_agency_id');
     }
+
+    // public function
 
     // app/Models/RequiredDocument.php
 
@@ -61,6 +70,11 @@ class RequiredDocument extends Model
                         ->queue(new \App\Mail\RequirementDeadlineMail($requiredDocument));
                 }
             }
+
+            static::created(function ($requirement) {
+                // Dispatch the job to run 5 minutes later
+                SendRequirementNotification::dispatch($requirement->id)->delay(now()->addMinutes(5));
+            });
         });
     }
 

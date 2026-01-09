@@ -4,15 +4,11 @@ namespace App\Filament\Resources\ComplyingOffices\Schemas;
 
 use App\Models\Office;
 use Filament\Schemas\Schema;
-use Illuminate\Validation\Rule;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
-use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
-use Filament\Forms\Components\Placeholder;
-use Illuminate\Support\Facades\Storage;
 use Filament\Forms\Components\ToggleButtons;
 use Filament\Forms\Components\DateTimePicker;
 
@@ -24,7 +20,6 @@ class ComplyingOfficeForm
 
         return $schema
             ->components([
-
                  // SECTION 1: REQUIREMENT INFORMATION
                 Section::make('Requirement Information')
                     ->schema([
@@ -224,9 +219,6 @@ class ComplyingOfficeForm
                     })
                     ->columnSpanFull(),
 
-                  
-
-
                     Textarea::make('submission_notes')
                         ->label('Submission Notes')
                         // ->placeholder('Add any notes about the submitted documents')
@@ -259,47 +251,11 @@ class ComplyingOfficeForm
                         ->seconds(false)
                         ->visible(fn ($get) => !empty($get('submitted_at')))
                         ->columnSpan(1),
-
                         
                     ])
                     ->columns(2)
                     ->collapsible()
                     ->collapsed(false),
-
-               
-
-                    
-                
-
-
-                // FileUpload::make('attachment')
-                //     ->label('Upload Required Documents')
-                //     ->multiple()
-                //     ->downloadable()
-                //     ->openable()
-                //     ->previewable()
-                //     ->directory('compliance-attachments')
-                //     ->afterStateUpdated(function ($state, callable $set) {
-                //         if (! empty($state)) {
-                //             $set('status', 'submitted');
-                //         }
-                //     })
-
-
-
-
-                // Select::make('require')
-                //     ->label('Compliance Status')
-                //     ->options([
-                //         -1 => 'Not Complied',
-                //         0  => 'Partially Complied',
-                //         1  => 'Complied',
-                //     ])
-                //     ->default(-1)
-                //     ->required(),
-                
-                // TextInput::make('status')
-                //     ->required(),
             ]);
     }
 }

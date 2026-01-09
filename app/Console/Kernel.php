@@ -4,6 +4,7 @@ namespace App\Console;
 
 use App\Models\RequiredDocument;
 use App\Notifications\RequirementDue;
+use App\Jobs\SendRequirementNotification;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
@@ -14,21 +15,9 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule)
     {
-        $schedule->call(function () {
-        $tomorrow = now()->addDays(2)->toDateString();
-
-        $requirements = RequiredDocument::whereDate('due_date', $tomorrow)->get();
-
-        foreach ($requirements as $requirement) {
-            $offices = $requirement->complyingOffices;
-            foreach ($offices as $office) {
-                $office->users->each(function ($user) use ($requirement) {
-                    $user->notify(new RequirementDue($requirement));
-                });
-            }
-        }
-    })->dailyAt('10:20'); // run daily at 8 AM
-
+        // Check every day for documents due in 2 days
+        // and send emails to complying office users
+        $schedule->job(new SendRequirementNotification())->daily();
     }
 
     /**
@@ -40,4 +29,9 @@ class Kernel extends ConsoleKernel
 
         require base_path('routes/console.php');
     }
+
+
+    protected $commands = [
+    \App\Console\Commands\GenerateRecurringCompliance::class,
+    ];
 }

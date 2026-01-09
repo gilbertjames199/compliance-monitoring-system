@@ -2,15 +2,16 @@
 
 namespace App\Notifications;
 
-use App\Models\RequiredDocument;
 use Illuminate\Bus\Queueable;
+use App\Models\RequiredDocument;
+use Spatie\Permission\Traits\HasRoles;
+use Illuminate\Notifications\Notification;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
-use Illuminate\Notifications\Notification;
 
 class RequiredDocumentCreatedNotification extends Notification
 {
-    use Queueable;
+    use Queueable, HasRoles;
 
     protected $requirement;
 
@@ -35,11 +36,15 @@ class RequiredDocumentCreatedNotification extends Notification
      */
     public function toMail($notifiable)
     {
+
         return (new MailMessage)
-            ->subject('New Requirement Created: ' . $this->requirement->title)
+            // ->subject('New Requirement Created: ' . $this->requirement->title)
+            ->subject('New Requirement Created: ' . $this->requirement->requirement)
             ->greeting('Hello ' . $notifiable->name . ',')
             ->line('A new requirement has been created that requires your office\'s compliance.')
-            ->line('**Requirement:** ' . $this->requirement->title)
+            ->line('Requirement: ' . $this->requirement->requirement)
+            ->line('Agency: ' . $this->requirement->agency_name)
+            // ->line('**Requirement:** ' . $this->requirement->title)
             ->line('**Description:** ' . $this->requirement->description)
             ->line('**Due Date:** ' . $this->requirement->due_date?->format('F d, Y'))
             ->action('View Requirement', url('/admin/requirements/' . $this->requirement->id))
@@ -50,7 +55,8 @@ class RequiredDocumentCreatedNotification extends Notification
     {
         return [
             'requirement_id' => $this->requirement->id,
-            'requirement_title' => $this->requirement->title,
+            'requirement_title' => $this->requirement->requirement,
+            'agency_name' => $this->requirement->agency_name,
             'message' => 'New requirement created for your office',
         ];
     }
@@ -64,7 +70,8 @@ class RequiredDocumentCreatedNotification extends Notification
     public function toArray(object $notifiable): array
     {
         return [
-            //
+            'requirement_id' => $this->requirement->id,
+            'requirement_title' => $this->requirement->requirement,
         ];
     }
 }

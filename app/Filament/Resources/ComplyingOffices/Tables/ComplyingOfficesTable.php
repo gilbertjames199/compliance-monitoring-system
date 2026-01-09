@@ -106,7 +106,7 @@ class ComplyingOfficesTable
                     //
                 ])
                 ->recordActions([
-                    ViewAction::make(),
+                    // ViewAction::make(),
                     EditAction::make(),
                 ])
                 ->toolbarActions([

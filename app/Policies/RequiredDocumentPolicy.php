@@ -17,9 +17,27 @@ class RequiredDocumentPolicy
         return $authUser->can('ViewAny:RequiredDocument');
     }
 
-    public function view(AuthUser $authUser, RequiredDocument $requiredDocument): bool
+    // public function view(AuthUser $authUser, RequiredDocument $requiredDocument): bool
+    // {
+    //     return $authUser->can('View:RequiredDocument');
+    // }
+
+     public function view(AuthUser $user, RequiredDocument $requiredDocument): bool
     {
-        return $authUser->can('View:RequiredDocument');
+        // Super admin and department head can view everything
+        if ($user->hasRole(['super_admin', 'department_head'])) {
+            return true;
+        }
+        
+        // AO and admin can view non-confidential documents in their department
+        if ($user->hasRole(['AO', 'admin'])) {
+            return !$requiredDocument->is_confidential && 
+                $requiredDocument->complyingOffices()
+                    ->where('department_code', $user->department_code)
+                    ->exists();
+        }
+        
+        return false;
     }
 
     public function create(AuthUser $authUser): bool
@@ -27,10 +45,17 @@ class RequiredDocumentPolicy
         return $authUser->can('Create:RequiredDocument');
     }
 
-    public function update(AuthUser $authUser, RequiredDocument $requiredDocument): bool
+    // public function update(AuthUser $authUser, RequiredDocument $requiredDocument): bool
+    // {
+    //     return $authUser->can('Update:RequiredDocument');
+    // }
+
+    public function update(AuthUser $user, RequiredDocument $requiredDocument): bool
     {
-        return $authUser->can('Update:RequiredDocument');
+        // Same logic as view
+        return $this->view($user, $requiredDocument);
     }
+
 
     public function delete(AuthUser $authUser, RequiredDocument $requiredDocument): bool
     {

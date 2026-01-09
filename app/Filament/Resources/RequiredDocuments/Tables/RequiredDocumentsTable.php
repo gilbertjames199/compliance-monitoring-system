@@ -6,6 +6,7 @@ use App\Models\User;
 use App\Models\Office;
 use Filament\Tables\Table;
 use Filament\Actions\Action;
+use App\Models\ComplyingOffice;
 use App\Models\RequiredDocument;
 use Filament\Actions\EditAction;
 use Filament\Resources\Resource;
@@ -80,17 +81,70 @@ class RequiredDocumentsTable extends Resource
             ])// show actions column
             ->recordActions([
 
+                // Action::make('Notify Office')
+
+                //     ->action(function ($record, $data) {
+                //         $users = User::where('id', 12)->First();
+
+                //         // foreach ($users as $user) {
+                //             Mail::to($users->email)
+                //             ->send(new RequirementDeadlineMail($record));
+                //         // }
+                //     })
+                //     ->color('primary')
+                //     ->icon('heroicon-o-bell'),
+
+                // Action::make('Notify Office')
+                //     ->action(function ($record, $data) {
+
+                //         // Get all complying offices for this requirement
+                //         $complyingOffices = ComplyingOffice::where('requirement_id', $record->id)->get();
+
+                //         foreach ($complyingOffices as $office) {
+
+                //             // Find users in the department assigned to this complying office
+                //             $users = User::where('department_code', $office->department_code)->get();
+
+                //             foreach ($users as $user) {
+                //                 Mail::to($user->email)
+                //                     ->send(new RequirementDeadlineMail($record));
+                //             }
+                //         }
+
+                //     })
+                //     ->color('primary')
+                //     ->icon('heroicon-o-bell'),
+
                 Action::make('Notify Office')
-
                     ->action(function ($record, $data) {
-                        $users = User::where('id', 12)->First();
 
-                        // foreach ($users as $user) {
-                            Mail::to($users->email)->send(new RequirementDeadlineMail($record));
-                        // }
+                        // Get complying offices that are NOT yet complied
+                        $complyingOffices = ComplyingOffice::where('requirement_id', $record->id)
+                                                ->where('status', '!=', '1')
+                                                ->get();
+
+                        foreach ($complyingOffices as $office) {
+
+                            // Users in this department
+                            $users = User::where('department_code', $office->department_code)->get();
+
+                            foreach ($users as $user) {
+
+                                // Skip AO/Admin for confidential requirements
+                                if ($record->is_confidential && $user->hasAnyRole(['AO','admin'])) {
+                                    continue;
+                                }
+
+                                Mail::to($user->email)
+                                    ->send(new RequirementDeadlineMail($record));
+                            }
+                        }
+
                     })
                     ->color('primary')
-                    ->icon('heroicon-o-bell'),
+                    ->icon('heroicon-o-envelope'),
+
+
 
                 Action::make('manage_compliance')
                     ->label('View/Update Complying Offices')

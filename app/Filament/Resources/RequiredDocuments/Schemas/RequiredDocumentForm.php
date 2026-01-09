@@ -39,7 +39,7 @@ class RequiredDocumentForm
                             ->required(),
                         DatePicker::make('due_date')
                             ->label('Due Date')
-                            ->after('date_from')
+                            // ->after('date_from')
                             ->required(),
 
 
@@ -66,31 +66,6 @@ class RequiredDocumentForm
                         TextInput::make('document_category_id')
                             ->label('Category ID')
                             ->readOnly(),
-
-
-
-
-
-                        
-
-                        // Select::make('document_category_id')
-                        //     ->required()
-                        //     ->label('Document Category ID')
-                        //     ->options(
-                        //         DocumentCategory::orderBy('id') // or the column you use for category name
-                        //             ->pluck('id', 'id') // 'name' will show, 'id' will be saved
-                        //             ->toArray()
-                        //     )
-                        //     ->searchable() // optional: makes it searchable
-                        //     ->preload(),    // optional: loads options immediately
-                        // Toggle::make('is_external')
-                        //     ->label('Is External?')
-                        //     ->required(),
-                        // TextInput::make('requiring_agency_internal')
-                        //     ->label('Requiring Agency (Internal)')
-                        //     ->required(),
-
-
 
                         Select::make('agency_type')
                                 ->label('Agency Type')
@@ -140,14 +115,6 @@ class RequiredDocumentForm
                                 ])->office; // return the office name so it gets saved in required_documents
                                     
                             }),
-                        // TextInput::make('agency_type')
-                        //     ->label('Requiring Agency Type')
-                        //     ->required(),
-                        // TextInput::make('agency_name')
-                        //     ->label('Requiring Agency')
-                        //     ->required(),
-                        
-                        
                         
                         Toggle::make('is_confidential')
                             ->label('Confidential')
@@ -158,28 +125,47 @@ class RequiredDocumentForm
                                 Toggle::make('is_recurring')
                                     ->label('Recurring?')
                                     ->reactive()
-                                    ->required(),
+                                    ->required()
+                                    ->afterStateUpdated(function ($state, $set) {
+                                        if (!$state) {
+                                            // Clear both recurrence fields when toggle is off
+                                            $set('recurrence_type', null);
+                                            // $set('recurrence_interval', null);
+                                        }
+                                    }),
 
                                 // Right column: nested grid
-                                Grid::make(2) // one column grid to stack the two fields vertically
+                                Grid::make(1) // one column grid to stack the two fields vertically
                                     ->schema([
                                         Select::make('recurrence_type')
                                             ->label('Recurrence Type')
                                             ->options([
-                                                'monthly' => 'Monthly',
                                                 'quarterly' => 'Quarterly',
                                                 'yearly' => 'Yearly',
-                                                'custom' => 'Custom',
                                             ])
                                             ->reactive()
                                             ->visible(fn($get) => $get('is_recurring'))
-                                            ->required(),
+                                            ->required(fn($get) => $get('is_recurring'))
+                                            ->afterStateUpdated(function ($state, $set) {
+                                                // Reset recurrence_interval if not custom
+                                                if ($state !== 'custom') {
+                                                    $set('recurrence_interval', null);
+                                                }
+                                            })
+                                            ->dehydrated(true) // Always dehydrate
+                                            ->dehydrateStateUsing(fn($state, $get) => $get('is_recurring') ? $state : null), // Force null when not recurring
 
-                                        TextInput::make('recurrence_interval')
-                                            ->label('Custom Interval (months)')
-                                            ->numeric()
-                                            ->visible(fn($get) => $get('is_recurring') && $get('recurrence_type') === 'custom')
-                                            ->required(),
+
+                                        // TextInput::make('recurrence_interval')
+                                        //     ->label('Custom Interval (months)')
+                                        //     ->numeric()
+                                        //     ->minValue(1)
+                                        //     ->visible(fn($get) => $get('is_recurring') && $get('recurrence_type') === 'custom')
+                                        //     ->required(fn($get) => $get('recurrence_type') === 'custom')
+                                        //     ->dehydrated(true) // Always dehydrate
+                                        //     ->dehydrateStateUsing(fn($state, $get) => 
+                                        //         ($get('is_recurring') && $get('recurrence_type') === 'custom') ? $state : null
+                                        //     ),
                                     ]),
                                 ]),
                                             ])->columns(2)
@@ -230,54 +216,6 @@ class RequiredDocumentForm
 
                                 ])->columnSpanFull(),
 
-                // Section::make('Complying Offices')
-                //     ->schema([
-                //         Select::make('selected_offices')
-                //             ->label('Select Offices')
-                //             ->multiple()
-                //             ->options(Office::pluck('office', 'department_code'))
-                //             ->reactive()
-                //             ->helperText('Select multiple offices or click "Select All Offices" below.'),
-
-                //         Select::make('status')
-                //             ->label('Compliance Status')
-                //             ->options([
-                //                 -1 => 'Not Complied',
-                //                 0  => 'Partially Complied',
-                //                 1  => 'Complied',
-                //             ])
-                //             ->default(-1)
-                //             ->required(),
-
-                //         Actions::make([
-                //             Action::make('select_all')
-                //                 ->label('Select All Offices')
-                //                 ->button()
-                //                 ->color('primary')
-                //                 ->action(function (Get $get, Set $set) {
-                //                     $set('selected_offices', Office::pluck('department_code')->toArray());
-                //                 }),
-                //         ]),
-                //     ])->columnSpanFull(),
-                /*TextInput::make('requirement')
-                    ->required(),
-                TextInput::make('is_external')
-                    ->required(),
-                TextInput::make('requiring_agency_internal'),
-                TextInput::make('agency_name')
-                    ->required(),
-                TextInput::make('is_confidential')
-                    ->required(),
-                TextInput::make('date_from')
-                    ->required(),
-                TextInput::make('due_date')
-                    ->required(),
-                TextInput::make('year')
-                    ->required(),
-                TextInput::make('is_recurring')
-                    ->required(),
-                TextInput::make('document_category_id')
-                    ->required(),*/
             ]);
     }
 
@@ -304,7 +242,9 @@ class RequiredDocumentForm
                 'department_code' => $deptCode,
                 'requirement_id'  => $record->id,
                 'status'          => $status,
+                'due_date'        => $record->due_date, // original due date
             ]);
         }
     }
+
 }

@@ -2,6 +2,7 @@
 
 namespace App\Observers;
 
+use App\Models\User;
 use App\Models\RequiredDocument;
 use App\Notifications\RequiredDocumentCreatedNotification;
 
@@ -20,15 +21,21 @@ class RequiredDocumentObserver
         }
 
         // Get all users in those offices
-        $users = User::whereIn('department_code', $complyingOfficeCodes)->get();
+        $usersQuery = User::whereIn('department_code', $complyingOfficeCodes);
+
+        // If confidential, only send to super_admin and department_head
+        if ($requiredDocument->is_confidential) {
+            $usersQuery->whereHas('roles', function ($query) {
+                $query->whereIn('name', ['super_admin', 'department_head']);
+            });
+        }
+
+        $users = $usersQuery->get();
 
         // Send notification to each user
         foreach ($users as $user) {
-            $user->notify(new RequiredDocumentCreatedNotification($requirement));
+            $user->notify(new RequiredDocumentCreatedNotification($requiredDocument));
         }
-
-        // Alternative: Use queued notifications for better performance
-        // Notification::send($users, new RequirementCreatedNotification($requirement));
     }
 
     /**
