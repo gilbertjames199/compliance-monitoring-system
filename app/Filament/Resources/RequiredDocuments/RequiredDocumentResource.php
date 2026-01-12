@@ -19,6 +19,7 @@ use App\Models\User;
 use App\Notifications\RequiredDocumentCreatedNotification;
 use Filament\Tables\Table;
 
+
 class RequiredDocumentResource extends Resource
 {
     protected static ?string $model = RequiredDocument::class;

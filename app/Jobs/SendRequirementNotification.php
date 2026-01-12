@@ -34,11 +34,8 @@ class SendRequirementNotification implements ShouldQueue
      */
     public function handle(): void
     {
-
         if ($this->requirementId === null) {
-            
             $this->multiSend();
-
             return;
         }
 

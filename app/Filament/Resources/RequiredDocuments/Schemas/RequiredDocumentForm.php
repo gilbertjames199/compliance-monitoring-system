@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\RequiredDocuments\Schemas;
 
+use Carbon\Carbon;
 use App\Models\Office;
 use Filament\Actions\Action;
 use Filament\Schemas\Schema;
@@ -119,55 +120,57 @@ class RequiredDocumentForm
                         Toggle::make('is_confidential')
                             ->label('Confidential')
                             ->required(),
-                        Grid::make(1) // parent grid: 2 columns
-                            ->schema([
-                                // Left column
-                                Toggle::make('is_recurring')
-                                    ->label('Recurring?')
-                                    ->reactive()
-                                    ->required()
-                                    ->afterStateUpdated(function ($state, $set) {
-                                        if (!$state) {
-                                            // Clear both recurrence fields when toggle is off
-                                            $set('recurrence_type', null);
-                                            // $set('recurrence_interval', null);
-                                        }
-                                    }),
+                        Grid::make(1) // parent grid: 1 column 
+                            ->schema([ 
+                                // Toggle for recurring
+                                Toggle::make('is_recurring') 
+                                    ->label('Recurring?') 
+                                    ->reactive() 
+                                    ->required() 
+                                    ->afterStateUpdated(function ($state, $set) { 
+                                        if (!$state) { 
+                                            // Clear recurrence fields when toggle is off 
+                                            $set('recurrence_type', null); 
+                                            $set('recurrence_interval', null); 
+                                        } 
+                                    }), 
 
-                                // Right column: nested grid
-                                Grid::make(1) // one column grid to stack the two fields vertically
-                                    ->schema([
-                                        Select::make('recurrence_type')
-                                            ->label('Recurrence Type')
-                                            ->options([
-                                                'quarterly' => 'Quarterly',
-                                                'yearly' => 'Yearly',
-                                            ])
-                                            ->reactive()
-                                            ->visible(fn($get) => $get('is_recurring'))
-                                            ->required(fn($get) => $get('is_recurring'))
-                                            ->afterStateUpdated(function ($state, $set) {
-                                                // Reset recurrence_interval if not custom
-                                                if ($state !== 'custom') {
-                                                    $set('recurrence_interval', null);
-                                                }
-                                            })
-                                            ->dehydrated(true) // Always dehydrate
-                                            ->dehydrateStateUsing(fn($state, $get) => $get('is_recurring') ? $state : null), // Force null when not recurring
+                                // Nested grid for recurrence fields
+                                Grid::make(2) // one column grid to stack the fields vertically 
+                                    ->schema([ 
+                                        Select::make('recurrence_type') 
+                                            ->label('Recurrence Type') 
+                                            ->options([ 
+                                                'yearly' => 'Yearly', 
+                                                'quarterly' => 'Quarterly', 
+                                                'semester' => 'Per Semester (Jan-June, July-Dec)', 
+                                                'custom' => 'Custom (Days)', 
+                                            ]) 
+                                            ->reactive() 
+                                            ->visible(fn($get) => $get('is_recurring')) 
+                                            ->required(fn($get) => $get('is_recurring')) 
+                                            ->afterStateUpdated(function ($state, $set) { 
+                                                // Reset recurrence_interval if not custom 
+                                                if ($state !== 'custom') { 
+                                                    $set('recurrence_interval', null); 
+                                                } 
+                                            }) 
+                                            ->dehydrated(true) 
+                                            ->dehydrateStateUsing(fn($state, $get) => $get('is_recurring') ? $state : null), 
 
-
-                                        // TextInput::make('recurrence_interval')
-                                        //     ->label('Custom Interval (months)')
-                                        //     ->numeric()
-                                        //     ->minValue(1)
-                                        //     ->visible(fn($get) => $get('is_recurring') && $get('recurrence_type') === 'custom')
-                                        //     ->required(fn($get) => $get('recurrence_type') === 'custom')
-                                        //     ->dehydrated(true) // Always dehydrate
-                                        //     ->dehydrateStateUsing(fn($state, $get) => 
-                                        //         ($get('is_recurring') && $get('recurrence_type') === 'custom') ? $state : null
-                                        //     ),
-                                    ]),
-                                ]),
+                                        TextInput::make('recurrence_interval') 
+                                            ->label('Custom Interval (days)') 
+                                            ->numeric() 
+                                            ->minValue(1) 
+                                            ->suffix('days')
+                                            ->visible(fn($get) => $get('is_recurring') && $get('recurrence_type') === 'custom') 
+                                            ->required(fn($get) => $get('is_recurring') && $get('recurrence_type') === 'custom') 
+                                            ->dehydrated(true) 
+                                            ->dehydrateStateUsing(fn($state, $get) =>  
+                                                ($get('is_recurring') && $get('recurrence_type') === 'custom') ? $state : null 
+                                            ), 
+                                    ]), 
+                            ]),
                                             ])->columns(2)
                                             ->columnSpanFull(),
 
@@ -226,6 +229,13 @@ class RequiredDocumentForm
 
         // unset($data['complying_offices'], $data['status']);
 
+        $data['_selected_offices'] = $data['complying_offices'] ?? [];
+        $data['_is_recurring'] = $data['is_recurring'] ?? false;
+        $data['_recurrence_type'] = $data['recurrence_type'] ?? null;
+        $data['_recurrence_interval'] = $data['recurrence_interval'] ?? null;
+
+        unset($data['complying_offices']);
+
         return $data;
     }
 
@@ -236,6 +246,9 @@ class RequiredDocumentForm
     {
         $selectedOffices = $data['_selected_offices'] ?? [];
         $status = $data['_status'] ?? -1;
+        $isRecurring = $data['_is_recurring'] ?? false;
+        $recurrenceType = $data['_recurrence_type'] ?? null;
+        $recurrenceInterval = $data['_recurrence_interval'] ?? null;
 
         foreach ($selectedOffices as $deptCode) {
             ComplyingOffice::create([
@@ -244,6 +257,41 @@ class RequiredDocumentForm
                 'status'          => $status,
                 'due_date'        => $record->due_date, // original due date
             ]);
+        }
+
+        // Dispatch job to create 1 recurring duplicate asynchronously
+        if ($isRecurring && $recurrenceType) {
+            \App\Jobs\CreateRecurringDocuments::dispatch(
+                $record,
+                $selectedOffices,
+                $recurrenceType,
+                $recurrenceInterval
+            );
+        }
+    }
+
+
+
+   
+
+    /**
+     * Calculate the next due date based on recurrence type
+     */
+    private static function calculateNextDueDate(Carbon $baseDate, string $recurrenceType, ?int $interval, int $occurrence): Carbon
+    {
+        $date = $baseDate->copy();
+
+        switch ($recurrenceType) {
+            case 'yearly':
+                return $date->addYears($occurrence);
+            case 'quarterly':
+                return $date->addMonths(3 * $occurrence);
+            case 'semester':
+                return $date->addMonths(6 * $occurrence);
+            case 'custom':
+                return $date->addDays($interval * $occurrence);
+            default:
+                return $date;
         }
     }
 

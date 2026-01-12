@@ -24,7 +24,7 @@ use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Builder;
 use Filament\Tables\Columns\Layout\View as LayoutView;
 
-class RequiredDocumentsTable extends Resource
+class RequiredDocumentsTable 
 {
     protected static ?string $model = RequiredDocument::class;
 
@@ -50,7 +50,31 @@ class RequiredDocumentsTable extends Resource
             
             
         return $table
-        
+             ->modifyQueryUsing(function (Builder $query) {
+
+                $user = auth()->user();
+                if (! $user) {
+                    return;
+                }
+
+                // Superadmin sees everything
+                if ($user->hasRole('super_admin')) {
+                    return;
+                }
+
+                if ($user->department_code == 25 && $user->hasRole('super_admin')) {
+                    return;
+                }
+
+                // Only show records where the requiring agency matches the user's office name
+                $query->where('agency_name', $user->office->office);
+
+                // Optionally hide confidential requirements from AO & Admin
+                if ($user->hasAnyRole(['AO', 'admin'])) {
+                    $query->where('is_confidential', false);
+                }
+            })
+            
             ->columns([
                 TextColumn::make('requirement')
                     ->searchable()
@@ -73,47 +97,12 @@ class RequiredDocumentsTable extends Resource
                     ->label('Due Date')
                     ->date()
                     ->searchable(),
-
             ])
             ->defaultSort('created_at', 'desc')
             ->filters([
                 //
             ])// show actions column
             ->recordActions([
-
-                // Action::make('Notify Office')
-
-                //     ->action(function ($record, $data) {
-                //         $users = User::where('id', 12)->First();
-
-                //         // foreach ($users as $user) {
-                //             Mail::to($users->email)
-                //             ->send(new RequirementDeadlineMail($record));
-                //         // }
-                //     })
-                //     ->color('primary')
-                //     ->icon('heroicon-o-bell'),
-
-                // Action::make('Notify Office')
-                //     ->action(function ($record, $data) {
-
-                //         // Get all complying offices for this requirement
-                //         $complyingOffices = ComplyingOffice::where('requirement_id', $record->id)->get();
-
-                //         foreach ($complyingOffices as $office) {
-
-                //             // Find users in the department assigned to this complying office
-                //             $users = User::where('department_code', $office->department_code)->get();
-
-                //             foreach ($users as $user) {
-                //                 Mail::to($user->email)
-                //                     ->send(new RequirementDeadlineMail($record));
-                //             }
-                //         }
-
-                //     })
-                //     ->color('primary')
-                //     ->icon('heroicon-o-bell'),
 
                 Action::make('Notify Office')
                     ->action(function ($record, $data) {
@@ -143,8 +132,6 @@ class RequiredDocumentsTable extends Resource
                     })
                     ->color('primary')
                     ->icon('heroicon-o-envelope'),
-
-
 
                 Action::make('manage_compliance')
                     ->label('View/Update Complying Offices')
@@ -200,8 +187,6 @@ class RequiredDocumentsTable extends Resource
                             ]);
                         }
 
-                        
-
                         return $fields;
                     })
                     
@@ -214,17 +199,12 @@ class RequiredDocumentsTable extends Resource
                                 $office->update(['status' => (int) $data[$fieldKey]]);
                             }
                         }
-
                         
                         Notification::make()
                             ->title('Compliance statuses updated successfully!')
                             ->success()
                             ->send();
                     }),
-
-
-
-
                     
                 EditAction::make(),
             ])
@@ -234,9 +214,10 @@ class RequiredDocumentsTable extends Resource
                 ]),
             ]);
     }
+    
     public static function getTableQuery(): Builder
     {
-        $query = parent::getTableQuery();
+        // $query = parent::getTableQuery();
 
         $user = auth()->user();
         $departmentCode = $user->department_code ?? null;
@@ -249,24 +230,4 @@ class RequiredDocumentsTable extends Resource
             $q->where('department_code', $departmentCode);
         });
     }
-    // TextColumn::make('created_at')
-    //     ->dateTime()
-    //     ->sortable()
-    //     ->toggleable(isToggledHiddenByDefault: true),
-    // TextColumn::make('updated_at')
-    //     ->dateTime()
-    //     ->sortable()
-    //     ->toggleable(isToggledHiddenByDefault: true),
-    // TextColumn::make('is_external')
-    //     ->searchable(),
-    // TextColumn::make('requiring_agency_internal')
-    //     ->searchable(),
-    // TextColumn::make('is_confidential')
-    //     ->searchable(),
-    // TextColumn::make('date_from')
-    //     ->searchable(),
-    // TextColumn::make('due_date')
-    //     ->searchable(),
-    // TextColumn::make('is_recurring')
-    //     ->searchable(),
 }
