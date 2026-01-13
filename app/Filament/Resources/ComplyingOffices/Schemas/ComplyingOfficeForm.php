@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\ComplyingOffices\Schemas;
 
+use App\Models\ComplyingOffice;
 use App\Models\Office;
 use Filament\Schemas\Schema;
 use Filament\Forms\Components\Select;
@@ -16,7 +17,7 @@ class ComplyingOfficeForm
 {
     public static function configure(Schema $schema): Schema
     {
-        $isAdmin = auth()->user()->hasAnyRole(['super_admin']);
+        $isAdmin = auth()->user()->hasAnyRole(['superadmin']);
 
         return $schema
             ->components([
@@ -217,6 +218,7 @@ class ComplyingOfficeForm
                             $set('submitted_at', null);
                         }
                     })
+                    ->visible(fn() => auth()->user()->can('addAttachments', ComplyingOffice::class))
                     ->columnSpanFull(),
 
                     Textarea::make('submission_notes')

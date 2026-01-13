@@ -118,15 +118,14 @@ class RequiredDocumentForm
                             }),
                         
                         Toggle::make('is_confidential')
-                            ->label('Confidential')
-                            ->required(),
+                            ->label('Confidential'),
                         Grid::make(1) // parent grid: 1 column 
                             ->schema([ 
                                 // Toggle for recurring
                                 Toggle::make('is_recurring') 
                                     ->label('Recurring?') 
                                     ->reactive() 
-                                    ->required() 
+                                    // ->required() 
                                     ->afterStateUpdated(function ($state, $set) { 
                                         if (!$state) { 
                                             // Clear recurrence fields when toggle is off 

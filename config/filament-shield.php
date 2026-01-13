@@ -1,5 +1,7 @@
 <?php
 
+use App\Filament\Resources\ComplyingOffices\ComplyingOfficeResource;
+
 return [
 
     /*
@@ -130,6 +132,7 @@ return [
             'forceDeleteAny',
             'restoreAny',
             'reorder',
+            'addAttachments'
         ],
     ],
 
@@ -169,6 +172,9 @@ return [
                 'create',
                 'update',
                 'delete',
+            ],
+            ComplyingOfficeResource::class => [
+                'addAttachments'
             ],
         ],
         'exclude' => [

@@ -67,4 +67,9 @@ class ComplyingOfficePolicy
         return $authUser->can('Reorder:ComplyingOffice');
     }
 
+    public function addAttachments(AuthUser $authUser): bool
+    {
+        return $authUser->can('AddAttachments:ComplyingOffice');
+    }
+
 }

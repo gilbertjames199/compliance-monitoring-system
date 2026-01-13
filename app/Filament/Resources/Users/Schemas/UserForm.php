@@ -43,7 +43,7 @@ class UserForm
                     ->email()
                     ->required()
                     ->unique(),
-                // DateTimePicker::make('email_verified_at'),
+                DateTimePicker::make('email_verified_at'),
                 TextInput::make('cats_number')
                     ->required()
                     ->unique(),
