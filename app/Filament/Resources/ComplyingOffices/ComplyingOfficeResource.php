@@ -33,6 +33,7 @@ class ComplyingOfficeResource extends Resource
         return ComplyingOfficesTable::configure($table);
     }
 
+    
     public static function getRelations(): array
     {
         return [

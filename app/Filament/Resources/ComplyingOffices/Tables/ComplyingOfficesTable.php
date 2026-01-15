@@ -7,6 +7,7 @@ use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
+use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -65,8 +66,17 @@ class ComplyingOfficesTable
                         ->sortable()
                         ->searchable() 
                         ->wrap(),
+                    IconColumn::make('requiredDocument.is_confidential')
+                        ->label('Confidential')
+                        ->boolean()
+                        ->sortable()
+                        ->searchable()
+                        ->trueColor('warning')   // yellow
+                        ->falseColor('gray')     // dark / black-ish
+                        ->trueIcon('heroicon-o-lock-closed')
+                        ->falseIcon('heroicon-o-lock-open'),
                     TextColumn::make('status')
-                        ->label('Status')
+                        ->label('Compliance Status')
                         ->formatStateUsing(function ($state) {
                             return match ($state) {
                                 '-1' => 'Not Complied',
@@ -80,6 +90,26 @@ class ComplyingOfficesTable
                             'danger' => '-1',
                             'warning' => '0',
                             'success' => '1',
+                        ])
+                        ->html()
+                        ->sortable()
+                        ->searchable(),
+
+                    TextColumn::make('validation_status')
+                        ->label('Validation Status')
+                        ->formatStateUsing(function ($state) {
+                            return match ($state) {
+                                'returned' => 'Returned',
+                                'pending_review'  => 'Pending Review',
+                                'validated'  => 'Validated',
+                                default => 'pending_review',
+                            };
+                        })
+                        ->badge() // optional: shows as colored badge
+                        ->colors([
+                            'danger' => 'returned',
+                            'warning' => 'pending_review',
+                            'success' => 'validated',
                         ])
                         ->html()
                         ->sortable()

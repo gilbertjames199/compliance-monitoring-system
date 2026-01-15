@@ -2,22 +2,30 @@
 
 namespace App\Filament\Resources\RequiredDocuments\RelationManagers;
 
+use Dom\Text;
 use App\Models\Office;
-use Filament\Actions\AssociateAction;
-use Filament\Actions\BulkActionGroup;
+use Filament\Tables\Table;
+use Filament\Schemas\Schema;
+use Illuminate\Validation\Rule;
+use Filament\Actions\EditAction;
+use Filament\Actions\ViewAction;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
+use Filament\Actions\AssociateAction;
+use Filament\Actions\BulkActionGroup;
+use Filament\Forms\Components\Select;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\DissociateAction;
-use Filament\Actions\DissociateBulkAction;
-use Filament\Actions\EditAction;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\TextInput;
-use Filament\Resources\RelationManagers\RelationManager;
-use Filament\Schemas\Schema;
+use Filament\Forms\Components\Textarea;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Table;
-use Illuminate\Validation\Rule;
+use Illuminate\Support\Facades\Storage;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\FileUpload;
+use Filament\Actions\DissociateBulkAction;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\ToggleButtons;
+use Filament\Infolists\Components\TextEntry;
+use Filament\Resources\RelationManagers\RelationManager;
 
 class ComplyingOfficesRelationManager extends RelationManager
 {
@@ -32,7 +40,6 @@ class ComplyingOfficesRelationManager extends RelationManager
                 Select::make('department_code')
                     ->label('Office')
                     ->options(Office::all()->pluck('office', 'department_code'))
-                    ->required()
                     ->rules(function (callable $get) {
                         // Get the current requirement ID from the parent record
                         $requirementId = $this->getOwnerRecord()->id;
@@ -45,18 +52,74 @@ class ComplyingOfficesRelationManager extends RelationManager
                                 ->ignore($get('id')) // ignore self when editing
                         ];
                     })
+                    ->disabled(fn (string $operation): bool => $operation === 'edit')
                     ->helperText('Each office can only be added once per requirement.'),
+
+
                 Select::make('status')
-                    ->label('Compliance Status')
+                            ->label('Compliance Status')
+                            ->options([
+                                -1 => 'Not Complied',
+                                0  => 'Partially Complied',
+                                1  => 'Complied',
+                            ])
+                            ->default(-1)
+                            ->disabled()
+                            ->dehydrated(),
+
+                Placeholder::make('attachments_view')
+                    ->label('Submitted Attachments')
+                    ->content(function ($record) {
+                        if (!$record || empty($record->attachments)) {
+                            return 'No files submitted.';
+                        }
+
+                        $attachments = is_array($record->attachments)
+                            ? $record->attachments
+                            : json_decode($record->attachments, true);
+
+                        return collect($attachments)
+                            ->map(fn ($file) =>
+                                "<a href='".Storage::disk('public')->url($file)."' target='_blank'>"
+                                .basename($file)."</a>"
+                            )
+                            ->implode('<br>');
+                    })
+                    ->html()
+                    ->columnSpanFull(),
+
+
+
+
+
+                ToggleButtons::make('validation_status')
+                    ->label('Validation Status')
+                    ->inline()
                     ->options([
-                        -1 => 'Not Complied',
-                        0  => 'Partially Complied',
-                        1  => 'Complied',
+                        'pending_review' => 'Pending Review',
+                        'returned'       => 'Returned',
+                        'validated'      => 'Validated',
                     ])
-                    ->default(-1)
-                    ->required(),
-                // TextInput::make('status')
-                //     ->required(),
+                    ->colors([
+                        'pending_review' => 'warning',
+                        'returned'       => 'danger',
+                        'validated'      => 'success',
+                    ])
+                    ->default(fn ($record) => $record?->validation_status ?? 'pending_review')
+                    ->required()
+                    ->columnSpanFull()
+                    ->disabled(fn ($record) => 
+                        !$record || 
+                        $record->agency_name !== auth()->user()->agency_name ||
+                        $record->status !== '1'
+                    ),
+
+                Textarea::make('admin_remarks')
+                    ->label('Remarks')
+                    ->nullable()
+                    ->rows(4)
+                    ->columnSpanFull(),
+                
             ]);
     }
 
@@ -69,7 +132,7 @@ class ComplyingOfficesRelationManager extends RelationManager
                     ->label('Office Name')
                     ->searchable(),
                 TextColumn::make('status')
-                    ->label('Status')
+                    ->label('Compliance Status')
                     ->formatStateUsing(function ($state) {
                         return match ($state) {
                             '-1' => 'Not Complied',
@@ -84,6 +147,26 @@ class ComplyingOfficesRelationManager extends RelationManager
                         'warning' => '0',
                         'success' => '1',
                     ]),
+
+                TextColumn::make('validation_status')
+                        ->label('Validation Status')
+                        ->formatStateUsing(function ($state) {
+                            return match ($state) {
+                                'returned' => 'Returned',
+                                'pending_review'  => 'Pending Review',
+                                'validated'  => 'Validated',
+                                default => 'pending_review',
+                            };
+                        })
+                        ->badge() // optional: shows as colored badge
+                        ->colors([
+                            'danger' => 'returned',
+                            'warning' => 'pending_review',
+                            'success' => 'validated',
+                        ])
+                        ->html()
+                        ->sortable()
+                        ->searchable(),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
