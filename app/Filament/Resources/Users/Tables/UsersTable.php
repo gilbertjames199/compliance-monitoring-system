@@ -9,12 +9,29 @@ use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Tables\Columns\TextColumn;
 use STS\FilamentImpersonate\Actions\Impersonate;
+use Illuminate\Database\Eloquent\Builder;
 
 class UsersTable
 {
     public static function configure(Table $table): Table
     {
         return $table
+             ->modifyQueryUsing(function (Builder $query) {
+                $user = auth()->user();
+                
+                // If user has superadmin role, show all records
+                if ($user->hasRole('super_admin')) {
+                    return $query;
+                }
+                
+                // If user doesn't have a department_code, show no records
+                if (!$user->department_code) {
+                    return $query->whereRaw('1 = 0');
+                }
+                
+                // Otherwise, only show users from the same department
+                return $query->where('department_code', $user->department_code);
+            })
             ->columns([
                 TextColumn::make('name')
                     ->searchable(),

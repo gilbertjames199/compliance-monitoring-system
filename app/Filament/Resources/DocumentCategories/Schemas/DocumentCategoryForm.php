@@ -55,45 +55,18 @@ class DocumentCategoryForm
                     ->label('Required Documents')
                     ->relationship('requiredDocuments') // 🔑 must match the model method exactly
                     ->schema([
+
                         Section::make('Details')
                         ->columns(2)
                         ->schema([
                             TextInput::make('requirement')
                                 ->required(),
                             TextInput::make('year')
-                                // ->required()
                                 ->numeric()
                                 ->default(date('Y')) // automatically sets the current year
                                 ->readOnly(),
-                            // TextInput::make('requiring_agency_internal')
-                            //     ->required(),
-                            // TextInput::make('agency_name')
-                            //     ->label('Requiring Agency')
-                            //     ->required(),
-                            // Select::make('agency_name')
-                            //     ->label('Requiring Agency')
-                            //     ->searchable()
-                            //     ->preload()
-                            //     ->options(
-                            //         Office::query()->pluck('office', 'office') // key = office name, value = office name
-                            //     )
-                            //     ->createOptionForm([
-                            //         TextInput::make('office')
-                            //             ->label('Office Name')
-                            //             ->required(),
-                            //     ])
-                            //     ->createOptionUsing(function (array $data) {
-                            //         // Creates new office inside the fms database
-                            //         $office = Office::create([
-                            //             'office' => $data['office'],
-                            //         ]);
 
-                            //         // return the value that will be saved to the field
-                            //         return $office->office; 
-                            //     })
-                            //     ->required(),
-
-                           Select::make('agency_type')
+                            Select::make('agency_type')
                                 ->label('Agency Type')
                                 ->options([
                                     'internal' => 'Internal',
@@ -145,24 +118,26 @@ class DocumentCategoryForm
 
                             DatePicker::make('date_from')  
                                 ->label('Date From')
-                                ->required(),
+                                ->required()
+                                ->live() // Make it reactive
+                                ->afterStateUpdated(function (Set $set) {
+                                    $set('due_date', null); // Optional: clear due_date when date_from changes
+                                }),
+
                             DatePicker::make('due_date')
                                 ->label('Due Date')
-                                ->after('date_from')
-                                ->required(),
+                                ->required()
+                                ->afterOrEqual('date_from') // Validation rule
+                                ->minDate(fn (Get $get) => $get('date_from')), // Disables dates before date_from in picker
                             Toggle::make('is_confidential')
-                                ->label('Confidential')
-                                ->required(),
-                            // Toggle::make('is_external')
-                            //     ->label('External')
-                            //     ->required(),
-                            Grid::make(1) // parent grid: 2 columns
+                                ->label('Confidential'),
+                            
+                        Grid::make(1) // parent grid: 2 columns
                             ->schema([
                                 // Left column
                                 Toggle::make('is_recurring')
                                     ->label('Recurring?')
-                                    ->reactive()
-                                    ->required(),
+                                    ->reactive(),
 
                                 // Right column: nested grid
                                 Grid::make(2) // one column grid to stack the two fields vertically

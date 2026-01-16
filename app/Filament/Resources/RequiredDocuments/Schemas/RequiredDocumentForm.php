@@ -37,14 +37,18 @@ class RequiredDocumentForm
                             ->readOnly(),
                         DatePicker::make('date_from')  
                             ->label('Date From')
-                            ->required(),
+                            ->required()
+                            ->live() // Make it reactive
+                            ->afterStateUpdated(function (Set $set) {
+                                $set('due_date', null); // Optional: clear due_date when date_from changes
+                            }),
+
                         DatePicker::make('due_date')
                             ->label('Due Date')
-                            // ->after('date_from')
-                            ->required(),
-
-
-                      Select::make('category')
+                            ->required()
+                            ->afterOrEqual('date_from') // Validation rule
+                            ->minDate(fn (Get $get) => $get('date_from')), // Disables dates before date_from in picker
+                        Select::make('category')
                             ->label('Category')
                             ->required()
                             ->options(
@@ -190,7 +194,7 @@ class RequiredDocumentForm
                                         ->preload()
                                         ->searchable()
                                         ->afterStateHydrated(function ($component, $state, $record) {
-                                            if ($record) {
+                                            if ($record?->exists) {
                                                 $component->state(
                                                     $record->complyingOffices()->pluck('department_code')->toArray()
                                                 );

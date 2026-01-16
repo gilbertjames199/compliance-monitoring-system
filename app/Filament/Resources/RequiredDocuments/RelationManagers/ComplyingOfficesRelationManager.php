@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\RequiredDocuments\RelationManagers;
 
 use Dom\Text;
+use Carbon\Carbon;
 use App\Models\Office;
 use Filament\Tables\Table;
 use Filament\Schemas\Schema;
@@ -25,6 +26,7 @@ use Filament\Actions\DissociateBulkAction;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\ToggleButtons;
 use Filament\Infolists\Components\TextEntry;
+use Filament\Forms\Components\DateTimePicker;
 use Filament\Resources\RelationManagers\RelationManager;
 
 class ComplyingOfficesRelationManager extends RelationManager
@@ -85,10 +87,18 @@ class ComplyingOfficesRelationManager extends RelationManager
                             )
                             ->implode('<br>');
                     })
-                    ->html()
+                    ->html(),
+
+                Placeholder::make('submitted_at')
+                    ->label('Submitted At'),
+
+                Textarea::make('submission_notes')
+                    ->label('Submission Notes')
+                    ->rows(2)
+                    ->disabled()
                     ->columnSpanFull(),
 
-
+                
 
 
 
@@ -107,17 +117,35 @@ class ComplyingOfficesRelationManager extends RelationManager
                     ])
                     ->default(fn ($record) => $record?->validation_status ?? 'pending_review')
                     ->required()
-                    ->columnSpanFull()
+                    ->reactive()
                     ->disabled(fn ($record) => 
                         !$record || 
                         $record->agency_name !== auth()->user()->agency_name ||
                         $record->status !== '1'
-                    ),
+                    )
+                    ->afterStateUpdated(function ($state, $set, $record) {
+                        // Set validated_at when validation_status becomes "validated"
+                        if (in_array($state, ['validated', 'returned'])) {
+                            $set('validated_at', now());
+                        } else {
+                            $set('validated_at', null);
+                        }
+                    })
+                    ->dehydrated(),
+
+                DateTimePicker::make('validated_at')
+                    ->label(fn ($get) => $get('validation_status') === 'validated' ? 'Validated At' : ($get('validation_status') === 'returned' ? 'Returned At' : ''))
+                    ->disabled()
+                    ->dehydrated() // <-- important
+                    ->displayFormat('m/d/Y h:i A')
+                    ->formatStateUsing(fn ($state) => $state ? Carbon::parse($state) : null)
+                    ->seconds(false)
+                    ->visible(fn ($get) => in_array($get('validation_status'), ['validated', 'returned'])),
 
                 Textarea::make('admin_remarks')
                     ->label('Remarks')
                     ->nullable()
-                    ->rows(4)
+                    ->rows(2)
                     ->columnSpanFull(),
                 
             ]);
@@ -149,24 +177,29 @@ class ComplyingOfficesRelationManager extends RelationManager
                     ]),
 
                 TextColumn::make('validation_status')
-                        ->label('Validation Status')
-                        ->formatStateUsing(function ($state) {
-                            return match ($state) {
-                                'returned' => 'Returned',
-                                'pending_review'  => 'Pending Review',
-                                'validated'  => 'Validated',
-                                default => 'pending_review',
-                            };
-                        })
-                        ->badge() // optional: shows as colored badge
-                        ->colors([
-                            'danger' => 'returned',
-                            'warning' => 'pending_review',
-                            'success' => 'validated',
-                        ])
-                        ->html()
-                        ->sortable()
-                        ->searchable(),
+                    ->label('Validation Status')
+                    ->formatStateUsing(function ($state) {
+                        return match ($state) {
+                            'returned' => 'Returned',
+                            'pending_review'  => 'Pending Review',
+                            'validated'  => 'Validated',
+                            default => 'pending_review',
+                        };
+                    })
+                    ->badge() // optional: shows as colored badge
+                    ->colors([
+                        'danger' => 'returned',
+                        'warning' => 'pending_review',
+                        'success' => 'validated',
+                    ])
+                    ->html()
+                    ->sortable()
+                    ->searchable(),
+
+                TextColumn::make('validated_at')
+                    ->label('Validation Date & Time')
+                    ->dateTime()
+                    ->sortable(),
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()

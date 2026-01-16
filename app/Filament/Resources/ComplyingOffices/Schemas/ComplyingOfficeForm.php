@@ -2,12 +2,14 @@
 
 namespace App\Filament\Resources\ComplyingOffices\Schemas;
 
+use Carbon\Carbon;
 use App\Models\Office;
 use Filament\Schemas\Schema;
 use App\Models\ComplyingOffice;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Section;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Placeholder;
@@ -84,22 +86,23 @@ class ComplyingOfficeForm
                     
 
                 // SECTION 2: ADMIN REVIEW & REMARKS
-                Section::make('Admin Review & Remarks')
+                Section::make('Requiring Agency Feedback')
                     ->description(function ($record) use ($isAdmin) {
                         $isOwnOffice = $record && auth()->user()->department_code === $record->department_code;
                         
-                        if ($isAdmin && $isOwnOffice) {
-                            return 'Admin feedback (You cannot review your own office submission)';
+                       if ($isAdmin && $isOwnOffice) {
+                            return 'Requiring agency feedback (You cannot review your own office submission)';
                         } elseif ($isAdmin) {
                             return 'Review the submission and provide feedback';
                         } else {
-                            return 'Admin feedback on your submission';
+                            return 'Requiring agency feedback on your submission';
                         }
                     })
                     ->schema([
 
                         ToggleButtons::make('status')
                             ->label('Compliance Status')
+                           
                             ->inline()
                             ->options([
                                 -1 => 'Not Complied',
@@ -113,6 +116,32 @@ class ComplyingOfficeForm
                                         ])
                             ->default(-1)
                             ->reactive() // Add reactive to monitor changes
+                            ->helperText(function ($get, $record) {
+                                $currentStatus = $get('status') ?? $record?->status;
+                                $validationStatus = $get('validation_status') ?? $record?->validation_status;
+                                
+                                if ($currentStatus == 1 && $validationStatus !== 'returned') {
+                                    return '⚠️ Document management is locked. Uploads and removals are disabled until validation status is returned.';
+                                }
+                                
+                                if ($currentStatus != 1) {
+                                    return '💡 Once marked as "Complied", document uploads/removals will be locked until validation is returned.';
+                                }
+                                
+                                return null;
+                            })
+                            ->hint(function ($get, $record) {
+                                $currentStatus = $get('status') ?? $record?->status;
+                                $validationStatus = $get('validation_status') ?? $record?->validation_status;
+                                
+                                if ($currentStatus == 1 && $validationStatus !== 'returned') {
+                                    return 'Locked';
+                                }
+                                
+                                return null;
+                            })
+                            ->hintIcon('heroicon-m-lock-closed')
+                            ->hintColor('danger') // or 'warning' for orange color
                             ->disabled(function ($record, $get) {
                                 $user = auth()->user();
                                 
@@ -194,37 +223,36 @@ class ComplyingOfficeForm
                                 if ($state === 'returned') {
                                     $set('status', 0); // Set to Partially Complied
                                     $set('validated_at', null); // Clear validation timestamp
-                                    $set('validated_by', null); // Clear validator
+                                    // $set('validated_by', null); // Clear validator
                                 } elseif ($state === 'validated') {
                                     $set('validated_at', now()); // Set validation timestamp
-                                    $set('validated_by', auth()->user()->name); // Track who validated
+                                    // $set('validated_by', auth()->user()->name); // Track who validated
                                 } elseif ($state === 'pending_review') {
                                     // Clear validation data when set back to pending
                                     $set('validated_at', null);
-                                    $set('validated_by', null);
+                                    // $set('validated_by', null);
                                 }
                             })
-                            ->dehydrated()
-                            ->columnSpanFull(),
-                        
+                            ->dehydrated(),
+                     
                         DateTimePicker::make('validated_at')
-                            ->label('Validated Date & Time')
-                            ->disabled()
+                            ->label(fn ($get) => $get('validation_status') === 'validated'
+                                ? 'Validated At'
+                                : ($get('validation_status') === 'returned' ? 'Returned At' : '')
+                            )
+                            ->disabled() // read-only
                             ->dehydrated()
                             ->displayFormat('m/d/Y h:i A')
+                            ->formatStateUsing(fn ($state) => $state ? Carbon::parse($state) : null)
                             ->seconds(false)
-                            ->visible(fn ($get) => !empty($get('validated_at')))
+                            ->visible(fn ($get) => in_array($get('validation_status'), ['validated', 'returned']))
                             ->columnSpan(1),
 
-                        TextInput::make('validated_by')
-                            ->label('Validated By')
-                            ->disabled()
-                            ->dehydrated()
-                            ->visible(fn ($get) => !empty($get('validated_by')))
-                            ->columnSpan(1),
 
+
+                        
                         Textarea::make('admin_remarks')
-                            ->label('Admin Remarks (Requiring Agency)')
+                            ->label('Remarks (Requiring Agency)')
                             ->placeholder(function ($record) use ($isAdmin) {
                                 $isOwnOffice = $record
                                     && auth()->user()->department_code === $record->department_code;
@@ -237,7 +265,7 @@ class ComplyingOfficeForm
                                     ? 'You cannot add remarks to your own office'
                                     : 'Enter review comments, clarifications, or audit notes';
                             })
-                            ->rows(4)
+                            ->rows(3)
                             ->dehydrated()
                             ->disabled(function ($record) use ($isAdmin) {
                                 $isOwnOffice = $record
@@ -245,10 +273,10 @@ class ComplyingOfficeForm
 
                                 return !$isAdmin || $isOwnOffice;
                             })
-                            ->required(function ($get) {
-                                // Require remarks when returning documents
-                                return $get('validation_status') === 'returned';
-                            })
+                            // ->required(function ($get) {
+                            //     // Require remarks when returning documents
+                            //     return $get('validation_status') === 'returned';
+                            // })
                             ->columnSpanFull(),
 
                     ])
@@ -272,86 +300,99 @@ class ComplyingOfficeForm
                     FileUpload::make('attachments')
                         ->label('Upload Required Documents')
                         ->multiple()
+                        ->disk('public')
+                        ->directory('compliance-attachments')
+                        ->visibility('public')
                         ->downloadable()
                         ->openable()
-                        ->directory('compliance-attachments')
-                        ->maxSize(10240) // 10MB limit
+                        ->maxSize(10240) // 10MB
                         ->acceptedFileTypes([
-                            'application/pdf', 
-                            'image/jpeg', 
-                            'image/png', 
-                            'application/msword', 
-                            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'])
-                        ->reactive()
+                            'application/pdf',
+                            'image/jpeg',
+                            'image/png',
+                            'application/msword',
+                            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                        ])
+
+                        /**
+                         * 🚫 DISABLE LOGIC
+                         */
                         ->disabled(function ($record, $get) {
-                            if (!$record) {
+                            if (! $record) {
                                 return true;
                             }
 
                             $user = auth()->user();
-                            
-                            // Must belong to the same office
+
+                            // Must belong to same office
                             if ($user->department_code !== $record->department_code) {
                                 return true;
                             }
 
-                            // Get validation status
                             $validationStatus = $get('validation_status') ?? $record->validation_status;
-                            
-                            // Lock if validated - no uploads allowed
+
+                            // Hard lock once validated
                             if ($validationStatus === 'validated') {
                                 return true;
                             }
-                            
-                            // If status is "Complied" BUT validation is "returned", allow re-upload
+
                             $isComplied = (int) $record->status === 1;
-                            $isReturned = $validationStatus === 'returned';
-                            
-                            // Disable if complied AND NOT returned
-                            return $isComplied && !$isReturned;
-                        })
-                        ->deletable(function ($record, $get) {
-                            if (!$record) {
-                                return false;
-                            }
-                            
-                            $validationStatus = $get('validation_status') ?? $record->validation_status;
-                            
-                            // Can delete if NOT validated
-                            return $validationStatus !== 'validated';
-                        })
-                        ->afterStateUpdated(function ($state, callable $set, $get) {
-                            $record = $get('record');
-                            
-                            if (!empty($state)) {
-                                $user = auth()->user();
 
-                                if ($user->hasRole('department_head')) {
-                                    $set('status', 1); // Complied
-                                    $set('validation_status', 'pending_review'); // Reset to pending review
-                                } elseif ($user->hasRole('AO')) {
-                                    $set('status', 0); // Partially complied
-                                    $set('validation_status', 'pending_review'); // Reset to pending review
-                                } else {
-                                    $set('status', 0); // Default fallback
-                                    $set('validation_status', 'pending_review');
-                                }
-                                
-                               
-                                $set('submitted_at', now()); // auto set date
-                                
-                                // Clear validation tracking when re-submitting
-                                $set('validated_at', null);
-                                $set('validated_by', null);
-                            } else {
-                                $set('status', -1); // Not submitted
+                            /**
+                             * 🔒 Disable if:
+                             * - already complied AND
+                             * - NOT returned
+                             */
+                            return $isComplied && $validationStatus !== 'returned';
+                        })
+
+                        /**
+                         * 🗑 DELETE LOGIC
+                         */
+                        ->deletable(fn ($record, $get) =>
+                            ($get('validation_status') ?? $record?->validation_status) !== 'validated'
+                        )
+
+                        /**
+                         * ⚡ RUNS ONLY ON SAVE (FAST)
+                         */
+                        ->mutateDehydratedStateUsing(function ($state, callable $set) {
+                            // No files → reset
+                            if (empty($state)) {
+                                $set('status', -1); // Not complied
                                 $set('submitted_at', null);
+                                return $state;
                             }
-                        })
-                        ->visibility('public')
-                        ->visible(fn() => auth()->user()->can('addAttachments', ComplyingOffice::class))
-                        ->columnSpanFull(),
 
+                            $user = auth()->user();
+
+                            // Set compliance status
+                            if ($user->hasRole('department_head')) {
+                                $set('status', 1); // Complied
+                            } else {
+                                $set('status', 0); // Partially complied
+                            }
+
+                            /**
+                             * 🔁 RETURNED → LOCK AFTER SAVE
+                             */
+                            $set('validation_status', 'pending_review');
+
+                            $set('submitted_at', now());
+                            $set('validated_at', null);
+                            $set('validated_by', null);
+
+                            return $state;
+                        })
+
+    /**
+     * 👁 PERMISSION CHECK
+     */
+    ->visible(fn () =>
+        auth()->user()->can('addAttachments', ComplyingOffice::class)
+    )
+
+    ->columnSpanFull(),
                     Textarea::make('submission_notes')
                         ->label('Submission Notes')
                         ->placeholder(function ($record) {
@@ -361,7 +402,7 @@ class ComplyingOfficeForm
                                 ? 'Add any notes about the submitted documents'
                                 : 'Submission notes (read-only)';
                         })
-                        ->rows(3)
+                        ->rows(2)
                         ->dehydrated()
                         ->disabled(function ($record) {
                             // Disable ONLY if not their own office (read-only)

@@ -54,15 +54,36 @@ class EditRequiredDocument extends EditRecord
     protected function afterSave(): void
     {
         $selected = $this->form->getState()['complying_offices'] ?? [];
+        
+        if (empty($selected)) {
+            return; // Don't do anything if no offices selected
+        }
 
-        // Remove old entries
-        $this->record->complyingOffices()->delete();
+        // Get existing complying offices
+        $existing = $this->record->complyingOffices()
+            ->pluck('department_code')
+            ->toArray();
 
-        // Insert new selections
-        foreach ($selected as $deptCode) {
+        // Find offices to add (selected but not existing)
+        $toAdd = array_diff($selected, $existing);
+
+        // Find offices to remove (existing but not selected)
+        $toRemove = array_diff($existing, $selected);
+
+        // Remove unselected offices
+        if (!empty($toRemove)) {
+            $this->record->complyingOffices()
+                ->whereIn('department_code', $toRemove)
+                ->delete();
+        }
+
+        // Add new offices (only create new records, don't touch existing ones)
+        foreach ($toAdd as $deptCode) {
             $this->record->complyingOffices()->create([
                 'department_code' => $deptCode,
-                'status' => '-1', // or your default
+                'status' => '-1',
+                'validation_status' => 'pending_review',
+                
             ]);
         }
     }
