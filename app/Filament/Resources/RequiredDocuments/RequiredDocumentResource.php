@@ -25,7 +25,7 @@ class RequiredDocumentResource extends Resource
     protected static ?string $model = RequiredDocument::class;
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-clipboard-document';
-
+    protected static ?int $navigationSort = 2;
 
     protected static ?string $recordTitleAttribute = 'Required Documents';
 

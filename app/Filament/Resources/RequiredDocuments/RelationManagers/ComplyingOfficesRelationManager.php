@@ -4,28 +4,30 @@ namespace App\Filament\Resources\RequiredDocuments\RelationManagers;
 
 use Dom\Text;
 use Carbon\Carbon;
+use App\Models\User;
 use App\Models\Office;
 use Filament\Tables\Table;
+use Filament\Actions\Action;
 use Filament\Schemas\Schema;
+use App\Models\ComplyingOffice;
 use Illuminate\Validation\Rule;
 use Filament\Actions\EditAction;
-use Filament\Actions\ViewAction;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
-use Filament\Actions\AssociateAction;
+use Filament\Tables\Filters\Filter;
+use Illuminate\Support\Facades\Mail;
+use App\Mail\RequirementDeadlineMail;
 use Filament\Actions\BulkActionGroup;
 use Filament\Forms\Components\Select;
 use Filament\Actions\DeleteBulkAction;
-use Filament\Actions\DissociateAction;
 use Filament\Forms\Components\Textarea;
 use Filament\Tables\Columns\TextColumn;
 use Illuminate\Support\Facades\Storage;
-use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\FileUpload;
-use Filament\Actions\DissociateBulkAction;
+use Filament\Tables\Enums\FiltersLayout;
+use Filament\Tables\Filters\SelectFilter;
+use Illuminate\Database\Eloquent\Builder;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\ToggleButtons;
-use Filament\Infolists\Components\TextEntry;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Resources\RelationManagers\RelationManager;
 
@@ -59,15 +61,15 @@ class ComplyingOfficesRelationManager extends RelationManager
 
 
                 Select::make('status')
-                            ->label('Compliance Status')
-                            ->options([
-                                -1 => 'Not Complied',
-                                0  => 'Partially Complied',
-                                1  => 'Complied',
-                            ])
-                            ->default(-1)
-                            ->disabled()
-                            ->dehydrated(),
+                    ->label('Compliance Status')
+                    ->options([
+                        -1 => 'Not Complied',
+                        0  => 'Partially Complied',
+                        1  => 'Complied',
+                    ])
+                    ->default(-1)
+                    ->disabled()
+                    ->dehydrated(),
 
                 Placeholder::make('attachments_view')
                     ->label('Submitted Attachments')
@@ -98,10 +100,6 @@ class ComplyingOfficesRelationManager extends RelationManager
                     ->disabled()
                     ->columnSpanFull(),
 
-                
-
-
-
                 ToggleButtons::make('validation_status')
                     ->label('Validation Status')
                     ->inline()
@@ -118,11 +116,54 @@ class ComplyingOfficesRelationManager extends RelationManager
                     ->default(fn ($record) => $record?->validation_status ?? 'pending_review')
                     ->required()
                     ->reactive()
-                    ->disabled(fn ($record) => 
-                        !$record || 
-                        $record->agency_name !== auth()->user()->agency_name ||
-                        $record->status !== '1'
-                    )
+                    ->helperText(function ($record) {
+                        if (!$record) {
+                            return '';
+                        }
+
+                        $user = auth()->user();
+                        $requiredDocument = $this->getOwnerRecord();
+                        $userOfficeName = optional($user->office)->office;
+                        $isRequiringAgency = $userOfficeName === $requiredDocument->agency_name;
+                        $isComplied = (int)$record->status === 1;
+
+                        if (!$isRequiringAgency) {
+                            return 'Only the requiring agency (' . $requiredDocument->agency_name . ') can validate submissions.';
+                        }
+
+                        if (!$isComplied) {
+                            return 'Validation is only available when the compliance status is "Complied".';
+                        }
+
+                        return 'Review and validate the submitted documents.';
+                    })
+                    ->disabled(function ($record) {
+                        if (!$record) {
+                            return true; // disable on create
+                        }
+
+                        $user = auth()->user();
+
+                        // Get the parent RequiredDocument record to access agency_name
+                        $requiredDocument = $this->getOwnerRecord();
+
+                        // Check if user's office name matches the requiring agency
+                        $userOfficeName = optional($user->office)->office;
+                        $isRequiringAgency = $userOfficeName === $requiredDocument->agency_name;
+
+                        // Alternative: Also check if user's department_code matches
+                        // (uncomment if you want to enable for users in the same department)
+                        // $userDeptCode = $user->department_code;
+                        // $isRequiringAgency = $isRequiringAgency || $userDeptCode === $requiredDocument->department_code;
+
+                        // Enable only if:
+                        // 1. User is from the requiring agency, AND
+                        // 2. The compliance status is 1 (Complied)
+                        $isComplied = (int)$record->status === 1;
+
+                        return !($isRequiringAgency && $isComplied);
+                    })
+
                     ->afterStateUpdated(function ($state, $set, $record) {
                         // Set validated_at when validation_status becomes "validated"
                         if (in_array($state, ['validated', 'returned'])) {
@@ -146,8 +187,49 @@ class ComplyingOfficesRelationManager extends RelationManager
                     ->label('Remarks')
                     ->nullable()
                     ->rows(2)
-                    ->columnSpanFull(),
-                
+                    ->columnSpanFull()
+                    ->disabled(function ($record) {
+                            if (!$record) {
+                                return true; // disable on create
+                            }
+
+                            $user = auth()->user();
+
+                            // Get the parent RequiredDocument record to access agency_name
+                            $requiredDocument = $this->getOwnerRecord();
+
+                            // Check if user's office name matches the requiring agency
+                            $userOfficeName = optional($user->office)->office;
+                            $isRequiringAgency = $userOfficeName === $requiredDocument->agency_name;
+
+                            // Enable only if:
+                            // 1. User is from the requiring agency, AND
+                            // 2. The compliance status is 1 (Complied)
+                            $isComplied = (int)$record->status === 1;
+
+                            return !($isRequiringAgency && $isComplied);
+                        })
+                        ->helperText(function ($record) {
+                            if (!$record) {
+                                return '';
+                            }
+
+                            $user = auth()->user();
+                            $requiredDocument = $this->getOwnerRecord();
+                            $userOfficeName = optional($user->office)->office;
+                            $isRequiringAgency = $userOfficeName === $requiredDocument->agency_name;
+                            $isComplied = (int)$record->status === 1;
+
+                            if (!$isRequiringAgency) {
+                                return 'Only the requiring agency can add remarks.';
+                            }
+
+                            if (!$isComplied) {
+                                return 'Remarks can only be added when the status is "Complied".';
+                            }
+
+                            return 'Add validation remarks for this submission.';
+                        }),     
             ]);
     }
 
@@ -198,7 +280,7 @@ class ComplyingOfficesRelationManager extends RelationManager
 
                 TextColumn::make('validated_at')
                     ->label('Validation Date & Time')
-                    ->dateTime()
+                    ->dateTime('M d, Y h:i A')
                     ->sortable(),
                 TextColumn::make('created_at')
                     ->dateTime()
@@ -211,21 +293,92 @@ class ComplyingOfficesRelationManager extends RelationManager
             ])
             ->defaultSort('created_at', 'desc')
             ->filters([
-                //
-            ])
+                SelectFilter::make('status')
+                    ->label('Compliance Status')
+                    ->options([
+                        '-1' => 'Not Complied',
+                        '0'  => 'Partially Complied',
+                        '1'  => 'Complied',
+                    ]),
+
+                SelectFilter::make('validation_status')
+                    ->label('Validation Status')
+                    ->options([
+                        'pending_review' => 'Pending Review',
+                        'returned'       => 'Returned',
+                        'validated'      => 'Validated',
+                    ]),
+
+            ], 
+            layout: FiltersLayout::AboveContentCollapsible)
+            
             ->headerActions([
-                CreateAction::make(),
+                CreateAction::make()
+                    ->visible(function () {
+                        $user = auth()->user();
+                        $requiredDocument = $this->getOwnerRecord();
+                        $userOfficeName = optional($user->office)->office;
+                        
+                        // Only show create button if user is from the requiring agency
+                        return $userOfficeName === $requiredDocument->agency_name;
+                    }),
                 // AssociateAction::make(),
             ])
             ->recordActions([
+               Action::make('Notify Office')
+                    ->action(function () {
+
+                        $requirement = $this->getOwnerRecord();
+
+                        // Get complying offices that are NOT yet complied
+                        $complyingOffices = ComplyingOffice::where('requirement_id', $requirement->id)
+                            ->where('status', '!=', 1)
+                            ->get();
+
+                        foreach ($complyingOffices as $office) {
+
+                            // Users in this department
+                            $users = User::where('department_code', $office->department_code)->get();
+
+                            foreach ($users as $user) {
+
+                                // Skip AO/Admin for confidential requirements
+                                if ($requirement->is_confidential && $user->hasAnyRole(['AO', 'admin'])) {
+                                    continue;
+                                }
+
+                                Mail::to($user->email)
+                                    ->send(new RequirementDeadlineMail($requirement));
+                            }
+                        }
+                    })
+                    ->color('primary')
+                    ->icon('heroicon-o-envelope'),
+
                 EditAction::make(),
                 // DissociateAction::make(),
-                DeleteAction::make(),
+                DeleteAction::make()
+                    ->visible(function () {
+                            $user = auth()->user();
+                            $requiredDocument = $this->getOwnerRecord();
+                            $userOfficeName = optional($user->office)->office;
+                            
+                            // Only show create button if user is from the requiring agency
+                            return $userOfficeName === $requiredDocument->agency_name;
+                        }),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
                     // DissociateBulkAction::make(),
-                    DeleteBulkAction::make(),
+                    DeleteBulkAction::make()
+                     ->visible(function () {
+                            $user = auth()->user();
+                            $requiredDocument = $this->getOwnerRecord();
+                            $userOfficeName = optional($user->office)->office;
+                            
+                            // Only show create button if user is from the requiring agency
+                            return $userOfficeName === $requiredDocument->agency_name;
+                        }),
                 ]),
             ]);
     }

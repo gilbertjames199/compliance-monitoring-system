@@ -5,10 +5,13 @@ namespace App\Filament\Resources\ComplyingOffices\Tables;
 use Filament\Tables\Table;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
+use Filament\Tables\Filters\Filter;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Enums\FiltersLayout;
+use Filament\Tables\Filters\SelectFilter;
 use Illuminate\Database\Eloquent\Builder;
 
 class ComplyingOfficesTable
@@ -17,35 +20,72 @@ class ComplyingOfficesTable
     {
         // dd(auth()->user()->department_code);
         return $table
+                // ->modifyQueryUsing(function (Builder $query) {
+
+                //     // dd(auth()->user()->department_code);
+
+                //     // Filter to only show records that match the user's department_code
+                //     $user = auth()->user();
+
+                //     if (! $user) {
+                //         return;
+                //     }
+
+                //     // Role-based access control
+                //     if ($user->hasRole('superadmin')) {
+                //         // Superadmin sees all - no filters
+                //     } 
+                //     elseif ($user->hasRole('department_head')) {
+                //         // Department head sees all within their department
+                //         $query->where('complying_offices.department_code', $user->department_code);
+                //     } 
+                //     elseif ($user->hasAnyRole(['AO', 'admin'])) {
+                //         // AO/Admin sees non-confidential within their department
+                //         $query
+                //             ->where('complying_offices.department_code', $user->department_code)
+                //             ->join('required_documents', 'required_documents.id', '=', 'complying_offices.requirement_id')
+                //             ->where('required_documents.is_confidential', false)
+                //             ->select('complying_offices.*');
+                //     }  
+                // })
                 ->modifyQueryUsing(function (Builder $query) {
-
-                    // dd(auth()->user()->department_code);
-
-
-                    // Filter to only show records that match the user's department_code
                     $user = auth()->user();
 
                     if (! $user) {
                         return;
                     }
 
-                    // Role-based access control
-                    if ($user->hasRole('superadmin')) {
-                        // Superadmin sees all - no filters
-                    } 
-                    elseif ($user->hasRole('department_head')) {
-                        // Department head sees all within their department
-                        $query->where('complying_offices.department_code', $user->department_code);
-                    } 
-                    elseif ($user->hasAnyRole(['AO', 'admin'])) {
-                        // AO/Admin sees non-confidential within their department
+                    /**
+                     * GLOBAL RULE:
+                     * Everyone (including superadmin) can ONLY see records
+                     * where their office is the complying office.
+                     */
+                    $query->where(
+                        'complying_offices.department_code',
+                        $user->department_code
+                    );
+
+                    /**
+                     * EXTRA RULES PER ROLE
+                     */
+                    if ($user->hasAnyRole(['AO', 'admin'])) {
+                        // AO/Admin cannot see confidential requirements
                         $query
-                            ->where('complying_offices.department_code', $user->department_code)
-                            ->join('required_documents', 'required_documents.id', '=', 'complying_offices.requirement_id')
+                            ->join(
+                                'required_documents',
+                                'required_documents.id',
+                                '=',
+                                'complying_offices.requirement_id'
+                            )
                             ->where('required_documents.is_confidential', false)
                             ->select('complying_offices.*');
-                    }  
+                    }
+
+                    // superadmin & department_head:
+                    // - still limited to their office
+                    // - but no confidentiality restriction
                 })
+
                 ->defaultGroup('office.office')
                 ->columns([
                     // TextColumn::make('department_code')
@@ -132,8 +172,38 @@ class ComplyingOfficesTable
                 ])
                 ->defaultSort('created_at', 'desc')
                 ->filters([
-                    //
-                ])
+                    SelectFilter::make('validation_status')
+                    ->label('Validation Status')
+                    ->options([
+                        'pending_review' => 'Pending Review',
+                        'returned'       => 'Returned',
+                        'validated'      => 'Validated',
+                    ]),
+
+                    SelectFilter::make('confidential')
+                        ->label('Confidentiality')
+                        ->options([
+                            '1' => 'Confidential',
+                            '0' => 'Non-Confidential',
+                        ])
+                        ->query(fn (Builder $query, array $data) =>
+                            isset($data['value'])
+                                ? $query->whereHas('requiredDocument', fn ($q) =>
+                                    $q->where('is_confidential', $data['value'])
+                                )
+                                : null
+                        ),
+
+                    Filter::make('overdue')
+                        ->label('Overdue')
+                        ->query(fn (Builder $query) =>
+                            $query->whereHas('requiredDocument', fn ($q) =>
+                                $q->whereDate('due_date', '<', now())
+                            )
+                        ),
+                ],
+                layout: FiltersLayout::AboveContentCollapsible)
+
                 ->recordActions([
                     // ViewAction::make(),
                     EditAction::make(),

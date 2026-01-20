@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\RequiredDocuments\Tables;
 
+use Carbon\Carbon;
 use App\Models\User;
 use App\Models\Office;
 use Filament\Tables\Table;
@@ -18,10 +19,15 @@ use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\View;
 use Illuminate\Support\Facades\Blade;
 use Filament\Actions\DeleteBulkAction;
+use Filament\Forms\Components\Textarea;
 use Filament\Tables\Columns\TextColumn;
+use Illuminate\Support\Facades\Storage;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Builder;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\ToggleButtons;
+use Filament\Forms\Components\DateTimePicker;
 use Filament\Tables\Columns\Layout\View as LayoutView;
 
 class RequiredDocumentsTable 
@@ -104,34 +110,34 @@ class RequiredDocumentsTable
             ])// show actions column
             ->recordActions([
 
-                Action::make('Notify Office')
-                    ->action(function ($record, $data) {
+                    // Action::make('Notify Office')
+                    //     ->action(function ($record, $data) {
 
-                        // Get complying offices that are NOT yet complied
-                        $complyingOffices = ComplyingOffice::where('requirement_id', $record->id)
-                                                ->where('status', '!=', '1')
-                                                ->get();
+                    //         // Get complying offices that are NOT yet complied
+                    //         $complyingOffices = ComplyingOffice::where('requirement_id', $record->id)
+                    //                                 ->where('status', '!=', '1')
+                    //                                 ->get();
 
-                        foreach ($complyingOffices as $office) {
+                    //         foreach ($complyingOffices as $office) {
 
-                            // Users in this department
-                            $users = User::where('department_code', $office->department_code)->get();
+                    //             // Users in this department
+                    //             $users = User::where('department_code', $office->department_code)->get();
 
-                            foreach ($users as $user) {
+                    //             foreach ($users as $user) {
 
-                                // Skip AO/Admin for confidential requirements
-                                if ($record->is_confidential && $user->hasAnyRole(['AO','admin'])) {
-                                    continue;
-                                }
+                    //                 // Skip AO/Admin for confidential requirements
+                    //                 if ($record->is_confidential && $user->hasAnyRole(['AO','admin'])) {
+                    //                     continue;
+                    //                 }
 
-                                Mail::to($user->email)
-                                    ->send(new RequirementDeadlineMail($record));
-                            }
-                        }
+                    //                 Mail::to($user->email)
+                    //                     ->send(new RequirementDeadlineMail($record));
+                    //             }
+                    //         }
 
-                    })
-                    ->color('primary')
-                    ->icon('heroicon-o-envelope'),
+                    //     })
+                    //     ->color('primary')
+                    //     ->icon('heroicon-o-envelope'),
 
                 Action::make('manage_compliance')
                     ->label('View/Update Complying Offices')
@@ -139,72 +145,174 @@ class RequiredDocumentsTable
                     ->color('info')
                     ->modalHeading(fn($record) => "Complying Offices for '{$record->requirement}'")
                     ->modalSubmitActionLabel('Save Changes')
-                    ->modalWidth('4xl')
-                    
-                    ->schema(function ($record) {
-                        // 🔹 Retrieve complying offices with office name via relationship
+                    ->modalWidth('6xl')
+                    ->form(function ($record) {
                         $offices = $record->complyingOffices()->get()->map(function ($complying) {
-                                $office = Office::on('mysql2')
-                                    ->where('department_code', $complying->department_code)
-                                    ->first();
+                            $office = Office::on('mysql2')
+                                ->where('department_code', $complying->department_code)
+                                ->first();
 
-                                $complying->office_name = $office?->office ?? 'N/A';
-                                return $complying;
-                            });
+                            $complying->office_name = $office?->office ?? 'N/A';
+                            return $complying;
+                        });
 
                         if ($offices->isEmpty()) {
                             return [
-                                View::make('filament.custom.no-compliance'),
+                                Placeholder::make('no_compliance')
+                                    ->content('No complying offices found.')
                             ];
                         }
 
-                        // 🔹 Build a dynamic form field per complying office
-                        // $fields = [];
-                        $fields[] = Blade::component('filament.custom.office-header');
+                        $fields = [];
 
                         foreach ($offices as $office) {
                             $fields[] = Grid::make(12)->schema([
+                                // 🔹 Office Name (read-only)
                                 TextInput::make("office_{$office->id}_name")
-                                    ->label(false)
+                                    ->label('Office Name')
                                     ->default($office->office_name)
-                                    ->columnSpan(8)
-                                    ->disabled(),
-                                // TextInput::make("office_{$office->id}_code")
-                                //     ->label('Code')
-                                //     ->default($office->department_code)
-                                //     ->disabled(),
+                                    ->disabled()
+                                    ->columnSpan(2),
 
+                                // 🔹 Status (read-only)
                                 Select::make("office_{$office->id}_status")
-                                    ->label(false)
+                                    ->label('Compliance Status')
                                     ->options([
                                         -1 => 'Not Complied',
-                                        0 => 'Partially Complied',
-                                        1 => 'Complied',
+                                        0  => 'Partially Complied',
+                                        1  => 'Complied',
                                     ])
                                     ->default($office->status)
+                                    ->disabled()
+                                    ->columnSpan(2)
+                                    ->native(false)
+                                    ->reactive(),
+
+                                // 🔹 File Upload / Attachments (read-only)
+                                Placeholder::make("office_{$office->id}_attachments")
+                                    ->label('Submitted Attachments')
+                                    ->content(function () use ($office) {
+                                        if (!$office->attachments) {
+                                            return 'No files submitted.';
+                                        }
+
+                                        $attachments = is_array($office->attachments)
+                                            ? $office->attachments
+                                            : json_decode($office->attachments, true);
+
+                                        return collect($attachments)
+                                            ->map(fn ($file) =>
+                                                "<a href='".Storage::disk('public')->url($file)."' target='_blank'>"
+                                                .basename($file)."</a>"
+                                            )
+                                            ->implode('<br>');
+                                    })
+                                    ->html()
+                                    ->columnSpan(2),
+
+                                // 🔹 Validation Status (editable)
+                                ToggleButtons::make("office_{$office->id}_validation_status")
+                                    ->label('Validation Status')
+                                    ->inline()
+                                    ->options([
+                                        'pending_review' => 'Pending Review',
+                                        'returned'       => 'Returned',
+                                        'validated'      => 'Validated',
+                                    ])
+                                    ->colors([
+                                        'pending_review' => 'warning',
+                                        'returned'       => 'danger',
+                                        'validated'      => 'success',
+                                    ])
+                                    ->default($office->validation_status ?? 'pending_review')
+                                    ->required()
+                                    ->reactive()
+                                    ->dehydrated()
+                                    ->disabled(function ($get, $record) use ($office) {
+                                        // Check if status is not "Complied" (1)
+                                        $isComplied = $get("office_{$office->id}_status") == 1;
+                                        
+                                        if (!$isComplied) {
+                                            return true;
+                                        }
+
+                                        // Check if user is from the requiring agency
+                                        $user = auth()->user();
+                                        $userOfficeName = optional($user->office)->office;
+                                        
+                                        // Get the agency_name from the record (RequiredDocument)
+                                        $isRequiringAgency = $userOfficeName === $record?->agency_name;
+
+                                        // Enable only if user is from requiring agency AND status is complied
+                                        return !$isRequiringAgency;
+                                    })
+                                    ->helperText(function ($get, $record) use ($office) {
+                                        $user = auth()->user();
+                                        $userOfficeName = optional($user->office)->office;
+                                        $isRequiringAgency = $userOfficeName === $record?->agency_name;
+                                        $isComplied = $get("office_{$office->id}_status") == 1;
+
+                                        if (!$isRequiringAgency) {
+                                            return 'Only the requiring agency (' . ($record?->agency_name ?? 'N/A') . ') can validate submissions.';
+                                        }
+
+                                        if (!$isComplied) {
+                                            return 'Validation is only available when the compliance status is "Complied".';
+                                        }
+
+                                        return 'Review and validate the submitted documents.';
+                                    })
+                                    ->afterStateUpdated(function ($state, $set) use ($office) {
+                                    if (in_array($state, ['validated', 'returned'])) {
+                                        $set("office_{$office->id}_validated_at", now());
+                                    } else {
+                                        $set("office_{$office->id}_validated_at", null);
+                                    }
+                                    })
+                                    ->columnSpan(4),
+
+                                DateTimePicker::make("office_{$office->id}_validated_at")
+                                   ->label(fn ($get) => match ($get("office_{$office->id}_validation_status")) {
+                                        'validated' => 'Validated At',
+                                        'returned'  => 'Returned At',
+                                        default     => '',
+                                    })
+                                    ->default($office->validated_at)
+                                    ->disabled()
+                                    ->dehydrated()
+                                    ->displayFormat('m/d/Y h:i A')
+                                    ->seconds(false)
                                     ->columnSpan(4)
-                                    ->native(false),
+                                    ->visible(fn ($get) =>
+                                        in_array(
+                                            $get("office_{$office->id}_validation_status"),
+                                            ['validated', 'returned']
+                                        )
+                                    )->columnSpan(2),
+
                             ]);
                         }
 
                         return $fields;
                     })
-                    
                     ->action(function ($record, array $data) {
-                        // 🔹 Update each complying office’s status
-                        $offices = $record->complyingOffices;
-                        foreach ($offices as $office) {
-                            $fieldKey = "office_{$office->id}_status";
-                            if (isset($data[$fieldKey])) {
-                                $office->update(['status' => (int) $data[$fieldKey]]);
+                        foreach ($record->complyingOffices as $office) {
+                            $key = "office_{$office->id}_validation_status";
+                            $datetimeKey = "office_{$office->id}_validated_at";
+
+                            if (isset($data[$key])) {
+                                $office->update([
+                                    'validation_status' => $data[$key],
+                                    'validated_at'     => $data[$datetimeKey] ?? null,
+                                ]);
                             }
                         }
-                        
-                        Notification::make()
-                            ->title('Compliance statuses updated successfully!')
-                            ->success()
-                            ->send();
-                    }),
+
+                    Notification::make()
+                        ->title('Validation statuses updated successfully!')
+                        ->success()
+                        ->send();
+                }),
                     
                 EditAction::make(),
             ])

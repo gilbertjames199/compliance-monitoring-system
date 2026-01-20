@@ -40,11 +40,11 @@ class AdminPanelProvider extends PanelProvider
             ->emailChangeVerification()
             ->databaseNotifications()
             ->profile()
-           ->userMenuItems([
-            'account' => MenuItem::make()
-               ->label(fn() => auth()->user()->name . ' • ' . auth()->user()->getRoleNames()->first())
-                ->url(fn() => route('filament.admin.auth.profile'))
-                ->icon('heroicon-o-user-circle'),
+            ->userMenuItems([
+                'account' => MenuItem::make()
+                    ->label(fn() => auth()->user()->name . ' • ' . auth()->user()->getRoleNames()->first())
+                        ->url(fn() => route('filament.admin.auth.profile'))
+                        ->icon('heroicon-o-user-circle'),
         ])
             ->colors([
                 'danger' => Color::Rose,

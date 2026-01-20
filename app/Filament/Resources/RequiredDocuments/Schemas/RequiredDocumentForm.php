@@ -28,10 +28,20 @@ class RequiredDocumentForm
                 
                 Section::make('Document Details')
                     ->schema([
+                        
                         TextInput::make('requirement')
-                            ->required(),
+                            ->required()
+                            ->disabled(function ($record) {
+                                if (!$record) {
+                                    return false; // Allow creation
+                                }
+                                $user = auth()->user();
+                                $userOfficeName = optional($user->office)->office;
+                                
+                                // Disable if user is NOT from the requiring agency
+                                return $userOfficeName !== $record->agency_name;
+                            }),
                         TextInput::make('year')
-                            // ->required()
                             ->numeric()
                             ->default(date('Y')) // automatically sets the current year
                             ->readOnly(),
@@ -41,13 +51,25 @@ class RequiredDocumentForm
                             ->live() // Make it reactive
                             ->afterStateUpdated(function (Set $set) {
                                 $set('due_date', null); // Optional: clear due_date when date_from changes
+                            })
+                            ->disabled(function ($record) {
+                                if (!$record) return false;
+                                $user = auth()->user();
+                                $userOfficeName = optional($user->office)->office;
+                                return $userOfficeName !== $record->agency_name;
                             }),
-
                         DatePicker::make('due_date')
                             ->label('Due Date')
                             ->required()
                             ->afterOrEqual('date_from') // Validation rule
-                            ->minDate(fn (Get $get) => $get('date_from')), // Disables dates before date_from in picker
+                            ->minDate(fn (Get $get) => $get('date_from'))
+                            ->disabled(function ($record) {
+                                if (!$record) return false;
+                                $user = auth()->user();
+                                $userOfficeName = optional($user->office)->office;
+                                return $userOfficeName !== $record->agency_name;
+                            }), // Disables dates before date_from in picker
+
                         Select::make('category')
                             ->label('Category')
                             ->required()
@@ -66,6 +88,12 @@ class RequiredDocumentForm
                                     $set('category', $record->document_category_id); 
                                     $set('document_category_id', $record->document_category_id);
                                 }
+                            })
+                            ->disabled(function ($record) {
+                                if (!$record) return false;
+                                $user = auth()->user();
+                                $userOfficeName = optional($user->office)->office;
+                                return $userOfficeName !== $record->agency_name;
                             }),
 
                         TextInput::make('document_category_id')
@@ -73,13 +101,19 @@ class RequiredDocumentForm
                             ->readOnly(),
 
                         Select::make('agency_type')
-                                ->label('Agency Type')
-                                ->options([
-                                    'internal' => 'Internal',
-                                    'external' => 'External',
-                                ])
-                                ->reactive()
-                                ->required(),
+                            ->label('Agency Type')
+                            ->options([
+                                'internal' => 'Internal',
+                                'external' => 'External',
+                            ])
+                            ->reactive()
+                            ->required()
+                            ->disabled(function ($record) {
+                                if (!$record) return false;
+                                $user = auth()->user();
+                                $userOfficeName = optional($user->office)->office;
+                                return $userOfficeName !== $record->agency_name;
+                            }),
 
                         Select::make('agency_name')
                             ->label('Requiring Agency')
@@ -119,10 +153,21 @@ class RequiredDocumentForm
                                     'office' => $data['agency_name'],
                                 ])->office; // return the office name so it gets saved in required_documents
                                     
+                            })
+                            ->disabled(function ($record) {
+                                if (!$record) return false;
+                                $user = auth()->user();
+                                $userOfficeName = optional($user->office)->office;
+                                return $userOfficeName !== $record->agency_name;
                             }),
                         
                         Toggle::make('is_confidential')
-                            ->label('Confidential'),
+                            ->label('Confidential')->disabled(function ($record) {
+                            if (!$record) return false;
+                            $user = auth()->user();
+                            $userOfficeName = optional($user->office)->office;
+                            return $userOfficeName !== $record->agency_name;
+                        }),
                         Grid::make(1) // parent grid: 1 column 
                             ->schema([ 
                                 // Toggle for recurring
@@ -136,6 +181,11 @@ class RequiredDocumentForm
                                             $set('recurrence_type', null); 
                                             $set('recurrence_interval', null); 
                                         } 
+                                    })->disabled(function ($record) {
+                                        if (!$record) return false;
+                                        $user = auth()->user();
+                                        $userOfficeName = optional($user->office)->office;
+                                        return $userOfficeName !== $record->agency_name;
                                     }), 
 
                                 // Nested grid for recurrence fields
@@ -159,7 +209,13 @@ class RequiredDocumentForm
                                                 } 
                                             }) 
                                             ->dehydrated(true) 
-                                            ->dehydrateStateUsing(fn($state, $get) => $get('is_recurring') ? $state : null), 
+                                            ->dehydrateStateUsing(fn($state, $get) => $get('is_recurring') ? $state : null)
+                                            ->disabled(function ($record) {
+                                                if (!$record) return false;
+                                                $user = auth()->user();
+                                                $userOfficeName = optional($user->office)->office;
+                                                return $userOfficeName !== $record->agency_name;
+                                            }), 
 
                                         TextInput::make('recurrence_interval') 
                                             ->label('Custom Interval (days)') 
@@ -179,8 +235,7 @@ class RequiredDocumentForm
 
 
                         Section::make('Complying Offices')
-                                    // ->columns(2)
-                                    ->schema([
+                            ->schema([
         
                                 Select::make('complying_offices')
                                         ->label('Complying Offices')
@@ -193,6 +248,12 @@ class RequiredDocumentForm
                                         )
                                         ->preload()
                                         ->searchable()
+                                        ->disabled(function ($record) {
+                                            if (!$record) return false;
+                                            $user = auth()->user();
+                                            $userOfficeName = optional($user->office)->office;
+                                            return $userOfficeName !== $record->agency_name;
+                                        })
                                         ->afterStateHydrated(function ($component, $state, $record) {
                                             if ($record?->exists) {
                                                 $component->state(
@@ -208,7 +269,13 @@ class RequiredDocumentForm
                                                 ->icon('heroicon-o-check-circle')
                                                 ->action(fn (callable $set) =>
                                                     $set('complying_offices', Office::pluck('department_code')->toArray())
-                                                ),
+                                                )
+                                                ->disabled(function ($record) {
+                                                    if (!$record) return false;
+                                                    $user = auth()->user();
+                                                    $userOfficeName = optional($user->office)->office;
+                                                    return $userOfficeName !== $record->agency_name;
+                                                }),
 
                                             Action::make('clearAll')
                                                 ->label('Clear')
@@ -216,7 +283,13 @@ class RequiredDocumentForm
                                                 ->color('danger')
                                                 ->action(fn (callable $set) =>
                                                     $set('complying_offices', [])
-                                                ),
+                                                )
+                                                ->disabled(function ($record) {
+                                                    if (!$record) return false;
+                                                    $user = auth()->user();
+                                                    $userOfficeName = optional($user->office)->office;
+                                                    return $userOfficeName !== $record->agency_name;
+                                                }),
                                             ]),
                                     
 
@@ -233,9 +306,19 @@ class RequiredDocumentForm
         // unset($data['complying_offices'], $data['status']);
 
         $data['_selected_offices'] = $data['complying_offices'] ?? [];
-        $data['_is_recurring'] = $data['is_recurring'] ?? false;
-        $data['_recurrence_type'] = $data['recurrence_type'] ?? null;
-        $data['_recurrence_interval'] = $data['recurrence_interval'] ?? null;
+        
+        // Keep these for the model - don't unset them!
+        // They should be saved to the required_documents table
+        if (!isset($data['is_recurring'])) {
+            $data['is_recurring'] = false;
+        }
+
+        if (!isset($data['recurrence_type'])) {
+            $data['recurrence_type'] = null;
+        }
+        if (!isset($data['recurrence_interval'])) {
+            $data['recurrence_interval'] = null;
+        }
 
         unset($data['complying_offices']);
 
@@ -249,9 +332,6 @@ class RequiredDocumentForm
     {
         $selectedOffices = $data['_selected_offices'] ?? [];
         $status = $data['_status'] ?? -1;
-        $isRecurring = $data['_is_recurring'] ?? false;
-        $recurrenceType = $data['_recurrence_type'] ?? null;
-        $recurrenceInterval = $data['_recurrence_interval'] ?? null;
 
         foreach ($selectedOffices as $deptCode) {
             ComplyingOffice::create([
@@ -263,12 +343,11 @@ class RequiredDocumentForm
         }
 
         // Dispatch job to create 1 recurring duplicate asynchronously
-        if ($isRecurring && $recurrenceType) {
+        if ($record->is_recurring && $record->recurrence_type) {
             \App\Jobs\CreateRecurringDocuments::dispatch(
                 $record,
-                $selectedOffices,
-                $recurrenceType,
-                $recurrenceInterval
+                $record->recurrence_type,
+                $record->recurrence_interval
             );
         }
     }

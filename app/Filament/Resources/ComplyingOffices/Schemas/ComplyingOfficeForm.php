@@ -20,7 +20,7 @@ class ComplyingOfficeForm
 {
     public static function configure(Schema $schema): Schema
     {
-        $isAdmin = auth()->user()->hasAnyRole(['superadmin']);
+        $isAdmin = auth()->user()->hasAnyRole(['super_admin']);
 
         return $schema
             ->components([
@@ -357,14 +357,16 @@ class ComplyingOfficeForm
                          * ⚡ RUNS ONLY ON SAVE (FAST)
                          */
                         ->mutateDehydratedStateUsing(function ($state, callable $set) {
+                            $user = auth()->user();
+                            
                             // No files → reset
-                            if (empty($state)) {
+                            if (empty($state) || (is_array($state) && count(array_filter($state)) === 0)) {
                                 $set('status', -1); // Not complied
                                 $set('submitted_at', null);
+                                $set('validation_status', 'returned'); // or keep as returned
+                                $set('validated_at', null);
                                 return $state;
-                            }
-
-                            $user = auth()->user();
+                            }     
 
                             // Set compliance status
                             if ($user->hasRole('department_head')) {
@@ -385,14 +387,16 @@ class ComplyingOfficeForm
                             return $state;
                         })
 
-    /**
-     * 👁 PERMISSION CHECK
-     */
-    ->visible(fn () =>
-        auth()->user()->can('addAttachments', ComplyingOffice::class)
-    )
+                        /**
+                         * 👁 PERMISSION CHECK
+                         */
+                        ->visible(fn () =>
+                            auth()->user()->can('addAttachments', ComplyingOffice::class)
+                        )
 
-    ->columnSpanFull(),
+                        ->columnSpanFull(),
+
+
                     Textarea::make('submission_notes')
                         ->label('Submission Notes')
                         ->placeholder(function ($record) {

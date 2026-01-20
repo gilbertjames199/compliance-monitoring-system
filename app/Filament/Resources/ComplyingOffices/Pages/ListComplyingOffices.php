@@ -19,7 +19,7 @@ class ListComplyingOffices extends ListRecords
         ];
     }
 
-     public function getTabs(): array
+    public function getTabs(): array
     {
         return [
             null => Tab::make('All'),

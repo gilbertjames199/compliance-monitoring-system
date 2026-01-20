@@ -20,8 +20,9 @@ class ComplyingOfficeResource extends Resource
     protected static ?string $model = ComplyingOffice::class;
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-building-office';
-
+    protected static ?int $navigationSort = 3;
     protected static ?string $recordTitleAttribute = 'Complying Offices';
+    
 
     public static function form(Schema $schema): Schema
     {

@@ -1,0 +1,19 @@
+[90m= [39m[34;4mApp\Models\RequiredDocument[39;24m {#7136
+    [34mid[39m: [35m926[39m,
+    [34mrequirement[39m: "[32ma8[39m",
+    [34magency_type[39m: "[32minternal[39m",
+    [34magency_name[39m: "[32mPROVINCIAL INTERNAL AUDIT OFFICE[39m",
+    [34mdate_from[39m: "[32m2026-01-19[39m",
+    [34mdue_date[39m: "[32m2026-01-24[39m",
+    [34myear[39m: "[32m2026[39m",
+    [34mis_confidential[39m: [35m0[39m,
+    [34mis_recurring[39m: [35m1[39m,
+    [34mrecurrence_type[39m: "[32mcustom[39m",
+    [34mrecurrence_interval[39m: [35m1[39m,
+    [34mdocument_category_id[39m: [35m1[39m,
+    [34mcreated_at[39m: "[32m2026-01-20 14:32:08[39m",
+    [34mupdated_at[39m: "[32m2026-01-20 14:32:08[39m",
+    [34mreminder_sent_at[39m: [36mnull[39m,
+    [34mnext_occurrence_created_at[39m: "[32m2026-01-20 00:00:00[39m",
+  }
+

@@ -19,10 +19,10 @@ class ComplianceStatusPieChart extends ChartWidget
         $baseQuery = ComplyingOffice::query();
 
         // Apply filters based on role
-        if (!$user->hasRole('superadmin')) {
+        if (!$user->hasRole('super_admin')) {
             if ($user->hasRole('department_head')) {
                 $baseQuery->where('department_code', $user->department_code);
-            } elseif ($user->hasAnyRole(['ao', 'admin'])) {
+            } elseif ($user->hasAnyRole(['AO', 'admin'])) {
                 $baseQuery->where('department_code', $user->department_code)
                           ->whereHas('requiredDocument', function ($q) {
                               $q->where('is_confidential', 0);
@@ -41,9 +41,9 @@ class ComplianceStatusPieChart extends ChartWidget
                     'label' => 'Document Compliance',
                     'data' => [$notComplied, $partiallyComplied, $complied],
                     'backgroundColor' => [
-                        'rgb(255, 99, 132)',   // danger - red
-                        'rgb(251, 191, 36)',   // warning - amber
-                        'rgb(34, 197, 94)',    // success - green
+                        '#ef4444',   // danger - red
+                        '#f59e0b',   // warning - amber
+                        '#22c55e',    // success - green
                     ],
                 ],
             ],

@@ -30,8 +30,4 @@ class Kernel extends ConsoleKernel
         require base_path('routes/console.php');
     }
 
-
-    protected $commands = [
-    \App\Console\Commands\GenerateRecurringCompliance::class,
-    ];
 }

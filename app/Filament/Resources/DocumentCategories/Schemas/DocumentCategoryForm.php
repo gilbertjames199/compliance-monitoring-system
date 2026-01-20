@@ -30,8 +30,14 @@ class DocumentCategoryForm
                 //         ->required()
                 View::make('forms.components.sticky-category')
                 ->schema([
-                        TextInput::make('category')
-                        ->required()
+                    TextInput::make('category')
+                    ->required()
+                    ->disabled(function ($record) {
+                        if (!$record) return false;
+                        $user = auth()->user();
+                        $userOfficeName = optional($user->office)->office;
+                        return $userOfficeName !== $record->agency_name;
+                    })
                 ]),
                 // ->columnSpanFull(),
                 // Section::make()
@@ -56,8 +62,14 @@ class DocumentCategoryForm
                     ->relationship('requiredDocuments') // 🔑 must match the model method exactly
                     ->schema([
 
-                        Section::make('Details')
+                    Section::make('Details')
                         ->columns(2)
+                        ->disabled(function ($record) {
+                            if (!$record) return false;
+                            $user = auth()->user();
+                            $userOfficeName = optional($user->office)->office;
+                            return $userOfficeName !== $record->agency_name;
+                        })
                         ->schema([
                             TextInput::make('requirement')
                                 ->required(),
@@ -161,65 +173,101 @@ class DocumentCategoryForm
                                             ->required(),
                                     ]),
                                 ]),
-                        ]),
+                        ])
+                        ->visible(function ($record) {
+                                    if (!$record) {
+                                        return true; // Allow viewing during creation
+                                    }
+                                    
+                                    $user = auth()->user();
+                                    $userOfficeName = optional($user->office)->office;
+                                    
+                                    // Show only if user is from the requiring agency
+                                    return $userOfficeName === $record->agency_name;
+                                }),
 
-                        Section::make('Complying Offices')
-                            // ->columns(2)
-                            ->schema([
+                    Section::make('Complying Offices')
+                        // ->columns(2)
+                        ->schema([
  
-                          Select::make('complying_offices')
-                            ->label('Complying Offices')
-                            ->multiple()
-                            ->required()
-                            ->options(
-                                Office::orderBy('office')->pluck('office', 'department_code')
-                            )
-                            ->preload()
-                            ->searchable()
-
-                            ->loadStateFromRelationshipsUsing(fn ($component, $record) =>
-                                $component->state(
-                                    $record->complyingOffices
-                                        ->pluck('department_code')
-                                        ->toArray()
+                            Select::make('complying_offices')
+                                ->label('Complying Offices')
+                                ->multiple()
+                                ->required()
+                                ->options(
+                                    Office::orderBy('office')->pluck('office', 'department_code')
                                 )
-                            )
+                                ->preload()
+                                ->searchable()
+                                ->disabled(function ($record) {
+                                    if (!$record) return false;
+                                    $user = auth()->user();
+                                    $userOfficeName = optional($user->office)->office;
+                                    return $userOfficeName !== $record->agency_name;
+                                })
+                                ->loadStateFromRelationshipsUsing(fn ($component, $record) =>
+                                    $component->state(
+                                        $record->complyingOffices
+                                            ->pluck('department_code')
+                                            ->toArray()
+                                    )
+                                )
+                                ->saveRelationshipsUsing(function ($component, $record, $state) {
+                                    $record->complyingOffices()->delete();
 
-                            ->saveRelationshipsUsing(function ($component, $record, $state) {
-                                $record->complyingOffices()->delete();
+                                    foreach ($state ?? [] as $departmentCode) {
+                                        ComplyingOffice::create([
+                                            'requirement_id'  => $record->id,
+                                            'department_code' => $departmentCode,
+                                            'status'          => -1,
+                                        ]);
+                                    }
+                                })
+                                ->suffixActions([
+                                    Action::make('selectAll')
+                                        ->icon('heroicon-o-check-circle')
+                                        ->action(fn (callable $set) =>
+                                            $set('complying_offices', Office::pluck('department_code')->toArray())
+                                        )
+                                        ->disabled(function ($record) {
+                                            if (!$record) return false;
+                                            $user = auth()->user();
+                                            $userOfficeName = optional($user->office)->office;
+                                            return $userOfficeName !== $record->agency_name;
+                                        }),
 
-                                foreach ($state ?? [] as $departmentCode) {
-                                    ComplyingOffice::create([
-                                        'requirement_id'  => $record->id,
-                                        'department_code' => $departmentCode,
-                                        'status'          => -1,
-                                    ]);
-                                }
-                            })
-
-                            ->suffixActions([
-                                Action::make('selectAll')
-                                    ->icon('heroicon-o-check-circle')
-                                    ->action(fn (callable $set) =>
-                                        $set('complying_offices', Office::pluck('department_code')->toArray())
-                                    ),
-
-                                Action::make('clear')
-                                    ->icon('heroicon-o-x-circle')
-                                    ->color('danger')
-                                    ->action(fn (callable $set) =>
-                                        $set('complying_offices', [])
-                                    ),
-                            ])
-
-
-                                ]),
+                                    Action::make('clear')
+                                        ->icon('heroicon-o-x-circle')
+                                        ->color('danger')
+                                        ->action(fn (callable $set) =>
+                                            $set('complying_offices', [])
+                                        )
+                                        ->disabled(function ($record) {
+                                            if (!$record) return false;
+                                            $user = auth()->user();
+                                            $userOfficeName = optional($user->office)->office;
+                                            return $userOfficeName !== $record->agency_name;
+                                        }),
+                                    ])
                                 ])
-                                ->columnSpanFull()
-                                ->reorderable()
-                                ->collapsible()
-                                ->cloneable()
-                            ]);
+                                ->visible(function ($record) {
+                                    if (!$record) {
+                                        return true; // Allow viewing during creation
+                                    }
+                                    
+                                    $user = auth()->user();
+                                    $userOfficeName = optional($user->office)->office;
+                                    
+                                    // Show only if user is from the requiring agency
+                                    return $userOfficeName === $record->agency_name;
+                                }),
+                            ])
+                        ->columnSpanFull()
+                        ->reorderable()
+                        ->collapsible()
+                        ->cloneable()
+                        
+                ]);
     }
 }
 // ->visible(fn ($get) => blank($get('id')))
