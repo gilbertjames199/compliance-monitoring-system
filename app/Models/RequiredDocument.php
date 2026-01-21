@@ -41,41 +41,43 @@ class RequiredDocument extends Model
 
     // app/Models/RequiredDocument.php
 
+    // protected static function booted()
+    // {
+    //     static::created(function ($requiredDocument) {
+    //         foreach ($requiredDocument->complyingOffices as $office) {
+    //             $query = \App\Models\User::where('department_code', $office->department_code);
+                
+    //             // If confidential, only notify super_admin and dept head
+
+    //             if ($requiredDocument->is_confidential) {
+    //                 $query->whereIn('role', ['super_admin', 'department_head']);
+    //             }
+                
+    //             $users = $query->get();
+                
+    //             foreach ($users as $user) {
+    //                 \Illuminate\Support\Facades\Mail::to($user->email)
+    //                     ->queue(new \App\Mail\RequirementDeadlineMail($requiredDocument));
+    //             }
+    //         }
+
+    //         static::created(function ($requirement) {
+    //             // Dispatch the job to run 5 minutes later
+    //             SendRequirementNotification::dispatch($requirement->id)->delay(now()->addMinutes(5));
+    //         });
+    //     });
+    // }
+
     protected static function booted()
     {
-        // static::created(function ($requiredDocument) {
-        //     foreach ($requiredDocument->complyingOffices as $office) {
-        //         $users = \App\Models\User::where('department_code', $office->department_code)->get();
-        //         foreach ($users as $user) {
-        //             \Illuminate\Support\Facades\Mail::to($user->email)
-        //                 ->queue(new \App\Mail\RequirementDeadlineMail($requiredDocument));
-        //         }
-        //     }
-        // });
-
         static::created(function ($requiredDocument) {
-            foreach ($requiredDocument->complyingOffices as $office) {
-                $query = \App\Models\User::where('department_code', $office->department_code);
-                
-                // If confidential, only notify super_admin and dept head
-
-                if ($requiredDocument->is_confidential) {
-                    $query->whereIn('role', ['super_admin', 'department_head']);
-                }
-                
-                $users = $query->get();
-                
-                foreach ($users as $user) {
-                    \Illuminate\Support\Facades\Mail::to($user->email)
-                        ->queue(new \App\Mail\RequirementDeadlineMail($requiredDocument));
-                }
-            }
-
-            static::created(function ($requirement) {
-                // Dispatch the job to run 5 minutes later
-                SendRequirementNotification::dispatch($requirement->id)->delay(now()->addMinutes(5));
-            });
+            // Dispatch the job to run 5 minutes later
+            SendRequirementNotification::dispatch($requiredDocument->id)->delay(now()->addMinutes(5));
         });
+
+        // Note: We CANNOT send email notifications here because 
+        // complyingOffices are created AFTER this model is saved
+        // The email notifications should be sent in the Resource's afterCreate() method
     }
 
 }

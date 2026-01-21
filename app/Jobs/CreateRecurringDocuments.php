@@ -3,14 +3,14 @@
 namespace App\Jobs;
 
 use Carbon\Carbon;
-use Illuminate\Bus\Queueable;
-use App\Models\ComplyingOffice;
 use App\Models\RequiredDocument;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Queue\SerializesModels;
-use Illuminate\Queue\InteractsWithQueue;
+use App\Models\ComplyingOffice;
+use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
 
 class CreateRecurringDocuments implements ShouldQueue
 {
@@ -32,76 +32,110 @@ class CreateRecurringDocuments implements ShouldQueue
 
     public function handle(): void
     {
-        $baseDateFrom = Carbon::parse($this->record->date_from);
-        $today = Carbon::today();
+        /**
+         * 🔒 STEP 1: Get the LATEST generated document
+         */
+        $latest = RequiredDocument::with('complyingOffices')
+            ->where('requirement', $this->record->requirement)
+            ->where('agency_name', $this->record->agency_name)
+            ->orderBy('date_from', 'desc')
+            ->first();
 
-        $newDateFrom = $this->calculateNextDate(
-            $baseDateFrom,
-            $this->recurrenceType,
-            $this->recurrenceInterval,
-            1
-        );
-
-        // Only create if today matches the next occurrence date
-        if (!$today->isSameDay($newDateFrom)) {
-            Log::info("No recurring documents to create today for requirement ID: {$this->record->id}");
+        if (!$latest || $latest->complyingOffices->isEmpty()) {
+            Log::warning('Recurring skipped: no source or offices missing', [
+                'requirement' => $this->record->requirement,
+            ]);
             return;
         }
 
-        // Check if a duplicate already exists
-        $exists = RequiredDocument::where('date_from', $newDateFrom)
-            ->where('requirement', $this->record->requirement)
-            ->where('agency_name', $this->record->agency_name)
+        /**
+         * 📆 STEP 2: Compute next date_from
+         */
+        $nextDateFrom = $this->calculateNextDate(
+            Carbon::parse($latest->date_from),
+            $this->recurrenceType,
+            $this->recurrenceInterval
+        );
+
+        // ⛔ Only run on the exact recurrence day
+        if (!Carbon::today()->isSameDay($nextDateFrom)) {
+            return;
+        }
+
+        /**
+         * ⛔ STEP 3: Prevent duplicate generation
+         */
+        $exists = RequiredDocument::where('requirement', $latest->requirement)
+            ->where('agency_name', $latest->agency_name)
+            ->whereDate('date_from', $nextDateFrom)
             ->exists();
 
         if ($exists) {
-            Log::info("Recurring document already exists for requirement ID: {$this->record->id}");
-            $this->record->update(['next_occurrence_created_at' => $newDateFrom]);
             return;
         }
 
-        // ✅ Duplicate required document
-        $duplicate = $this->record->replicate();
-        $duplicate->date_from = $newDateFrom;
-        $duplicate->due_date  = Carbon::parse($this->record->due_date)->addDays(0); // same due date logic
-        $duplicate->next_occurrence_created_at = null;
-        $duplicate->reminder_sent_at = null;
+        /**
+         * 📄 STEP 4: Duplicate document
+         */
+        $duplicate = $latest->replicate([
+            'created_at',
+            'updated_at',
+            'is_recurring',
+            'recurrence_type',
+            'recurrence_interval',
+            'reminder_sent_at',
+        ]);
+
+        /**
+         * ✅ FIXED DATE LOGIC
+         * Preserve ORIGINAL duration (direction-safe)
+         */
+        $originalDateFrom = Carbon::parse($latest->date_from);
+        $originalDueDate  = Carbon::parse($latest->due_date);
+
+        $daysDiff = $originalDateFrom->diffInDays($originalDueDate, false);
+
+        $duplicate->date_from = $nextDateFrom->copy();
+        $duplicate->due_date  = $nextDateFrom->copy()->addDays($daysDiff);
+
+        // 🔒 Disable recurrence on generated record
+        $duplicate->is_recurring = false;
+        $duplicate->recurrence_type = null;
+        $duplicate->recurrence_interval = null;
+
         $duplicate->save();
 
-        // Load the complying offices reliably
-        $this->record->load('complyingOffices');
-        $offices = $this->record->complyingOffices;
-
-        if ($offices->isEmpty()) {
-            Log::info("No complying offices to replicate for requirement ID: {$this->record->id}");
-        } else {
-            foreach ($offices as $office) {
-                ComplyingOffice::create([
-                    'department_code' => $office->department_code,
-                    'requirement_id'  => $duplicate->id,
-                    'status'          => -1,
-                    'due_date'        => $duplicate->due_date,
-                ]);
-            }
+        /**
+         * 🏢 STEP 5: Copy complying offices
+         */
+        foreach ($latest->complyingOffices as $office) {
+            ComplyingOffice::create([
+                'department_code' => $office->department_code,
+                'requirement_id'  => $duplicate->id,
+                'status'          => -1,
+            ]);
         }
 
-        $this->record->update(['next_occurrence_created_at' => $newDateFrom]);
-
-        Log::info("Created recurring document ID: {$duplicate->id} for requirement ID: {$this->record->id} with ".count($offices)." complying offices replicated.");
+        Log::info('Recurring document created successfully', [
+            'from_id' => $latest->id,
+            'to_id'   => $duplicate->id,
+        ]);
     }
 
+    /**
+     * 📆 Calculate next recurrence date
+     */
     private function calculateNextDate(
-        Carbon $baseDate,
-        string $recurrenceType,
-        ?int $interval,
-        int $occurrence
+        Carbon $date,
+        string $type,
+        ?int $interval
     ): Carbon {
-        return match ($recurrenceType) {
-            'yearly'    => $baseDate->copy()->addYears($occurrence),
-            'quarterly' => $baseDate->copy()->addMonths(3 * $occurrence),
-            'semester'  => $baseDate->copy()->addMonths(6 * $occurrence),
-            'custom'    => $baseDate->copy()->addDays($interval * $occurrence),
-            default     => $baseDate,
+        return match ($type) {
+            'yearly'    => $date->copy()->addYear(),
+            'quarterly' => $date->copy()->addMonths(3),
+            'semester'  => $date->copy()->addMonths(6),
+            'custom'    => $date->copy()->addDays($interval ?? 0),
+            default     => $date->copy(),
         };
     }
 }

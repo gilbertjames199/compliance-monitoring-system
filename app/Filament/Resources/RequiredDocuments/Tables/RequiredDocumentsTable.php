@@ -145,7 +145,7 @@ class RequiredDocumentsTable
                     ->color('info')
                     ->modalHeading(fn($record) => "Complying Offices for '{$record->requirement}'")
                     ->modalSubmitActionLabel('Save Changes')
-                    ->modalWidth('6xl')
+                    ->modalWidth('7xl')
                     ->form(function ($record) {
                         $offices = $record->complyingOffices()->get()->map(function ($complying) {
                             $office = Office::on('mysql2')
@@ -172,7 +172,7 @@ class RequiredDocumentsTable
                                     ->label('Office Name')
                                     ->default($office->office_name)
                                     ->disabled()
-                                    ->columnSpan(2),
+                                    ->columnSpan(4),
 
                                 // 🔹 Status (read-only)
                                 Select::make("office_{$office->id}_status")
@@ -211,19 +211,19 @@ class RequiredDocumentsTable
                                     ->columnSpan(2),
 
                                 // 🔹 Validation Status (editable)
-                                ToggleButtons::make("office_{$office->id}_validation_status")
+                                Select::make("office_{$office->id}_validation_status")
                                     ->label('Validation Status')
-                                    ->inline()
+                                    // ->inline()
                                     ->options([
                                         'pending_review' => 'Pending Review',
                                         'returned'       => 'Returned',
                                         'validated'      => 'Validated',
                                     ])
-                                    ->colors([
-                                        'pending_review' => 'warning',
-                                        'returned'       => 'danger',
-                                        'validated'      => 'success',
-                                    ])
+                                    // ->colors([
+                                    //     'pending_review' => 'warning',
+                                    //     'returned'       => 'danger',
+                                    //     'validated'      => 'success',
+                                    // ])
                                     ->default($office->validation_status ?? 'pending_review')
                                     ->required()
                                     ->reactive()
@@ -269,7 +269,7 @@ class RequiredDocumentsTable
                                         $set("office_{$office->id}_validated_at", null);
                                     }
                                     })
-                                    ->columnSpan(4),
+                                    ->columnSpan(2),
 
                                 DateTimePicker::make("office_{$office->id}_validated_at")
                                    ->label(fn ($get) => match ($get("office_{$office->id}_validation_status")) {

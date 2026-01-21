@@ -342,13 +342,14 @@ class RequiredDocumentForm
             ]);
         }
 
-        // Dispatch job to create 1 recurring duplicate asynchronously
+        // 🔥 IMPORTANT: Dispatch the job with a delay to ensure 
+        // complying offices are fully saved before the job runs
         if ($record->is_recurring && $record->recurrence_type) {
             \App\Jobs\CreateRecurringDocuments::dispatch(
-                $record,
+                $record->fresh(),
                 $record->recurrence_type,
                 $record->recurrence_interval
-            );
+            )->afterCommit(); // Small delay to ensure DB consistency
         }
     }
 
