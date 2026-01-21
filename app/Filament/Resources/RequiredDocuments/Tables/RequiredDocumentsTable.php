@@ -8,9 +8,11 @@ use App\Models\Office;
 use Filament\Tables\Table;
 use Filament\Actions\Action;
 use App\Models\ComplyingOffice;
+use App\Models\DocumentCategory;
 use App\Models\RequiredDocument;
 use Filament\Actions\EditAction;
 use Filament\Resources\Resource;
+use Filament\Tables\Filters\Filter;
 use Illuminate\Support\Facades\Mail;
 use App\Mail\RequirementDeadlineMail;
 use Filament\Actions\BulkActionGroup;
@@ -20,6 +22,7 @@ use Filament\Schemas\Components\View;
 use Illuminate\Support\Facades\Blade;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Forms\Components\Textarea;
+use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Illuminate\Support\Facades\Storage;
 use Filament\Forms\Components\TextInput;
@@ -89,6 +92,15 @@ class RequiredDocumentsTable
                     ->label('Requiring Agency')
                     ->searchable()
                     ->wrap(),
+                IconColumn::make('is_confidential')
+                    ->label('Confidential')
+                    ->boolean()
+                    ->sortable()
+                    ->searchable()
+                    ->trueColor('warning')   // yellow
+                    ->falseColor('gray')     // dark / black-ish
+                    ->trueIcon('heroicon-o-lock-closed')
+                    ->falseIcon('heroicon-o-lock-open'),
                 TextColumn::make('year')
                     ->searchable(),
                 TextColumn::make('category.category')
@@ -106,8 +118,68 @@ class RequiredDocumentsTable
             ])
             ->defaultSort('created_at', 'desc')
             ->filters([
-                //
-            ])// show actions column
+                Filter::make('is_confidential')
+                    ->label('Confidential')
+                    ->query(function (Builder $query, array $data) {
+                        if (isset($data['is_confidential'])) {
+                            $query->where('is_confidential', $data['is_confidential']);
+                        }
+                    })
+                    ->form([
+                        Select::make('is_confidential')
+                            ->label('Confidential')
+                            ->options([
+                                1 => 'Yes',
+                                0 => 'No',
+                            ])
+                            ->placeholder('Select...'),
+                    ]),
+
+                Filter::make('year')
+                    ->label('Year')
+                    ->query(function (Builder $query, array $data) {
+                        if (!empty($data['year'])) {
+                            $query->where('year', $data['year']);
+                        }
+                    })
+                    ->form([
+                        Select::make('year')
+                            ->label('Year')
+                            ->options(
+                                RequiredDocument::query()
+                                    ->select('year')
+                                    ->distinct()
+                                    ->orderBy('year', 'desc')
+                                    ->pluck('year', 'year')
+                                    ->toArray()
+                            )
+                            ->placeholder('Select Year'),
+                    ]),
+
+                Filter::make('category')
+                    ->label('Category')
+                    ->query(function (Builder $query, array $data) {
+                        if (!empty($data['category'])) {
+                            // Use whereHas to filter by related category
+                            $query->whereHas('category', function (Builder $q) use ($data) {
+                                $q->where('id', $data['category']);
+                            });
+                        }
+                    })
+                    ->form([
+                        Select::make('category')
+                            ->label('Category')
+                            ->options(
+                                DocumentCategory::query()
+                                    ->orderBy('category')
+                                    ->pluck('category', 'id')
+                                    ->toArray()
+                            )
+                            ->placeholder('Select Category'),
+                    ]),
+
+            ])
+
             ->recordActions([
 
                     // Action::make('Notify Office')
@@ -140,7 +212,7 @@ class RequiredDocumentsTable
                     //     ->icon('heroicon-o-envelope'),
 
                 Action::make('manage_compliance')
-                    ->label('View/Update Complying Offices')
+                    ->label('View/Validate Submissions')
                     ->icon('heroicon-o-building-office')
                     ->color('info')
                     ->modalHeading(fn($record) => "Complying Offices for '{$record->requirement}'")
@@ -202,13 +274,19 @@ class RequiredDocumentsTable
 
                                         return collect($attachments)
                                             ->map(fn ($file) =>
-                                                "<a href='".Storage::disk('public')->url($file)."' target='_blank'>"
+                                                "<a href='".Storage::disk('public')->url($file)."' 
+                                                    target='_blank' 
+                                                    style='color: #2563eb; text-decoration: underline;'
+                                                    onmouseover='this.style.color=\"#1d4ed8\"' 
+                                                    onmouseout='this.style.color=\"#2563eb\"'>"
                                                 .basename($file)."</a>"
                                             )
                                             ->implode('<br>');
                                     })
                                     ->html()
                                     ->columnSpan(2),
+
+
 
                                 // 🔹 Validation Status (editable)
                                 Select::make("office_{$office->id}_validation_status")

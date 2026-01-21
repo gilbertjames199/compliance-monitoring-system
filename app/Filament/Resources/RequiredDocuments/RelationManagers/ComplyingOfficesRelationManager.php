@@ -71,7 +71,7 @@ class ComplyingOfficesRelationManager extends RelationManager
                     ->disabled()
                     ->dehydrated(),
 
-                Placeholder::make('attachments_view')
+               Placeholder::make('attachments_view')
                     ->label('Submitted Attachments')
                     ->content(function ($record) {
                         if (!$record || empty($record->attachments)) {
@@ -84,12 +84,17 @@ class ComplyingOfficesRelationManager extends RelationManager
 
                         return collect($attachments)
                             ->map(fn ($file) =>
-                                "<a href='".Storage::disk('public')->url($file)."' target='_blank'>"
-                                .basename($file)."</a>"
+                                "<a href='".Storage::disk('public')->url($file)."' 
+                                    target='_blank' 
+                                    style='color: #2563eb; text-decoration: underline;'> "
+                                    .basename($file).
+                                "</a>"
                             )
                             ->implode('<br>');
                     })
                     ->html(),
+
+
 
                 Placeholder::make('submitted_at')
                     ->label('Submitted At'),
@@ -310,7 +315,7 @@ class ComplyingOfficesRelationManager extends RelationManager
                     ]),
 
             ], 
-            layout: FiltersLayout::AboveContentCollapsible)
+            )
             
             ->headerActions([
                 CreateAction::make()

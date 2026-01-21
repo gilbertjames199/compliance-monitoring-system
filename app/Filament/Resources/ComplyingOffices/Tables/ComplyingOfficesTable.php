@@ -172,13 +172,21 @@ class ComplyingOfficesTable
                 ])
                 ->defaultSort('created_at', 'desc')
                 ->filters([
-                    SelectFilter::make('validation_status')
-                    ->label('Validation Status')
+                    SelectFilter::make('status')
+                    ->label('Compliance Status')
                     ->options([
-                        'pending_review' => 'Pending Review',
-                        'returned'       => 'Returned',
-                        'validated'      => 'Validated',
+                        '-1' => 'Not Complied',
+                        '0'  => 'Partially Complied',
+                        '1'  => 'Complied',
                     ]),
+                
+                    SelectFilter::make('validation_status')
+                        ->label('Validation Status')
+                        ->options([
+                            'pending_review' => 'Pending Review',
+                            'returned'       => 'Returned',
+                            'validated'      => 'Validated',
+                        ]),
 
                     SelectFilter::make('confidential')
                         ->label('Confidentiality')

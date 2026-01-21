@@ -19,14 +19,14 @@ class ListComplyingOffices extends ListRecords
         ];
     }
 
-    public function getTabs(): array
-    {
-        return [
-            null => Tab::make('All'),
-            'Not Complied' => Tab::make()->query(fn ($query) => $query->where('status', '-1')),
-            'Partially Complied' => Tab::make()->query(fn ($query) => $query->where('status', '0')),
-            'Complied' => Tab::make()->query(fn ($query) => $query->where('status', '1')),
+    // public function getTabs(): array
+    // {
+    //     return [
+    //         null => Tab::make('All'),
+    //         'Not Complied' => Tab::make()->query(fn ($query) => $query->where('status', '-1')),
+    //         'Partially Complied' => Tab::make()->query(fn ($query) => $query->where('status', '0')),
+    //         'Complied' => Tab::make()->query(fn ($query) => $query->where('status', '1')),
           
-        ];
-    }
+    //     ];
+    // }
 }

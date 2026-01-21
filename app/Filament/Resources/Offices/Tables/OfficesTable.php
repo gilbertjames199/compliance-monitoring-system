@@ -38,7 +38,7 @@ class OfficesTable
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
-            ->defaultSort('created_at', 'desc')
+            // ->defaultSort('created_at', 'desc')
             ->filters([
                 //
             ])
