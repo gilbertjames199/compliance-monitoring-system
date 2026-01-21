@@ -17,12 +17,15 @@ use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Filament\Http\Middleware\AuthenticateSession;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
+use Filament\Actions\Action;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
+use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Illuminate\Support\HtmlString;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -34,18 +37,12 @@ class AdminPanelProvider extends PanelProvider
             ->sidebarCollapsibleOnDesktop()
             ->id('admin')
             ->path('')
-            ->login(CustomLogin::class)
+            // ->login(CustomLogin::class)
             ->passwordReset()
             ->emailVerification()
             ->emailChangeVerification()
             ->databaseNotifications()
-            ->profile()
-            ->userMenuItems([
-                'account' => MenuItem::make()
-                    ->label(fn() => auth()->user()->name . ' • ' . auth()->user()->getRoleNames()->first())
-                        ->url(fn() => route('filament.admin.auth.profile'))
-                        ->icon('heroicon-o-user-circle'),
-        ])
+            
             ->colors([
                 'danger' => Color::Rose,
                 'gray' => Color::Gray,
@@ -79,8 +76,22 @@ class AdminPanelProvider extends PanelProvider
                 DispatchServingFilamentEvent::class,
             ])
             ->plugins([
+                \Javarex\DdoLogin\LoginDdoPlugin::make(),
                 FilamentShieldPlugin::make(),
+
             ])
+            ->userMenuItems([
+                'profile' => 
+                fn (Action $action) => $action->label(fn(): Htmlable => new HtmlString('
+                    <div>' . auth()->user()->name . '</div>
+                    <div style="font-size: 0.875rem; color: gray;">' . auth()->user()->getRoleNames()->first() . '</div>
+                ')),
+                // Action::make()
+                //     ->label('test')
+                //     // ->label(fn() => auth()->user()->name . ' • ' . auth()->user()->getRoleNames()->first())
+                //         // ->url(fn() => route('filament.admin.auth.profile'))
+                //         ->icon('heroicon-o-user-circle'),
+        ])
             ->authMiddleware([
                 Authenticate::class,
             ])

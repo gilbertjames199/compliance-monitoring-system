@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "e7174bc692b8a631fc867b25dd8f3d35",
+    "content-hash": "4005a79595d63926f8474441ecef3067",
     "packages": [
         {
             "name": "anourvalar/eloquent-serialize",
@@ -2190,6 +2190,50 @@
                 }
             ],
             "time": "2025-08-22T14:27:06+00:00"
+        },
+        {
+            "name": "javarex/ddo-login",
+            "version": "v1.1.2",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/javarex/javarex-filament-login.git",
+                "reference": "fc6011017e942fe4689f6ac0fa859ad7307f20b4"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/javarex/javarex-filament-login/zipball/fc6011017e942fe4689f6ac0fa859ad7307f20b4",
+                "reference": "fc6011017e942fe4689f6ac0fa859ad7307f20b4",
+                "shasum": ""
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "Javarex\\DdoLogin\\Providers\\LoginDdoServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "Javarex\\DdoLogin\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "javarex",
+                    "email": "raymartnayreitanong11@gmail.com"
+                }
+            ],
+            "description": "Custom Login",
+            "support": {
+                "issues": "https://github.com/javarex/javarex-filament-login/issues",
+                "source": "https://github.com/javarex/javarex-filament-login/tree/v1.1.2"
+            },
+            "time": "2026-01-13T07:44:59+00:00"
         },
         {
             "name": "kirschbaum-development/eloquent-power-joins",
