@@ -22,7 +22,7 @@ class OfficeResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-building-library';
     protected static ?int $navigationSort = 5;
-    protected static ?string $recordTitleAttribute = 'Offices';
+    protected static ?string $recordTitleAttribute = 'office';
 
     public static function form(Schema $schema): Schema
     {

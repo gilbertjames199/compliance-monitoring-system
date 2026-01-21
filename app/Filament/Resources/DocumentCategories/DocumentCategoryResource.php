@@ -23,7 +23,7 @@ class DocumentCategoryResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = 'heroicon-o-rectangle-stack';
     protected static ?int $navigationSort = 1;
-    protected static ?string $recordTitleAttribute = 'Document Categories';
+    protected static ?string $recordTitleAttribute = 'category';
 
     public static function form(Schema $schema): Schema
     {
