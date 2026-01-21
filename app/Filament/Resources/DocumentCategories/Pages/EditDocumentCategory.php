@@ -79,7 +79,7 @@ class EditDocumentCategory extends EditRecord
             foreach ($complyingOffices as $departmentCode) {
                 ComplyingOffice::create([
                     'department_code' => $departmentCode,
-                    'requirement_id'  => $requiredDocument->id, // existing RequiredDocument ID
+                    'required_document_id'  => $requiredDocument->id, // existing RequiredDocument ID
                     'status'          => $status,
                 ]);
             }
@@ -109,7 +109,7 @@ class EditDocumentCategory extends EditRecord
         // ✅ Insert updated ones
         foreach ($doc['complying_offices'] ?? [] as $departmentCode) {
             ComplyingOffice::create([
-                'requirement_id'  => $requiredDocument->id,
+                'required_document_id'  => $requiredDocument->id,
                 'department_code' => $departmentCode,
                 'status'          => $doc['status'] ?? -1,
             ]);

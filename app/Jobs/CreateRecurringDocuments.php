@@ -111,7 +111,7 @@ class CreateRecurringDocuments implements ShouldQueue
         foreach ($latest->complyingOffices as $office) {
             ComplyingOffice::create([
                 'department_code' => $office->department_code,
-                'requirement_id'  => $duplicate->id,
+                'required_document_id'  => $duplicate->id,
                 'status'          => -1,
             ]);
         }

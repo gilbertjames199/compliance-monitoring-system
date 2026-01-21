@@ -186,7 +186,7 @@ class RequiredDocumentsTable
                     //     ->action(function ($record, $data) {
 
                     //         // Get complying offices that are NOT yet complied
-                    //         $complyingOffices = ComplyingOffice::where('requirement_id', $record->id)
+                    //         $complyingOffices = ComplyingOffice::where('required_document_id', $record->id)
                     //                                 ->where('status', '!=', '1')
                     //                                 ->get();
 

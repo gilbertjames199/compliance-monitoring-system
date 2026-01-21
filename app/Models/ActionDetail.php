@@ -12,9 +12,9 @@ class ActionDetail extends Model
 
     public function requirement()
     {
-        // 'requiring_agency' is the column on requirements table
-        // 'department_code' is the matching column on offices table
-        return $this->belongsTo(RequiredDocument::class, 'requirement_id', 'id');
+        // 'required_document_id' is the column on required_documents table
+        // 'id' is the matching column on required_documents table
+        return $this->belongsTo(RequiredDocument::class, 'required_document_id', 'id');
     }
 
     public function complying_office()

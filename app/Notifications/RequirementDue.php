@@ -71,7 +71,7 @@ class RequirementDue extends Notification
      public function toArray(object $notifiable): array
     {
         return [
-            'requirement_id' => $this->requirement->id,
+            'required_document_id' => $this->requirement->id,
             'requirement' => $this->requirement->requirement,
             'due_date' => $this->requirement->due_date,
             'agency' => $this->requirement->agency_name,

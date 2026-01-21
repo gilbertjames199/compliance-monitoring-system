@@ -106,7 +106,7 @@ class CreateDocumentCategory extends CreateRecord
         // foreach ($selectedOffices as $deptCode) {
         //     ComplyingOffice::create([
         //         'department_code' => $deptCode,
-        //         'requirement_id'  => $record->id,
+        //         'required_document_id'  => $record->id,
         //         'status'          => $status,
         //     ]);
         // }
@@ -130,7 +130,7 @@ class CreateDocumentCategory extends CreateRecord
 
 //         foreach ($doc['complying_offices'] ?? [] as $departmentCode) {
 //             ComplyingOffice::create([
-//                 'requirement_id'  => $requiredDocument->id,
+//                 'required_document_id'  => $requiredDocument->id,
 //                 'department_code' => $departmentCode,
 //                 'status'          => $doc['status'] ?? -1,
 //             ]);

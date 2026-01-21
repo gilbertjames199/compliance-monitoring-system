@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use App\Models\Office;
 use Filament\Schemas\Schema;
 use App\Models\ComplyingOffice;
+use App\Models\RequiredDocument;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -27,14 +28,14 @@ class ComplyingOfficeForm
                  // SECTION 1: REQUIREMENT INFORMATION
                 Section::make('Requirement Information')
                     ->schema([
-                        Select::make('requirement_id')
+                        Select::make('required_document_id')
                             ->label('Requirement')
-                            ->options(\App\Models\RequiredDocument::orderBy('requirement')->pluck('requirement', 'id'))
+                            ->options(RequiredDocument::orderBy('requirement')->pluck('requirement', 'id'))
                             ->reactive()
                             ->disabled()
                             ->columnSpanFull()
                             ->afterStateUpdated(function ($state, callable $set) {
-                                $requirement = \App\Models\RequiredDocument::find($state);
+                                $requirement = RequiredDocument::find($state);
                                 if ($requirement) {
                                     $set('agency_name', $requirement->agency_name);
                                 } else {
@@ -52,8 +53,8 @@ class ComplyingOfficeForm
                             ->label('Requiring Agency')
                             ->disabled()
                             ->afterStateHydrated(function ($set, $record) {
-                                if ($record && $record->requirement_id) {
-                                    $requirement = \App\Models\RequiredDocument::find($record->requirement_id);
+                                if ($record && $record->required_document_id) {
+                                    $requirement = RequiredDocument::find($record->required_document_id);
                                     if ($requirement) {
                                         $set('agency_name', $requirement->agency_name);
                                     }
@@ -207,7 +208,7 @@ class ComplyingOfficeForm
                                 $user = auth()->user();
                                 
                                 // Get the requiring agency from the requirement
-                                $requirement = \App\Models\RequiredDocument::find($record->requirement_id);
+                                $requirement = RequiredDocument::find($record->required_document_id);
                                 $requiringAgency = $requirement?->agency_name;
                                 
                                 // Only enable if:
@@ -305,7 +306,10 @@ class ComplyingOfficeForm
                         ->visibility('public')
                         ->downloadable()
                         ->openable()
+                        ->imageEditor()
+                        ->imagePreviewHeight(200)
                         ->maxSize(10240) // 10MB
+                        ->panelLayout('grid')
                         ->acceptedFileTypes([
                             'application/pdf',
                             'image/jpeg',

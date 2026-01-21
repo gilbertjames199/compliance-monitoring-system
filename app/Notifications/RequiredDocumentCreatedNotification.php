@@ -54,7 +54,7 @@ class RequiredDocumentCreatedNotification extends Notification
     public function toDatabase($notifiable)
     {
         return [
-            'requirement_id' => $this->requirement->id,
+            'required_document_id' => $this->requirement->id,
             'requirement_title' => $this->requirement->requirement,
             'agency_name' => $this->requirement->agency_name,
             'message' => 'New requirement created for your office',
@@ -70,7 +70,7 @@ class RequiredDocumentCreatedNotification extends Notification
     public function toArray(object $notifiable): array
     {
         return [
-            'requirement_id' => $this->requirement->id,
+            'required_document_id' => $this->requirement->id,
             'requirement_title' => $this->requirement->requirement,
         ];
     }

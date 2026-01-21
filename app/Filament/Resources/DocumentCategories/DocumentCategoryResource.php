@@ -57,7 +57,7 @@ class DocumentCategoryResource extends Resource
             foreach ($data['complying_offices'] as $department_code) {
                 ComplyingOffice::create([
                     'department_code' => $department_code,
-                    'requirement_id' => $record->id,
+                    'required_document_id' => $record->id,
                     'status' => -1, // Default: Not Complied
                 ]);
             }
@@ -75,7 +75,7 @@ class DocumentCategoryResource extends Resource
         foreach ($toAdd as $department_code) {
             ComplyingOffice::create([
                 'department_code' => $department_code,
-                'requirement_id' => $record->id,
+                'required_document_id' => $record->id,
                 'status' => -1,
             ]);
         }
@@ -107,7 +107,7 @@ class DocumentCategoryResource extends Resource
             foreach ($toAdd as $department_code) {
                 ComplyingOffice::create([
                     'department_code' => $department_code,
-                    'requirement_id'  => $this->id,
+                    'required_document_id'  => $this->id,
                     'status'          => -1, // Default: Not Complied
                 ]);
             }

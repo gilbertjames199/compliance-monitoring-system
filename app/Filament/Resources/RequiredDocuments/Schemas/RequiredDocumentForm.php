@@ -336,7 +336,7 @@ class RequiredDocumentForm
         foreach ($selectedOffices as $deptCode) {
             ComplyingOffice::create([
                 'department_code' => $deptCode,
-                'requirement_id'  => $record->id,
+                'required_document_id'  => $record->id,
                 'status'          => $status,
                 'due_date'        => $record->due_date, // original due date
             ]);

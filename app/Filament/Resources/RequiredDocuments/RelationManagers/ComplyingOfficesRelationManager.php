@@ -51,7 +51,7 @@ class ComplyingOfficesRelationManager extends RelationManager
                         return [
                             Rule::unique('complying_offices', 'department_code')
                                 ->where(fn($query) =>
-                                    $query->where('requirement_id', $requirementId)
+                                    $query->where('required_document_id', $requirementId)
                                 )
                                 ->ignore($get('id')) // ignore self when editing
                         ];
@@ -336,7 +336,7 @@ class ComplyingOfficesRelationManager extends RelationManager
                         $requirement = $this->getOwnerRecord();
 
                         // Get complying offices that are NOT yet complied
-                        $complyingOffices = ComplyingOffice::where('requirement_id', $requirement->id)
+                        $complyingOffices = ComplyingOffice::where('required_document_id', $requirement->id)
                             ->where('status', '!=', 1)
                             ->get();
 

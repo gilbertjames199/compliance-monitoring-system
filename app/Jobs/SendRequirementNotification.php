@@ -43,7 +43,7 @@ class SendRequirementNotification implements ShouldQueue
 
         if (!$record) return;
 
-        $complyingOffices = ComplyingOffice::where('requirement_id', $record->id)->get();
+        $complyingOffices = ComplyingOffice::where('required_document_id', $record->id)->get();
 
         foreach ($complyingOffices as $office) {
 

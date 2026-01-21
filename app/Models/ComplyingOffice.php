@@ -10,7 +10,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class ComplyingOffice extends Model
 {
     // protected $fillable = [
-    //     'requirement_id',
+    //     'required_document_id',
     //     'department_code',
     //     'status',
     // ];
@@ -31,7 +31,7 @@ class ComplyingOffice extends Model
 
     public function requiredDocument()
     {
-        return $this->belongsTo(RequiredDocument::class, 'requirement_id');
+        return $this->belongsTo(RequiredDocument::class, 'required_document_id');
     }
 
     public function user(): BelongsTo

@@ -24,12 +24,12 @@ class RequiredDocument extends Model
 
     public function complyingOffices()
     {
-        return $this->hasMany(ComplyingOffice::class, 'requirement_id', 'id');
+        return $this->hasMany(ComplyingOffice::class, 'required_document_id', 'id');
     }
 
     // public function complyingOffices(): BelongsToMany
     // {
-    //     return $this->belongsToMany(Office::class, 'compliance_monitoring_db.complying_offices', 'department_code', 'requirement_id');
+    //     return $this->belongsToMany(Office::class, 'compliance_monitoring_db.complying_offices', 'department_code', 'required_document_id');
     // }
 
     public function requiringAgency()

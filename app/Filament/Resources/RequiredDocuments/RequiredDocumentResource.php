@@ -86,7 +86,7 @@ class RequiredDocumentResource extends Resource
         foreach ($selectedOffices as $departmentCode) {
             ComplyingOffice::create([
                 'department_code' => $departmentCode,
-                'requirement_id'  => $record->id,
+                'required_document_id'  => $record->id,
                 'status'          => $status,
             ]);
         }

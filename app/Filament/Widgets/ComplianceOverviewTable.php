@@ -51,7 +51,7 @@ class ComplianceOverviewTable extends TableWidget
                         // AO/Admin sees non-confidential within their department
                         $query
                             ->where('complying_offices.department_code', $user->department_code)
-                            ->join('required_documents', 'required_documents.id', '=', 'complying_offices.requirement_id')
+                            ->join('required_documents', 'required_documents.id', '=', 'complying_offices.required_document_id')
                             ->where('required_documents.is_confidential', false)
                             ->select('complying_offices.*');
                     }  

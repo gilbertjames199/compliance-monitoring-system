@@ -25,7 +25,7 @@ class NewRequirementAssigned extends Notification
     public function toArray($notifiable)
     {
         return [
-            'requirement_id' => $this->requirement->id,
+            'required_document_id' => $this->requirement->id,
             'title'          => $this->requirement->title,
             'deadline'       => $this->requirement->deadline,
             'message'        => 'A new requirement has been assigned to your office.',

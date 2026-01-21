@@ -217,7 +217,7 @@ class DocumentCategoryForm
 
                                     foreach ($state ?? [] as $departmentCode) {
                                         ComplyingOffice::create([
-                                            'requirement_id'  => $record->id,
+                                            'required_document_id'  => $record->id,
                                             'department_code' => $departmentCode,
                                             'status'          => -1,
                                         ]);

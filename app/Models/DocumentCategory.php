@@ -22,7 +22,7 @@ class DocumentCategory extends Model
     {
         return $this->hasMany(
             ComplyingOffice::class,
-            'requirement_id',
+            'required_document_id',
             'id'
         );
     }
