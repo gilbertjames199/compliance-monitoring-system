@@ -44,6 +44,7 @@ class ComplyingOfficesRelationManager extends RelationManager
                 Select::make('department_code')
                     ->label('Office')
                     ->options(Office::all()->pluck('office', 'department_code'))
+                    ->searchable()
                     ->rules(function (callable $get) {
                         // Get the current requirement ID from the parent record
                         $requirementId = $this->getOwnerRecord()->id;
@@ -96,8 +97,9 @@ class ComplyingOfficesRelationManager extends RelationManager
 
 
 
-                Placeholder::make('submitted_at')
-                    ->label('Submitted At'),
+                DateTimePicker::make('submitted_at')
+                    ->label('Submitted At')
+                    ->disabled(),
 
                 Textarea::make('submission_notes')
                     ->label('Submission Notes')

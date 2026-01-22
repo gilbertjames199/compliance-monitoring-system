@@ -238,8 +238,6 @@ class ComplyingOfficeForm
                             ->seconds(false)
                             ->visible(fn ($get) => in_array($get('validation_status'), ['validated', 'returned'])),
 
-
-
                         
                         Textarea::make('admin_remarks')
                             ->label('Remarks (Requiring Agency)')
@@ -296,6 +294,7 @@ class ComplyingOfficeForm
                         ->openable()
                         ->imageEditor()
                         ->imagePreviewHeight(200)
+                        ->required()
                         ->maxSize(10240) // 10MB
                         // ->panelLayout('grid')
                         ->reactive()
@@ -372,6 +371,7 @@ class ComplyingOfficeForm
                         })
                         ->rows(2)
                         ->dehydrated()
+                        ->required()
                         ->disabled(function ($record) {
                             // Disable ONLY if not their own office (read-only)
                             return $record && auth()->user()->department_code !== $record->department_code;
