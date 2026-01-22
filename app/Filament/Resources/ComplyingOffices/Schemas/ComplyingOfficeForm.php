@@ -236,8 +236,7 @@ class ComplyingOfficeForm
                             ->displayFormat('m/d/Y h:i A')
                             ->formatStateUsing(fn ($state) => $state ? Carbon::parse($state) : null)
                             ->seconds(false)
-                            ->visible(fn ($get) => in_array($get('validation_status'), ['validated', 'returned']))
-                            ->columnSpan(1),
+                            ->visible(fn ($get) => in_array($get('validation_status'), ['validated', 'returned'])),
 
 
 
