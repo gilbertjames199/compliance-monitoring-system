@@ -71,7 +71,7 @@ class RequiredDocumentsTable
                     return;
                 }
 
-                if ($user->department_code == 25 && $user->hasRole('super_admin')) {
+                if ($user->department_code == 25 && $user->hasRole('department_head')) {
                     return;
                 }
 
@@ -108,11 +108,11 @@ class RequiredDocumentsTable
                     ->searchable()
                     ->wrap(),
                 TextColumn::make('date_from')
-                    ->label('Date From')
+                    ->label('Start Date')
                     ->date()
                     ->searchable(),
                 TextColumn::make('due_date')
-                    ->label('Due Date')
+                    ->label('Deadline')
                     ->date()
                     ->searchable(),
             ])
@@ -181,40 +181,11 @@ class RequiredDocumentsTable
             ])
 
             ->recordActions([
-
-                    // Action::make('Notify Office')
-                    //     ->action(function ($record, $data) {
-
-                    //         // Get complying offices that are NOT yet complied
-                    //         $complyingOffices = ComplyingOffice::where('required_document_id', $record->id)
-                    //                                 ->where('status', '!=', '1')
-                    //                                 ->get();
-
-                    //         foreach ($complyingOffices as $office) {
-
-                    //             // Users in this department
-                    //             $users = User::where('department_code', $office->department_code)->get();
-
-                    //             foreach ($users as $user) {
-
-                    //                 // Skip AO/Admin for confidential requirements
-                    //                 if ($record->is_confidential && $user->hasAnyRole(['AO','admin'])) {
-                    //                     continue;
-                    //                 }
-
-                    //                 Mail::to($user->email)
-                    //                     ->send(new RequirementDeadlineMail($record));
-                    //             }
-                    //         }
-
-                    //     })
-                    //     ->color('primary')
-                    //     ->icon('heroicon-o-envelope'),
-
+                EditAction::make(),
                 Action::make('manage_compliance')
                     ->label('View/Validate Submissions')
-                    ->icon('heroicon-o-building-office')
-                    ->color('info')
+                    ->icon('heroicon-o-document-check')
+                    ->color('danger')
                     ->modalHeading(fn($record) => "Complying Offices for '{$record->requirement}'")
                     ->modalSubmitActionLabel('Save Changes')
                     ->modalWidth('7xl')
@@ -244,7 +215,7 @@ class RequiredDocumentsTable
                                     ->label('Office Name')
                                     ->default($office->office_name)
                                     ->disabled()
-                                    ->columnSpan(4),
+                                    ->columnSpan(3),
 
                                 // 🔹 Status (read-only)
                                 Select::make("office_{$office->id}_status")
@@ -256,9 +227,9 @@ class RequiredDocumentsTable
                                     ])
                                     ->default($office->status)
                                     ->disabled()
-                                    ->columnSpan(2)
                                     ->native(false)
-                                    ->reactive(),
+                                    ->reactive()
+                                    ->columnSpan(2),
 
                                 // 🔹 File Upload / Attachments (read-only)
                                 Placeholder::make("office_{$office->id}_attachments")
@@ -284,7 +255,7 @@ class RequiredDocumentsTable
                                             ->implode('<br>');
                                     })
                                     ->html()
-                                    ->columnSpan(2),
+                                    ->columnSpan(3),
 
 
 
@@ -347,7 +318,7 @@ class RequiredDocumentsTable
                                         $set("office_{$office->id}_validated_at", null);
                                     }
                                     })
-                                    ->columnSpan(2),
+                                     ->columnSpan(2),
 
                                 DateTimePicker::make("office_{$office->id}_validated_at")
                                    ->label(fn ($get) => match ($get("office_{$office->id}_validation_status")) {
@@ -360,13 +331,7 @@ class RequiredDocumentsTable
                                     ->dehydrated()
                                     ->displayFormat('m/d/Y h:i A')
                                     ->seconds(false)
-                                    ->columnSpan(4)
-                                    ->visible(fn ($get) =>
-                                        in_array(
-                                            $get("office_{$office->id}_validation_status"),
-                                            ['validated', 'returned']
-                                        )
-                                    )->columnSpan(2),
+                                    ->columnSpan(2),
 
                             ]);
                         }
@@ -391,8 +356,6 @@ class RequiredDocumentsTable
                         ->success()
                         ->send();
                 }),
-                    
-                EditAction::make(),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

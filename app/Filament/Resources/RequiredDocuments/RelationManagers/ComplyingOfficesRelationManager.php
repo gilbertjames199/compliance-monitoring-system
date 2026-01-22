@@ -71,7 +71,7 @@ class ComplyingOfficesRelationManager extends RelationManager
                     ->disabled()
                     ->dehydrated(),
 
-               Placeholder::make('attachments_view')
+                Placeholder::make('attachments_view')
                     ->label('Submitted Attachments')
                     ->content(function ($record) {
                         if (!$record || empty($record->attachments)) {
@@ -357,7 +357,7 @@ class ComplyingOfficesRelationManager extends RelationManager
                             }
                         }
                     })
-                    ->color('primary')
+                    ->color('warning')
                     ->icon('heroicon-o-envelope'),
 
                 EditAction::make(),

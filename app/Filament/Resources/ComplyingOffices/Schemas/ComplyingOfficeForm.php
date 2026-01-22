@@ -62,7 +62,7 @@ class ComplyingOfficeForm
                             }),
 
                         TextInput::make('date_from')
-                            ->label('Date From')
+                            ->label('Start Date')
                             ->disabled()
                             ->dehydrated(false)
                             ->formatStateUsing(function ($record) {
@@ -72,7 +72,7 @@ class ComplyingOfficeForm
                             }),
 
                         TextInput::make('due_date')
-                            ->label('Due Date')
+                            ->label('Deadline')
                             ->disabled()
                             ->dehydrated(false)
                             ->formatStateUsing(function ($record) {
@@ -88,17 +88,7 @@ class ComplyingOfficeForm
 
                 // SECTION 2: ADMIN REVIEW & REMARKS
                 Section::make('Requiring Agency Feedback')
-                    ->description(function ($record) use ($isAdmin) {
-                        $isOwnOffice = $record && auth()->user()->department_code === $record->department_code;
-                        
-                       if ($isAdmin && $isOwnOffice) {
-                            return 'Requiring agency feedback (You cannot review your own office submission)';
-                        } elseif ($isAdmin) {
-                            return 'Review the submission and provide feedback';
-                        } else {
-                            return 'Requiring agency feedback on your submission';
-                        }
-                    })
+                    ->description('Requiring agency feedback on your submission')
                     ->schema([
 
                         ToggleButtons::make('status')
@@ -126,7 +116,7 @@ class ComplyingOfficeForm
                                 }
                                 
                                 if ($currentStatus != 1) {
-                                    return '💡 Once marked as "Complied", document uploads/removals will be locked until validation is returned.';
+                                    return '💡 Once Compliance status is set to ‘Complied’, document uploads and removals are disabled unless the validation status is returned.';
                                 }
                                 
                                 return null;
@@ -141,7 +131,7 @@ class ComplyingOfficeForm
                                 
                                 return null;
                             })
-                            ->hintIcon('heroicon-m-lock-closed')
+                            // ->hintIcon('heroicon-m-lock-closed')
                             ->hintColor('danger') // or 'warning' for orange color
                             ->disabled(function ($record, $get) {
                                 $user = auth()->user();
@@ -257,14 +247,13 @@ class ComplyingOfficeForm
                             ->placeholder(function ($record) use ($isAdmin) {
                                 $isOwnOffice = $record
                                     && auth()->user()->department_code === $record->department_code;
-
-                                if (!$isAdmin) {
-                                    return 'Remarks from the requiring agency will appear here';
+                                $user = auth()->user(); // <-- define $user inside closure
+                                if ($user->hasRole('requiring_agency')) {
+                                    return 'Enter your review comments, clarifications, or audit notes for this submission.';
                                 }
 
-                                return $isOwnOffice
-                                    ? 'You cannot add remarks to your own office'
-                                    : 'Enter review comments, clarifications, or audit notes';
+                                // For Complying Office or other roles
+                                return 'Remarks from the requiring agency will appear here (read-only).';
                             })
                             ->rows(3)
                             ->dehydrated()
@@ -294,7 +283,7 @@ class ComplyingOfficeForm
                         if ($isAdmin && !$isOwnOffice) {
                             return 'View submission and submission notes';
                         }
-                        return 'Upload documents';
+                        return 'Upload required documents and add submission notes.';
                     })
                     ->schema([ 
 
@@ -309,7 +298,8 @@ class ComplyingOfficeForm
                         ->imageEditor()
                         ->imagePreviewHeight(200)
                         ->maxSize(10240) // 10MB
-                        ->panelLayout('grid')
+                        // ->panelLayout('grid')
+                        ->reactive()
                         ->acceptedFileTypes([
                             'application/pdf',
                             'image/jpeg',
@@ -360,36 +350,7 @@ class ComplyingOfficeForm
                         /**
                          * ⚡ RUNS ONLY ON SAVE (FAST)
                          */
-                        ->mutateDehydratedStateUsing(function ($state, callable $set) {
-                            $user = auth()->user();
-                            
-                            // No files → reset
-                            if (empty($state) || (is_array($state) && count(array_filter($state)) === 0)) {
-                                $set('status', -1); // Not complied
-                                $set('submitted_at', null);
-                                $set('validation_status', 'returned'); // or keep as returned
-                                $set('validated_at', null);
-                                return $state;
-                            }     
-
-                            // Set compliance status
-                            if ($user->hasRole('department_head')) {
-                                $set('status', 1); // Complied
-                            } else {
-                                $set('status', 0); // Partially complied
-                            }
-
-                            /**
-                             * 🔁 RETURNED → LOCK AFTER SAVE
-                             */
-                            $set('validation_status', 'pending_review');
-
-                            $set('submitted_at', now());
-                            $set('validated_at', null);
-                            $set('validated_by', null);
-
-                            return $state;
-                        })
+                        
 
                         /**
                          * 👁 PERMISSION CHECK

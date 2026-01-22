@@ -16,7 +16,7 @@
         }
     "
 >
-    <div class="sticky-header sticky top-0 z-50 bg-white border-b p-4 transition-shadow">
+    <div>
         {{ $getChildComponentContainer() }}
     </div>
 </div>

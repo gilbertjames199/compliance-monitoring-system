@@ -1,0 +1,18 @@
+@import '../../../../vendor/filament/filament/resources/css/theme.css';
+
+@source '../../../../app/Filament/**/*';
+@source '../../../../resources/views/filament/**/*';
+
+.fi-logo, .fi-topbar {
+  background: linear-gradient(to right, #B8860B, #DAA520);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+/* Or if you want a solid color for the header */
+.fi-logo, .fi-topbar {
+  color: #B8860B; /* Darker gold/bronze */
+}
+
+
+

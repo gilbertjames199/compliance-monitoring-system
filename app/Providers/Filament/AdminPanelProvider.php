@@ -34,9 +34,11 @@ class AdminPanelProvider extends PanelProvider
         return $panel
             ->default()
             ->brandName('Compliance Monitoring System')
+            ->viteTheme('resources/css/filament/admin/theme.css')
             ->sidebarCollapsibleOnDesktop()
             ->id('admin')
             ->path('')
+            ->viteTheme('resources/css/filament/admin/theme.css')
             // ->login(CustomLogin::class)
             ->passwordReset()
             ->emailVerification()
@@ -47,7 +49,7 @@ class AdminPanelProvider extends PanelProvider
                 'danger' => Color::Rose,
                 'gray' => Color::Gray,
                 'info' => Color::Indigo,
-                'primary' => Color::Blue,
+                'primary' => Color::Yellow,
                 'success' => Color::Emerald,
                 'warning' => Color::Orange,
                 'sidebar-bg' => '#1e293b',
@@ -97,11 +99,11 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->unsavedChangesAlerts()
             ->globalSearchKeyBindings(['command+k', 'ctrl+k'])
-            ->font(
-                'Akronim',
-                url: asset('css/fonts/fonts.css'),
-                provider: LocalFontProvider::class,
-            )
+            // ->font(
+            //     'Akronim',
+            //     url: asset('css/fonts/fonts.css'),
+            //     provider: LocalFontProvider::class,
+            // )
             ->maxContentWidth('full')
             // ->sidebarWidth('16rem')
             ;

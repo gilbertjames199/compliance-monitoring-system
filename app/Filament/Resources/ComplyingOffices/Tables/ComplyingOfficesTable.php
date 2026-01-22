@@ -153,7 +153,7 @@ class ComplyingOfficesTable
                         ->sortable()
                         ->searchable(),
                     TextColumn::make('requiredDocument.due_date')
-                        ->label('Due Date')
+                        ->label('Deadline')
                         ->sortable()
                         // ->getStateUsing(fn ($record) => $record->due_date ?? $record->requiredDocument->due_date)
                         ->formatStateUsing(fn ($state, $record) => $record->requirement?->due_date)

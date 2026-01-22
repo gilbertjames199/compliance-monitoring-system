@@ -17,15 +17,21 @@ class EditComplyingOffice extends EditRecord
         ];
     }
 
-     protected function mutateFormDataBeforeSave(array $data): array
+    protected function mutateFormDataBeforeSave(array $data): array
     {
         $user = auth()->user();
+        $record = $this->record;
+
+        // Only mutate if attachments field was explicitly submitted
+        if (!array_key_exists('attachments', $data)) {
+            return $data;
+        }
 
         // Check if attachments are empty
         $attachments = $data['attachments'] ?? null;
         $isEmpty = empty($attachments) || (is_array($attachments) && count(array_filter($attachments)) === 0);
     
-       if ($isEmpty) {
+        if ($isEmpty) {
             // 🚫 No files → reset to not complied
             $data['status'] = -1;
             $data['submitted_at'] = null;
@@ -43,7 +49,6 @@ class EditComplyingOffice extends EditRecord
             $data['validation_status'] = 'pending_review';
             $data['submitted_at'] = now();
             $data['validated_at'] = null;
-         
         }
 
         return $data;

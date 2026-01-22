@@ -46,7 +46,7 @@ class RequiredDocumentForm
                             ->default(date('Y')) // automatically sets the current year
                             ->readOnly(),
                         DatePicker::make('date_from')  
-                            ->label('Date From')
+                            ->label('Start Date')
                             ->required()
                             ->live() // Make it reactive
                             ->afterStateUpdated(function (Set $set) {
@@ -59,7 +59,7 @@ class RequiredDocumentForm
                                 return $userOfficeName !== $record->agency_name;
                             }),
                         DatePicker::make('due_date')
-                            ->label('Due Date')
+                            ->label('Deadline')
                             ->required()
                             ->afterOrEqual('date_from') // Validation rule
                             ->minDate(fn (Get $get) => $get('date_from'))

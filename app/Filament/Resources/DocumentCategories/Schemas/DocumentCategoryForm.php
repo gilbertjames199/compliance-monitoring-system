@@ -29,16 +29,23 @@ class DocumentCategoryForm
                 //     TextInput::make('category')
                 //         ->required()
                 View::make('forms.components.sticky-category')
-                ->schema([
-                    TextInput::make('category')
-                    ->required()
-                    ->disabled(function ($record) {
-                        if (!$record) return false;
-                        $user = auth()->user();
-                        $userOfficeName = optional($user->office)->office;
-                        return $userOfficeName !== $record->agency_name;
-                    })
-                ]),
+                    ->schema([
+                        Section::make('Category Information') // Add a section title
+                            ->schema([
+                                TextInput::make('category')
+                                    ->label('Category')
+                                    ->required()
+                                    ->disabled(function ($record) {
+                                        if (!$record) return false;
+                                        $user = auth()->user();
+                                        $userOfficeName = optional($user->office)->office;
+                                        return $userOfficeName !== $record->agency_name;
+                                    })
+
+                            ])
+                    ])
+                    ->columnSpanFull(),
+
                 // ->columnSpanFull(),
                 // Section::make()
                 //     ->schema([
@@ -62,7 +69,7 @@ class DocumentCategoryForm
                     ->relationship('requiredDocuments') // 🔑 must match the model method exactly
                     ->schema([
 
-                    Section::make('Details')
+                    Section::make('Required Documents Details')
                         ->columns(2)
                         ->disabled(function ($record) {
                             if (!$record) return false;
@@ -129,7 +136,7 @@ class DocumentCategoryForm
 
 
                             DatePicker::make('date_from')  
-                                ->label('Date From')
+                                ->label('Start Date')
                                 ->required()
                                 ->live() // Make it reactive
                                 ->afterStateUpdated(function (Set $set) {
@@ -137,42 +144,75 @@ class DocumentCategoryForm
                                 }),
 
                             DatePicker::make('due_date')
-                                ->label('Due Date')
+                                ->label('Deadline')
                                 ->required()
                                 ->afterOrEqual('date_from') // Validation rule
                                 ->minDate(fn (Get $get) => $get('date_from')), // Disables dates before date_from in picker
                             Toggle::make('is_confidential')
                                 ->label('Confidential'),
                             
-                        Grid::make(1) // parent grid: 2 columns
-                            ->schema([
-                                // Left column
-                                Toggle::make('is_recurring')
-                                    ->label('Recurring?')
-                                    ->reactive(),
+                            Grid::make(1) // parent grid: 1 column 
+                                ->schema([ 
+                                    // Toggle for recurring
+                                    Toggle::make('is_recurring') 
+                                        ->label('Recurring?') 
+                                        ->reactive() 
+                                        // ->required() 
+                                        ->afterStateUpdated(function ($state, $set) { 
+                                            if (!$state) { 
+                                                // Clear recurrence fields when toggle is off 
+                                                $set('recurrence_type', null); 
+                                                $set('recurrence_interval', null); 
+                                            } 
+                                        })->disabled(function ($record) {
+                                            if (!$record) return false;
+                                            $user = auth()->user();
+                                            $userOfficeName = optional($user->office)->office;
+                                            return $userOfficeName !== $record->agency_name;
+                                        }), 
 
-                                // Right column: nested grid
-                                Grid::make(2) // one column grid to stack the two fields vertically
-                                    ->schema([
-                                        Select::make('recurrence_type')
-                                            ->label('Recurrence Type')
-                                            ->options([
-                                                'monthly' => 'Monthly',
-                                                'quarterly' => 'Quarterly',
-                                                'yearly' => 'Yearly',
-                                                'custom' => 'Custom',
-                                            ])
-                                            ->reactive()
-                                            ->visible(fn($get) => $get('is_recurring'))
-                                            ->required(),
+                                    // Nested grid for recurrence fields
+                                    Grid::make(2) // one column grid to stack the fields vertically 
+                                        ->schema([ 
+                                            Select::make('recurrence_type') 
+                                                ->label('Recurrence Type') 
+                                                ->options([ 
+                                                    'yearly' => 'Yearly', 
+                                                    'quarterly' => 'Quarterly', 
+                                                    'semester' => 'Per Semester (Jan-June, July-Dec)', 
+                                                    'custom' => 'Custom (Days)', 
+                                                ]) 
+                                                ->reactive() 
+                                                ->visible(fn($get) => $get('is_recurring')) 
+                                                ->required(fn($get) => $get('is_recurring')) 
+                                                ->afterStateUpdated(function ($state, $set) { 
+                                                    // Reset recurrence_interval if not custom 
+                                                    if ($state !== 'custom') { 
+                                                        $set('recurrence_interval', null); 
+                                                    } 
+                                                }) 
+                                                ->dehydrated(true) 
+                                                ->dehydrateStateUsing(fn($state, $get) => $get('is_recurring') ? $state : null)
+                                                ->disabled(function ($record) {
+                                                    if (!$record) return false;
+                                                    $user = auth()->user();
+                                                    $userOfficeName = optional($user->office)->office;
+                                                    return $userOfficeName !== $record->agency_name;
+                                                }), 
 
-                                        TextInput::make('recurrence_interval')
-                                            ->label('Custom Interval (months)')
-                                            ->numeric()
-                                            ->visible(fn($get) => $get('is_recurring') && $get('recurrence_type') === 'custom')
-                                            ->required(),
-                                    ]),
-                                ]),
+                                            TextInput::make('recurrence_interval') 
+                                                ->label('Custom Interval (days)') 
+                                                ->numeric() 
+                                                ->minValue(1) 
+                                                ->suffix('days')
+                                                ->visible(fn($get) => $get('is_recurring') && $get('recurrence_type') === 'custom') 
+                                                ->required(fn($get) => $get('is_recurring') && $get('recurrence_type') === 'custom') 
+                                                ->dehydrated(true) 
+                                                ->dehydrateStateUsing(fn($state, $get) =>  
+                                                    ($get('is_recurring') && $get('recurrence_type') === 'custom') ? $state : null 
+                                                ), 
+                                        ]), 
+                            ]),
                         ])
                         ->visible(function ($record) {
                                     if (!$record) {
