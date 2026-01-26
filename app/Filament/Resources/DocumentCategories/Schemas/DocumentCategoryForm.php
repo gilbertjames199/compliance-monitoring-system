@@ -112,8 +112,9 @@ class DocumentCategoryForm
                                 ->label('Start Date')
                                 ->required()
                                 ->live() // Make it reactive
-                                ->locale('en') // Force Month/Day/Year
-                                ->displayFormat('m/d/Y') // Display format
+                                ->locale('en-US') // Force US format
+                                ->native(false)   // Use JS picker instead of browser native
+                                ->displayFormat('m/d/Y') // Display Month/Day/Year
                                 ->afterStateUpdated(function (Set $set) {
                                     $set('due_date', null); // Optional: clear due_date when date_from changes
                                 }),
