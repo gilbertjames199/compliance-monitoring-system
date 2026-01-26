@@ -480,7 +480,7 @@
 .login-card {
     width: 100%;
     max-width: var(--container-4xl);
-    border-radius: var(--radius-2xl); /* keep rounded corners */
+    border-radius: var(--radius-2xl); 
     flex-direction: column;
     display: flex;
     overflow: hidden; 
