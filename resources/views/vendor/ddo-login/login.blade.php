@@ -60,7 +60,7 @@
                                 class="login-logo"
                             ></div>
                             <div class="login-app-name">
-                                {{ config('app.name') ?? 'System Name'}}
+                                Compliance Monitoring System
                             </div>
                             <div class="login-tagline">
                                 Track. Verify. Comply.
