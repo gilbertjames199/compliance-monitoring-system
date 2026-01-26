@@ -42,7 +42,7 @@ class ComplianceStatusPieChart extends ChartWidget
                     'data' => [$notComplied, $partiallyComplied, $complied],
                     'backgroundColor' => [
                         '#E91E63',   // danger - red
-                        '#FFC700',   // warning - amber
+                        '#ff9500',   // warning - amber
                         '#1DB584',    // success - green
                     ],
                     

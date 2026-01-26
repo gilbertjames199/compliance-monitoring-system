@@ -43,7 +43,7 @@ class ValidationStatusChart extends ChartWidget
                     'label' => 'Validation Status',
                     'data' => array_values($statuses),
                     'backgroundColor' => [
-                        '#FFC700', // warning
+                        '#ff9500', // warning
                         '#E91E63', // danger
                         '#1DB584', // success
                     ],
