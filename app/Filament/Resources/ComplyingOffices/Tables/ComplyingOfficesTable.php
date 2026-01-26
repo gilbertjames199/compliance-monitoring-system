@@ -216,7 +216,7 @@ class ComplyingOfficesTable
                 ])
                 ->toolbarActions([
                     BulkActionGroup::make([
-                        DeleteBulkAction::make(),
+                        // DeleteBulkAction::make(),
                     ]),
                 ]);
     }

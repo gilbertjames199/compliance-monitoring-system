@@ -73,6 +73,7 @@ class ComplianceOverviewTable extends TableWidget
                     ->label('Complying Office')
                     ->listWithLineBreaks()
                     ->searchable()
+                    ->wrap()
                     ->color(fn ($record) =>
                         $record->requiredDocument?->is_confidential
                             ? 'warning'
@@ -205,9 +206,9 @@ class ComplianceOverviewTable extends TableWidget
                     ->openUrlInNewTab(false),
             ])
             ->toolbarActions([
-                BulkActionGroup::make([
-                    DeleteBulkAction::make(),
-                ]),
+                // BulkActionGroup::make([
+                //     DeleteBulkAction::make(),
+                // ]),
             ]);
     }
 }

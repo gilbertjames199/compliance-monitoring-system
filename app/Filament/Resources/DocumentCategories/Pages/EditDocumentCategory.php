@@ -14,7 +14,18 @@ class EditDocumentCategory extends EditRecord
     protected function getHeaderActions(): array
     {
         return [
-            DeleteAction::make(),
+            DeleteAction::make()
+                ->visible(function ($record) {
+                    if (!$record) {
+                        return true; // Allow viewing during creation
+                    }
+                    
+                    $user = auth()->user();
+                    $userOfficeName = optional($user->office)->office;
+                    
+                    // Show only if user is from the requiring agency
+                    return $userOfficeName === $record->agency_name;
+                }),
         ];
     }
 

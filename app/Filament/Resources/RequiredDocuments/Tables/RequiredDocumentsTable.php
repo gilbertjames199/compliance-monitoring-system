@@ -105,8 +105,7 @@ class RequiredDocumentsTable
                     ->searchable(),
                 TextColumn::make('category.category')
                     ->label('Category')
-                    ->searchable()
-                    ->wrap(),
+                    ->searchable(),
                 TextColumn::make('date_from')
                     ->label('Start Date')
                     ->date()
@@ -115,6 +114,47 @@ class RequiredDocumentsTable
                     ->label('Deadline')
                     ->date()
                     ->searchable(),
+                TextColumn::make('compliance_count')
+                    ->label('Complied Count')
+                    ->alignCenter()
+                    ->getStateUsing(function ($record) {
+                        $total = $record->complyingOffices()->count();
+                        $complied = $record->complyingOffices()
+                            ->where('status', 1)
+                            ->count();
+
+                        return "{$complied} / {$total}";
+                    })
+                    ->badge()
+                    ->color(function (string $state) {
+                        [$done, $total] = array_map('intval', explode(' / ', $state));
+
+                        return ($total > 0 && $done === $total)
+                            ? 'success'   // all completed
+                            : 'danger';   // not completed
+                    }),
+
+                TextColumn::make('validation_count')
+                    ->label('Validated Count')
+                    ->alignCenter()
+                    ->getStateUsing(function ($record) {
+                        $total = $record->complyingOffices()->count();
+                        $validated = $record->complyingOffices()
+                            ->where('validation_status', 'validated')
+                            ->count();
+
+                        return "{$validated} / {$total}";
+                    })
+                    ->badge()
+                    ->color(function (string $state) {
+                        [$validated, $total] = array_map('intval', explode(' / ', $state));
+
+                        return ($total > 0 && $validated === $total)
+                            ? 'success'
+                            : 'warning';
+                    }),
+
+
             ])
             ->defaultSort('created_at', 'desc')
             ->filters([
@@ -183,7 +223,7 @@ class RequiredDocumentsTable
             ->recordActions([
                 EditAction::make(),
                 Action::make('manage_compliance')
-                    ->label('View/Validate Submissions')
+                    ->label('Validate Submissions')
                     ->icon('heroicon-o-document-check')
                     ->color('danger')
                     ->modalHeading(fn($record) => "Complying Offices for '{$record->requirement}'")
@@ -359,7 +399,7 @@ class RequiredDocumentsTable
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    // DeleteBulkAction::make(),
                 ]),
             ]);
     }

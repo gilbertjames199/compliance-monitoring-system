@@ -3,20 +3,43 @@
 @source '../../../../app/Filament/**/*';
 @source '../../../../resources/views/filament/**/*';
 
-.fi-logo, .fi-topbar {
+/* --- Filament Logo Gradient Text (FIXED) --- */
+.fi-logo {
   background: linear-gradient(to right, #B8860B, #DAA520);
   -webkit-background-clip: text;
   background-clip: text;
+  -webkit-text-fill-color: transparent;
+  color: transparent;
+
+  font-weight: 700;
+  line-height: 1.35;        /* ✅ prevents text cut */
+  padding-bottom: 0.08em;  /* ✅ extra safety for descenders */
+  overflow: visible;
 }
 
+/* --- Topbar (Light Mode) --- */
 .fi-topbar {
-  background: white;
+  background-color: #ffffff;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+/* --- Dark Mode --- */
+.dark .fi-logo {
+  background: linear-gradient(to right, #FFD700, #FDB931);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.dark .fi-topbar {
+  background-color: #111827;
+  border-bottom: 1px solid #374151;
 }
 
 
-/* Or if you want a solid color for the header */
-.fi-logo, .fi-topbar {
-  color: #B8860B; /* Darker gold/bronze */
+
+.fi-layout {
+    @apply bg-[#fffef9] dark:bg-[#121212];
 }
 
 

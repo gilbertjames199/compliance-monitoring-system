@@ -2,9 +2,8 @@
 
 namespace App\Filament\Widgets;
 
-use Filament\Actions\Action;
-use App\Models\ComplyingOffice;
 use Filament\Widgets\ChartWidget;
+use App\Models\ComplyingOffice;
 use Illuminate\Support\Facades\Auth;
 
 class ValidationStatusChart extends ChartWidget
@@ -12,42 +11,46 @@ class ValidationStatusChart extends ChartWidget
     protected ?string $heading = 'Validation Status Chart';
     protected static ?int $sort = 3;
 
-     protected function getData(): array
+    protected function getData(): array
     {
         $user = Auth::user();
 
         $query = ComplyingOffice::query()->with('requiredDocument');
 
         if (!$user->hasRole('super_admin')) {
-            $query->where('department_code', $user->department_code);
+            if ($user->hasRole('department_head')) {
+                // Department head sees all documents in their department
+                $query->where('department_code', $user->department_code);
+            } elseif ($user->hasAnyRole(['AO', 'admin'])) {
+                // AO or admin sees only non-confidential documents in their department
+                $query->where('department_code', $user->department_code)
+                      ->whereHas('requiredDocument', function ($q) {
+                          $q->where('is_confidential', 0);
+                      });
+            }
         }
 
         $statuses = [
-            'pending_review' => $query->clone()->where('validation_status', 'pending_review')->count(),
-            'returned'       => $query->clone()->where('validation_status', 'returned')->count(),
-            'validated'      => $query->clone()->where('validation_status', 'validated')->count(),
+            'pending_review' => (clone $query)->where('validation_status', 'pending_review')->count(),
+            'returned'       => (clone $query)->where('validation_status', 'returned')->count(),
+            'validated'      => (clone $query)->where('validation_status', 'validated')->count(),
         ];
 
         return [
-            'labels' => [
-                'Pending Review',
-                'Returned',
-                'Validated',
-            ],
+            'labels' => ['Pending Review', 'Returned', 'Validated'],
             'datasets' => [
                 [
                     'label' => 'Validation Status',
                     'data' => array_values($statuses),
                     'backgroundColor' => [
-                        '#f59e0b', // warning
-                        '#ef4444', // danger
-                        '#22c55e', // success
+                        '#FFC700', // warning
+                        '#E91E63', // danger
+                        '#1DB584', // success
                     ],
                 ],
             ],
         ];
     }
-
 
     protected function getType(): string
     {

@@ -41,10 +41,11 @@ class ComplianceStatusPieChart extends ChartWidget
                     'label' => 'Document Compliance',
                     'data' => [$notComplied, $partiallyComplied, $complied],
                     'backgroundColor' => [
-                        '#ef4444',   // danger - red
-                        '#f59e0b',   // warning - amber
-                        '#22c55e',    // success - green
+                        '#E91E63',   // danger - red
+                        '#FFC700',   // warning - amber
+                        '#1DB584',    // success - green
                     ],
+                    
                 ],
             ],
             'labels' => ['Not Complied', 'Partially Complied', 'Complied'],

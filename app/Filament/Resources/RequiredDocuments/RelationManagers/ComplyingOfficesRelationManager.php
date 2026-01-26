@@ -110,6 +110,7 @@ class ComplyingOfficesRelationManager extends RelationManager
                 ToggleButtons::make('validation_status')
                     ->label('Validation Status')
                     ->inline()
+                    ->required()
                     ->options([
                         'pending_review' => 'Pending Review',
                         'returned'       => 'Returned',
@@ -194,6 +195,7 @@ class ComplyingOfficesRelationManager extends RelationManager
                     ->label('Remarks')
                     ->nullable()
                     ->rows(2)
+                    ->required()
                     ->columnSpanFull()
                     ->disabled(function ($record) {
                             if (!$record) {
@@ -366,13 +368,13 @@ class ComplyingOfficesRelationManager extends RelationManager
                 // DissociateAction::make(),
                 DeleteAction::make()
                     ->visible(function () {
-                            $user = auth()->user();
-                            $requiredDocument = $this->getOwnerRecord();
-                            $userOfficeName = optional($user->office)->office;
-                            
-                            // Only show create button if user is from the requiring agency
-                            return $userOfficeName === $requiredDocument->agency_name;
-                        }),
+                        $user = auth()->user();
+                        $requiredDocument = $this->getOwnerRecord();
+                        $userOfficeName = optional($user->office)->office;
+                        
+                        // Only show create button if user is from the requiring agency
+                        return $userOfficeName === $requiredDocument->agency_name;
+                    }),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([

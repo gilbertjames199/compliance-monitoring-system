@@ -40,11 +40,12 @@ class EditComplyingOffice extends EditRecord
        
         } else {
             // ✅ Files exist → set compliance based on role
-            if ($user->hasRole('department_head')) {
+            if ($user->hasRole('department_head') || $user->hasRole('super_admin')) {
                 $data['status'] = 1; // Complied
             } else {
                 $data['status'] = 0; // Partially complied
             }
+
             
             $data['validation_status'] = 'pending_review';
             $data['submitted_at'] = now();

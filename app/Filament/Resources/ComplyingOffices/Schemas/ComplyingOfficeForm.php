@@ -93,7 +93,6 @@ class ComplyingOfficeForm
 
                         ToggleButtons::make('status')
                             ->label('Compliance Status')
-                           
                             ->inline()
                             ->options([
                                 -1 => 'Not Complied',

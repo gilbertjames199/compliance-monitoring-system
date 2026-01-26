@@ -69,7 +69,7 @@ class StatsOverview extends BaseWidget
             }
 
             $stats[] = Stat::make("{$label} Documents", $query->count())
-                ->description("Total required documents across offices that are {$label}")
+                ->description("Total required documents that are {$label}")
                 ->descriptionIcon($options['icon'])
                 ->color($options['color'])
                 ->chart($query->latest()->take(7)->pluck('id')->toArray());
