@@ -83,7 +83,7 @@ class RequiredDocumentsTable
                     $query->where('is_confidential', false);
                 }
             })
-            
+            ->defaultGroup('agency_name')
             ->columns([
                 TextColumn::make('requirement')
                     ->searchable()

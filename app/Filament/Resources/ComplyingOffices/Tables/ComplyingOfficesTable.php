@@ -85,7 +85,6 @@ class ComplyingOfficesTable
                     // - still limited to their office
                     // - but no confidentiality restriction
                 })
-
                 ->defaultGroup('office.office')
                 ->columns([
                     // TextColumn::make('department_code')
