@@ -1,6 +1,6 @@
 <?php
 
-namespace Javarex\DdoLogin\Pages;
+namespace App\Filament\Pages\DdoLogin;
 
 use Filament\Schemas\Schema;
 use Filament\Facades\Filament;
