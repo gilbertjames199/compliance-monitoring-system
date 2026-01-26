@@ -49,6 +49,10 @@ class RequiredDocumentForm
                             ->label('Start Date')
                             ->required()
                             ->live() // Make it reactive
+                            ->locale('en-US') // Force US format
+                            ->native(false)   // Use JS picker instead of browser native
+                            ->displayFormat('m/d/Y') 
+                            ->placeholder('mm/dd/yyyy') 
                             ->afterStateUpdated(function (Set $set) {
                                 $set('due_date', null); // Optional: clear due_date when date_from changes
                             })
@@ -61,6 +65,10 @@ class RequiredDocumentForm
                         DatePicker::make('due_date')
                             ->label('Deadline')
                             ->required()
+                            ->locale('en-US') // Force US format
+                            ->native(false)   // Use JS picker instead of browser native
+                            ->displayFormat('m/d/Y') 
+                            ->placeholder('mm/dd/yyyy') 
                             ->afterOrEqual('date_from') // Validation rule
                             ->minDate(fn (Get $get) => $get('date_from'))
                             ->disabled(function ($record) {

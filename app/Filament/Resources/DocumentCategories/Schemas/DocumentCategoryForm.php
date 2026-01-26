@@ -114,8 +114,8 @@ class DocumentCategoryForm
                                 ->live() // Make it reactive
                                 ->locale('en-US') // Force US format
                                 ->native(false)   // Use JS picker instead of browser native
-                                ->displayFormat('m/d/Y') // Display Month/Day/Year
-                                ->placeholder('MM/DD/YYYY') // <-- Add this
+                                ->displayFormat('m/d/Y') 
+                                ->placeholder('mm/dd/yyyy') 
                                 ->afterStateUpdated(function (Set $set) {
                                     $set('due_date', null); // Optional: clear due_date when date_from changes
                                 }),
@@ -123,6 +123,10 @@ class DocumentCategoryForm
                             DatePicker::make('due_date')
                                 ->label('Deadline')
                                 ->required()
+                                ->locale('en-US') // Force US format
+                                ->native(false)   // Use JS picker instead of browser native
+                                ->displayFormat('m/d/Y') 
+                                ->placeholder('mm/dd/yyyy') 
                                 ->afterOrEqual('date_from') // Validation rule
                                 ->minDate(fn (Get $get) => $get('date_from')), // Disables dates before date_from in picker
 
