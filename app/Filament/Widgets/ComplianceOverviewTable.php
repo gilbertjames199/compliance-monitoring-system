@@ -143,8 +143,11 @@ class ComplianceOverviewTable extends TableWidget
                     ->date()
                     ->sortable()
                     ->searchable()
-                    ->color(fn ($record) =>
-                        now()->gt($record->requiredDocument->due_date) ? 'danger' : 'success'
+                    ->color(fn ($record) => 
+                        // Only mark red if status is not 1 or not "complied" AND the due date is past
+                        ($record->status != 1 && $record->status != 'complied' && now()->gt($record->requiredDocument->due_date))
+                            ? 'danger'
+                            : null // Default color
                     ),
             ])
             ->filters([
