@@ -112,6 +112,7 @@ class DocumentCategoryForm
                                 ->label('Start Date')
                                 ->required()
                                 ->live() // Make it reactive
+                                ->displayFormat('m/d/Y') // Show as Month/Day/Year
                                 ->afterStateUpdated(function (Set $set) {
                                     $set('due_date', null); // Optional: clear due_date when date_from changes
                                 }),
