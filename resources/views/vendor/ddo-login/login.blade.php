@@ -38,7 +38,6 @@
         <div class="fi-simple-main-ctn login-background">
             <main
                 @class([
-                    'fi-simple-main',
                     'px-0',
                     'py-0',
                     'm-0',
