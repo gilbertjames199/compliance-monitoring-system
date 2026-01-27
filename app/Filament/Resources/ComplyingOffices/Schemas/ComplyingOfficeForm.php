@@ -287,7 +287,7 @@ class ComplyingOfficeForm
                         ->label('Upload Required Documents')
                         ->multiple()
                         ->disk('public')
-                        ->directory('compliance-attachments')
+                        ->directory(fn () => 'compliance-attachments/' . now()->format('Y/F'))
                         ->visibility('public')
                         ->downloadable()
                         ->openable()
