@@ -216,26 +216,42 @@ class ComplyingOfficeForm
                                     // $set('validated_by', null); // Clear validator
                                 } elseif ($state === 'validated') {
                                     $set('validated_at', now()); // Set validation timestamp
-                                    // $set('validated_by', auth()->user()->name); // Track who validated
+                                    $set('validated_by', auth()->user()->name); // Track who validated
                                 } elseif ($state === 'pending_review') {
                                     // Clear validation data when set back to pending
                                     $set('validated_at', null);
-                                    // $set('validated_by', null);
+                                    $set('validated_by', null);
                                 }
                             })
-                            ->dehydrated(),
+                            ->dehydrated()
+                            ->columnSpanFull(),
+
+                        TextInput::make('validated_by')
+                            ->label(fn ($get) =>
+                                $get('validation_status') === 'validated'
+                                    ? 'Validated By'
+                                    : ($get('validation_status') === 'returned' ? 'Returned By' : '')
+                            )
+                            ->disabled()
+                            ->dehydrated()
+                            ->visible(fn ($get) =>
+                                in_array($get('validation_status'), ['validated', 'returned'])
+                            )
+                            ->columnSpan(1),
+
                      
                         DateTimePicker::make('validated_at')
                             ->label(fn ($get) => $get('validation_status') === 'validated'
                                 ? 'Validated At'
                                 : ($get('validation_status') === 'returned' ? 'Returned At' : '')
                             )
-                            ->disabled() // read-only
+                            ->disabled()
                             ->dehydrated()
                             ->displayFormat('m/d/Y h:i A')
                             ->formatStateUsing(fn ($state) => $state ? Carbon::parse($state) : null)
                             ->seconds(false)
-                            ->visible(fn ($get) => in_array($get('validation_status'), ['validated', 'returned'])),
+                            ->visible(fn ($get) => in_array($get('validation_status'), ['validated', 'returned']))
+                            ->columnSpan(1),
 
                         
                         Textarea::make('admin_remarks')
@@ -282,114 +298,137 @@ class ComplyingOfficeForm
                         return 'Upload required documents and add submission notes.';
                     })
                     ->schema([ 
+                        FileUpload::make('attachments')
+                            ->label('Upload Required Documents')
+                            ->multiple()
+                            ->disk('public')
+                            ->directory(fn () => 'compliance-attachments/' . now()->format('Y/F'))
+                            ->visibility('public')
+                            ->downloadable()
+                            ->openable()
+                            ->imageEditor()
+                            ->imagePreviewHeight(200)
+                            ->required()
+                            ->maxSize(10240) // 10MB
+                            // ->panelLayout('grid')
+                            ->reactive()
+                            ->acceptedFileTypes([
+                                'application/pdf',
+                                'image/jpeg',
+                                'image/png',
+                                'application/msword',
+                                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                            ])
+                            ->afterStateUpdated(function ($state, $set) {
+                                $user = auth()->user();
+                                if (!empty($state)) {
+                                    // ✅ Files exist → update status automatically
+                                    if ($user->hasRole('department_head') || $user->hasRole('super_admin')) {
+                                        $set('status', 1); // Complied
+                                    } else {
+                                        $set('status', 0); // Partially complied
+                                    }
+                                    $set('submitted_by', $user->name);
+                                    $set('submitted_at', now());
+                                
+                                } else {
+                                    $data['status'] = -1;
+                                    $set('submitted_by', null);
+                                    $set('submitted_at', null);
+                                }
+                            })
 
-                    FileUpload::make('attachments')
-                        ->label('Upload Required Documents')
-                        ->multiple()
-                        ->disk('public')
-                        ->directory(fn () => 'compliance-attachments/' . now()->format('Y/F'))
-                        ->visibility('public')
-                        ->downloadable()
-                        ->openable()
-                        ->imageEditor()
-                        ->imagePreviewHeight(200)
-                        ->required()
-                        ->maxSize(10240) // 10MB
-                        // ->panelLayout('grid')
-                        ->reactive()
-                        ->acceptedFileTypes([
-                            'application/pdf',
-                            'image/jpeg',
-                            'image/png',
-                            'application/msword',
-                            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-                        ])
-
-                        /**
-                         * 🚫 DISABLE LOGIC
-                         */
-                        ->disabled(function ($record, $get) {
-                            if (! $record) {
-                                return true;
-                            }
-
-                            $user = auth()->user();
-
-                            // Must belong to same office
-                            if ($user->department_code !== $record->department_code) {
-                                return true;
-                            }
-
-                            $validationStatus = $get('validation_status') ?? $record->validation_status;
-
-                            // Hard lock once validated
-                            if ($validationStatus === 'validated') {
-                                return true;
-                            }
-
-                            $isComplied = (int) $record->status === 1;
 
                             /**
-                             * 🔒 Disable if:
-                             * - already complied AND
-                             * - NOT returned
+                             * 🚫 DISABLE LOGIC
                              */
-                            return $isComplied && $validationStatus !== 'returned';
-                        })
+                            ->disabled(function ($record, $get) {
+                                if (! $record) {
+                                    return true;
+                                }
 
-                        /**
-                         * 🗑 DELETE LOGIC
-                         */
-                        ->deletable(fn ($record, $get) =>
-                            ($get('validation_status') ?? $record?->validation_status) !== 'validated'
-                        )
+                                $user = auth()->user();
 
-                        /**
-                         * ⚡ RUNS ONLY ON SAVE (FAST)
-                         */
-                        
+                                // Must belong to same office
+                                if ($user->department_code !== $record->department_code) {
+                                    return true;
+                                }
 
-                        /**
-                         * 👁 PERMISSION CHECK
-                         */
-                        ->visible(fn () =>
-                            auth()->user()->can('addAttachments', ComplyingOffice::class)
-                        )
+                                $validationStatus = $get('validation_status') ?? $record->validation_status;
 
-                        ->columnSpanFull(),
+                                // Hard lock once validated
+                                if ($validationStatus === 'validated') {
+                                    return true;
+                                }
+
+                                $isComplied = (int) $record->status === 1;
+
+                                /**
+                                 * 🔒 Disable if:
+                                 * - already complied AND
+                                 * - NOT returned
+                                 */
+                                return $isComplied && $validationStatus !== 'returned';
+                            })
+
+                            /**
+                             * 🗑 DELETE LOGIC
+                             */
+                            ->deletable(fn ($record, $get) =>
+                                ($get('validation_status') ?? $record?->validation_status) !== 'validated'
+                            )
+
+                            /**
+                             * 👁 PERMISSION CHECK
+                             */
+                            ->visible(fn () =>
+                                auth()->user()->can('addAttachments', ComplyingOffice::class)
+                            )
+
+                            ->columnSpanFull(),
 
 
-                    Textarea::make('submission_notes')
-                        ->label('Submission Notes')
-                        ->placeholder(function ($record) {
-                            $isOwnOffice = $record && auth()->user()->department_code === $record->department_code;
+                        Textarea::make('submission_notes')
+                            ->label('Submission Notes')
+                            ->placeholder(function ($record) {
+                                $isOwnOffice = $record && auth()->user()->department_code === $record->department_code;
 
-                            return $isOwnOffice
-                                ? 'Add any notes about the submitted documents'
-                                : 'Submission notes (read-only)';
-                        })
-                        ->rows(2)
-                        ->dehydrated()
-                        ->required()
-                        ->disabled(function ($record) {
-                            // Disable ONLY if not their own office (read-only)
-                            return $record && auth()->user()->department_code !== $record->department_code;
-                        })
-                        ->columnSpanFull(),
+                                return $isOwnOffice
+                                    ? 'Add any notes about the submitted documents'
+                                    : 'Submission notes (read-only)';
+                            })
+                            ->rows(2)
+                            ->dehydrated()
+                            ->required()
+                            ->disabled(function ($record) {
+                                // Disable ONLY if not their own office (read-only)
+                                return $record && auth()->user()->department_code !== $record->department_code;
+                            })
+                            ->columnSpanFull(),
 
-                    DateTimePicker::make('submitted_at')
-                        ->label('Submission Date & Time')
-                        ->disabled()
-                        ->dehydrated()
-                        ->displayFormat('m/d/Y h:i A')
-                        ->seconds(false)
-                        ->visible(fn ($get) => !empty($get('submitted_at')))
-                        ->columnSpan(1),
-                        
-                    ])
-                    ->columns(2)
-                    ->collapsible()
-                    ->collapsed(false),
+                        TextInput::make('submitted_by')
+                            ->label('Submitted By')
+                            ->disabled()
+                            ->dehydrated()
+                            ->reactive()
+                            ->visible(fn ($get) => !empty($get('attachments')))
+                            ->columnSpan(1),
+
+
+                        DateTimePicker::make('submitted_at')
+                            ->label('Submission Date & Time')
+                            ->disabled()
+                            ->dehydrated()
+                            ->reactive()
+                            ->displayFormat('m/d/Y h:i A')
+                            ->seconds(false)
+                            ->visible(fn ($get) => !empty($get('attachments')))
+                            ->columnSpan(1),
+                            
+                        ])
+                        ->columns(2)
+                        ->collapsible()
+                        ->collapsed(false),
 
            
             ]);

@@ -23,6 +23,7 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Forms\Components\Textarea;
 use Filament\Tables\Columns\TextColumn;
 use Illuminate\Support\Facades\Storage;
+use Filament\Forms\Components\TextInput;
 use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Filters\SelectFilter;
 use Illuminate\Database\Eloquent\Builder;
@@ -58,7 +59,8 @@ class ComplyingOfficesRelationManager extends RelationManager
                         ];
                     })
                     ->disabled(fn (string $operation): bool => $operation === 'edit')
-                    ->helperText('Each office can only be added once per requirement.'),
+                    ->helperText('Each office can only be added once per requirement.')
+                    ->columnSpanFull(),
 
 
                 Select::make('status')
@@ -95,16 +97,22 @@ class ComplyingOfficesRelationManager extends RelationManager
                     })
                     ->html(),
 
-
+                TextInput::make('submitted_by')
+                    ->label('Submitted By')
+                    ->disabled()
+                    ->dehydrated()
+                    ->visible(fn ($get) => !empty($get('submitted_at'))),
 
                 DateTimePicker::make('submitted_at')
                     ->label('Submitted At')
-                    ->disabled(),
+                    ->disabled()
+                    ->visible(fn ($get) => !empty($get('submitted_at'))),
 
                 Textarea::make('submission_notes')
                     ->label('Submission Notes')
                     ->rows(2)
                     ->disabled()
+                    ->visible(fn ($get) => !empty($get('submitted_at')))
                     ->columnSpanFull(),
 
                 ToggleButtons::make('validation_status')
@@ -173,24 +181,20 @@ class ComplyingOfficesRelationManager extends RelationManager
                     })
 
                     ->afterStateUpdated(function ($state, $set, $record) {
+                         $user = auth()->user();
                         // Set validated_at when validation_status becomes "validated"
                         if (in_array($state, ['validated', 'returned'])) {
+                            $set('validated_by', $user->name);
                             $set('validated_at', now());
                         } else {
+                            $set('validated_by', null);
                             $set('validated_at', null);
                         }
                     })
-                    ->dehydrated(),
+                    ->dehydrated()
+                    ->columnSpanFull(),
 
-                DateTimePicker::make('validated_at')
-                    ->label(fn ($get) => $get('validation_status') === 'validated' ? 'Validated At' : ($get('validation_status') === 'returned' ? 'Returned At' : ''))
-                    ->disabled()
-                    ->dehydrated() // <-- important
-                    ->displayFormat('m/d/Y h:i A')
-                    ->formatStateUsing(fn ($state) => $state ? Carbon::parse($state) : null)
-                    ->seconds(false)
-                    ->visible(fn ($get) => in_array($get('validation_status'), ['validated', 'returned'])),
-
+                
                 Textarea::make('admin_remarks')
                     ->label('Remarks')
                     ->nullable()
@@ -238,7 +242,30 @@ class ComplyingOfficesRelationManager extends RelationManager
                             }
 
                             return 'Add validation remarks for this submission.';
-                        }),     
+                        }),  
+                        
+                TextInput::make('validated_by')
+                    ->label(fn ($get) =>
+                        $get('validation_status') === 'validated'
+                            ? 'Validated By'
+                            : ($get('validation_status') === 'returned' ? 'Returned By' : '')
+                    )
+                    ->disabled()
+                    ->dehydrated()
+                    ->visible(fn ($get) =>
+                        in_array($get('validation_status'), ['validated', 'returned'])
+                    )
+                    ->columnSpan(1),
+
+                DateTimePicker::make('validated_at')
+                    ->label(fn ($get) => $get('validation_status') === 'validated' ? 'Validated At' : ($get('validation_status') === 'returned' ? 'Returned At' : ''))
+                    ->disabled()
+                    ->dehydrated() // <-- important
+                    ->displayFormat('m/d/Y h:i A')
+                    ->formatStateUsing(fn ($state) => $state ? Carbon::parse($state) : null)
+                    ->seconds(false)
+                    ->visible(fn ($get) => in_array($get('validation_status'), ['validated', 'returned'])),
+
             ]);
     }
 

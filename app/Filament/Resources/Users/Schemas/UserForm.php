@@ -12,11 +12,12 @@ use Filament\Facades\Filament;
 use Filament\Forms\Components\Select;
 use Filament\Schemas\Components\Form;
 use Filament\Schemas\Components\Grid;
+use Filament\Support\Enums\Operation;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Validation\Rules\Unique;
-use Filament\Forms\Components\TextInput;
 
 //FILAMENT
+use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Fieldset;
@@ -58,6 +59,7 @@ class UserForm
                      ->label('Password')
                     ->password()
                     ->minLength(8)
+                    // ->hiddenOn(Operation::Edit)
                     ->required(fn ($livewire, $record) => !$record) // required on create only
                     ->dehydrateStateUsing(function ($state, $record) {
                         if ($state) {

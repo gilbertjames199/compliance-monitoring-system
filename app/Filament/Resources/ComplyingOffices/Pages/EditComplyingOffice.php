@@ -35,9 +35,11 @@ class EditComplyingOffice extends EditRecord
             // 🚫 No files → reset to not complied
             $data['status'] = -1;
             $data['submitted_at'] = null;
+            $data['submitted_by'] = null; // clear previous submitter
             $data['validation_status'] = 'returned';
             $data['validated_at'] = null;
-       
+            $data['validated_by'] = null; // clear previous validator
+        
         } else {
             // ✅ Files exist → set compliance based on role
             if ($user->hasRole('department_head') || $user->hasRole('super_admin')) {
@@ -46,14 +48,23 @@ class EditComplyingOffice extends EditRecord
                 $data['status'] = 0; // Partially complied
             }
 
-            
-            $data['validation_status'] = 'pending_review';
+            $data['submitted_by'] = $user->name;
             $data['submitted_at'] = now();
+
+            $data['validation_status'] = 'pending_review';
+            $data['validated_by'] = null;
             $data['validated_at'] = null;
         }
 
         return $data;
     }
+
+    protected function afterSave(): void
+    {
+        // Force Livewire to rehydrate form state
+        $this->fillForm();
+    }
+
 
     
 }
