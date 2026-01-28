@@ -39,6 +39,9 @@ class ComplianceOverviewTable extends TableWidget
                         return;
                     }
 
+                    // Filter by status first
+                    $query->whereIn('status', [-1, 0]);
+
                     // Role-based access control
                     if ($user->hasRole('superadmin')) {
                         // Superadmin sees all - no filters
@@ -139,7 +142,7 @@ class ComplianceOverviewTable extends TableWidget
                     ->searchable(),
 
                 TextColumn::make('requiredDocument.due_date')
-                    ->label('Due Date')
+                    ->label('Deadline')
                     ->date()
                     ->sortable()
                     ->searchable()
