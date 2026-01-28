@@ -474,6 +474,13 @@ class RequiredDocumentsTable
                                 $office->validation_status = $data[$statusKey];
                                 $office->validated_by      = $data[$byKey] ?? null;
                                 $office->validated_at      = $data[$atKey] ?? null;
+
+                                // ✅ Update compliance status based on validation status
+                                if ($data[$statusKey] === 'returned') {
+                                    $office->status = 0; // Partially Complied
+                                } elseif ($data[$statusKey] === 'validated') {
+                                    $office->status = 1; // Fully Complied
+                                }
                             }
 
                             // ✅ ALWAYS allow remarks to update if present

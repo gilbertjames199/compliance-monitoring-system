@@ -118,6 +118,20 @@ class DocumentCategoryForm
                                 ->placeholder('mm/dd/yyyy') 
                                 ->afterStateUpdated(function (Set $set) {
                                     $set('due_date', null); // Optional: clear due_date when date_from changes
+                                })
+                                ->disabled(function ($record) {
+                                if (!$record) return false;
+                                $user = auth()->user();
+                                $userOfficeName = optional($user->office)->office;
+
+                                // Disable if the user is NOT from the requiring agency
+                                if ($userOfficeName !== $record->agency_name) {
+                                    return true;
+                                }
+                                // Disable if any complying office has status 0 (Partially Complied) or 1 (Complied)
+                                return $record->complyingOffices()
+                                            ->whereIn('status', [0, 1])
+                                            ->exists();
                                 }),
 
                             DatePicker::make('due_date')
@@ -128,7 +142,21 @@ class DocumentCategoryForm
                                 ->displayFormat('m/d/Y') 
                                 ->placeholder('mm/dd/yyyy') 
                                 ->afterOrEqual('date_from') // Validation rule
-                                ->minDate(fn (Get $get) => $get('date_from')), // Disables dates before date_from in picker
+                                ->minDate(fn (Get $get) => $get('date_from')) // Disables dates before date_from in picker
+                                ->disabled(function ($record) {
+                                if (!$record) return false;
+                                $user = auth()->user();
+                                $userOfficeName = optional($user->office)->office;
+
+                                // Disable if the user is NOT from the requiring agency
+                                if ($userOfficeName !== $record->agency_name) {
+                                    return true;
+                                }
+                                // Disable if any complying office has status 0 (Partially Complied) or 1 (Complied)
+                                return $record->complyingOffices()
+                                            ->whereIn('status', [0, 1])
+                                            ->exists();
+                                }),
 
                             Toggle::make('is_confidential')
                                 ->label('Confidential'),

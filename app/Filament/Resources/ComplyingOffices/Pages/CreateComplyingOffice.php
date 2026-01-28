@@ -10,8 +10,8 @@ use App\Filament\Resources\ComplyingOffices\ComplyingOfficeResource;
 class CreateComplyingOffice extends CreateRecord
 {
     protected static string $resource = ComplyingOfficeResource::class;
-
-     protected function getFormSchema(): array
+    
+    protected function getFormSchema(): array
     {
         return [
             \Filament\Forms\Components\Select::make('department_codes')

@@ -11,6 +11,7 @@ use Filament\Schemas\Components\Tabs\Tab;
 class ListComplyingOffices extends ListRecords
 {
     protected static string $resource = ComplyingOfficeResource::class;
+    protected static ?string $title = 'Submissions';
 
     protected function getHeaderActions(): array
     {
@@ -18,6 +19,7 @@ class ListComplyingOffices extends ListRecords
             // CreateAction::make(),
         ];
     }
+    
 
     // public function getTabs(): array
     // {

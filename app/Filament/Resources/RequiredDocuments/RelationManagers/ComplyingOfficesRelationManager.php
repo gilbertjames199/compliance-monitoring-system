@@ -181,12 +181,26 @@ class ComplyingOfficesRelationManager extends RelationManager
                     })
 
                     ->afterStateUpdated(function ($state, $set, $record) {
-                         $user = auth()->user();
+                        $user = auth()->user();
+
                         // Set validated_at when validation_status becomes "validated"
-                        if (in_array($state, ['validated', 'returned'])) {
+                        // if (in_array($state, ['validated', 'returned'])) {
+                        //     $set('validated_by', $user->name);
+                        //     $set('validated_at', now());
+                        // } else {
+                        //     $set('validated_by', null);
+                        //     $set('validated_at', null);
+                        // }
+
+                        if ($state === 'returned') {
+                            $set('status', 0); // Automatically change compliance status to Partially Complied
                             $set('validated_by', $user->name);
                             $set('validated_at', now());
-                        } else {
+                        } elseif ($state === 'validated') {
+                            $set('status', 1); // Optionally set to Complied if validation approved
+                            $set('validated_by', $user->name);
+                            $set('validated_at', now());
+                        } else { // pending_review
                             $set('validated_by', null);
                             $set('validated_at', null);
                         }
@@ -331,6 +345,7 @@ class ComplyingOfficesRelationManager extends RelationManager
             ->filters([
                 SelectFilter::make('status')
                     ->label('Compliance Status')
+                    ->multiple()
                     ->options([
                         '-1' => 'Not Complied',
                         '0'  => 'Partially Complied',
@@ -339,6 +354,7 @@ class ComplyingOfficesRelationManager extends RelationManager
 
                 SelectFilter::make('validation_status')
                     ->label('Validation Status')
+                    ->multiple()
                     ->options([
                         'pending_review' => 'Pending Review',
                         'returned'       => 'Returned',

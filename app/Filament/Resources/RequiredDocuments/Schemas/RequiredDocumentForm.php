@@ -60,7 +60,15 @@ class RequiredDocumentForm
                                 if (!$record) return false;
                                 $user = auth()->user();
                                 $userOfficeName = optional($user->office)->office;
-                                return $userOfficeName !== $record->agency_name;
+
+                                // Disable if the user is NOT from the requiring agency
+                                if ($userOfficeName !== $record->agency_name) {
+                                    return true;
+                                }
+                                // Disable if any complying office has status 0 (Partially Complied) or 1 (Complied)
+                                return $record->complyingOffices()
+                                            ->whereIn('status', [0, 1])
+                                            ->exists();
                             }),
                         DatePicker::make('due_date')
                             ->label('Deadline')
@@ -75,7 +83,14 @@ class RequiredDocumentForm
                                 if (!$record) return false;
                                 $user = auth()->user();
                                 $userOfficeName = optional($user->office)->office;
-                                return $userOfficeName !== $record->agency_name;
+                                // Disable if the user is NOT from the requiring agency
+                                if ($userOfficeName !== $record->agency_name) {
+                                    return true;
+                                }
+                                // Disable if any complying office has status 0 (Partially Complied) or 1 (Complied)
+                                return $record->complyingOffices()
+                                            ->whereIn('status', [0, 1])
+                                            ->exists();
                             }), // Disables dates before date_from in picker
 
                         Select::make('category')

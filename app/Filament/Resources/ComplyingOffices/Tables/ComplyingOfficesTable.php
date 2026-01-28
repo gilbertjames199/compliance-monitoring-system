@@ -85,15 +85,15 @@ class ComplyingOfficesTable
                     // - still limited to their office
                     // - but no confidentiality restriction
                 })
-                ->defaultGroup('office.office')
+                ->defaultGroup('requiredDocument.category.category')
                 ->columns([
                     // TextColumn::make('department_code')
                     //     ->searchable(),
-                    TextColumn::make('office.office')
-                        ->label('Complying Office') // Optional custom label
-                        ->searchable()
-                        ->sortable()
-                        ->wrap(),
+                    // TextColumn::make('office.office')
+                    //     ->label('Complying Office') // Optional custom label
+                    //     ->searchable()
+                    //     ->sortable()
+                    //     ->wrap(),
                     TextColumn::make('requiredDocument.requirement')
                         ->label('Requirement')
                         ->searchable()
@@ -157,7 +157,13 @@ class ComplyingOfficesTable
                         // ->getStateUsing(fn ($record) => $record->due_date ?? $record->requiredDocument->due_date)
                         ->formatStateUsing(fn ($state, $record) => $record->requirement?->due_date)
                         ->date()
-                        ->searchable(),
+                        ->searchable()
+                        ->color(fn ($record) => 
+                        // Only mark red if status is not 1 or not "complied" AND the due date is past
+                        ($record->status != 1 && $record->status != 'complied' && now()->gt($record->requiredDocument->due_date))
+                            ? 'danger'
+                            : null // Default color
+                        ),
                     TextColumn::make('created_at')
                         ->dateTime()
                         ->sortable()
@@ -170,15 +176,17 @@ class ComplyingOfficesTable
                 ->defaultSort('created_at', 'desc')
                 ->filters([
                     SelectFilter::make('status')
-                    ->label('Compliance Status')
-                    ->options([
-                        '-1' => 'Not Complied',
-                        '0'  => 'Partially Complied',
-                        '1'  => 'Complied',
+                        ->label('Compliance Status')
+                        ->multiple()
+                        ->options([
+                            '-1' => 'Not Complied',
+                            '0'  => 'Partially Complied',
+                            '1'  => 'Complied',
                     ]),
                 
                     SelectFilter::make('validation_status')
                         ->label('Validation Status')
+                        ->multiple()
                         ->options([
                             'pending_review' => 'Pending Review',
                             'returned'       => 'Returned',
