@@ -39,7 +39,7 @@ class AdminPanelProvider extends PanelProvider
             ->id('admin')
             ->path('')
             ->viteTheme('resources/css/filament/admin/theme.css')
-            ->login(CustomLogin::class)
+            // ->login(CustomLogin::class)
             ->passwordReset()
             ->emailVerification()
             ->emailChangeVerification()
@@ -78,7 +78,7 @@ class AdminPanelProvider extends PanelProvider
                 DispatchServingFilamentEvent::class,
             ])
             ->plugins([
-                // \Javarex\DdoLogin\LoginDdoPlugin::make(),
+                \Javarex\DdoLogin\LoginDdoPlugin::make(),
                 FilamentShieldPlugin::make(),
 
             ])
