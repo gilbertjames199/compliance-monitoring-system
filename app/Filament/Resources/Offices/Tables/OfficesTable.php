@@ -42,6 +42,7 @@ class OfficesTable
             ->filters([
                 //
             ])
+            
             ->recordActions([
                 // ViewAction::make(),
                 // EditAction::make(),
