@@ -2,13 +2,17 @@
 
 namespace App\Models;
 
+use Filament\Models\Contracts\FilamentUser;
+use Filament\Panel;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 
-class User extends Authenticatable implements MustVerifyEmail
+// class User extends Authenticatable implements MustVerifyEmail
+// class User extends Authenticatable implements FilamentUser
+class User extends Authenticatable implements FilamentUser
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable, HasRoles;
@@ -23,6 +27,23 @@ class User extends Authenticatable implements MustVerifyEmail
     //     'email',
     //     'password',
     // ];
+
+    public function canAccessPanel(Panel $panel): bool
+    {
+        return true;
+        // throw new \Exception('Not implemented');
+    }
+    // public function canAccessPanel(Panel $panel): bool
+    // {
+    //     // For testing / quick fix — allow everyone (NOT recommended long-term!)
+    //     return true;
+
+    //     // Better: real authorization examples
+    //     // return $this->hasRole('admin'); // if using spatie/laravel-permission
+    //     // return str_ends_with($this->email, '@yourdomain.com') && $this->email_verified_at !== null;
+    //     // return $this->is_admin === true;
+    // }
+
     protected $guarded = ['id'];
     /**
      * The attributes that should be hidden for serialization.
