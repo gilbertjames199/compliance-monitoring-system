@@ -36,6 +36,7 @@ class ComplyingOfficesRelationManager extends RelationManager
 {
     protected static string $relationship = 'complyingOffices';
 
+
     public function form(Schema $schema): Schema
     {
         return $schema

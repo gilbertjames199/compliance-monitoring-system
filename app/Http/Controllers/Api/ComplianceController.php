@@ -24,7 +24,7 @@ class ComplianceController extends Controller
                 'Requirement'  => $office->requiredDocument?->requirement ?? null,
                 'Complying Office' => $office->office?->office ?? null, // name of the office
                 'Requiring Agency' => $office->requiredDocument?->agency_name ?? null, // agency
-                'Category'  => $office->requiredDocument?->category->category ?? null,
+                'Category'  => $office->requiredDocument?->category?->category ?? null,
                 'Compliance Status'  => match ((int)$office->status) {
                     -1 => 'Not Complied',
                      0 => 'Partially Complied',

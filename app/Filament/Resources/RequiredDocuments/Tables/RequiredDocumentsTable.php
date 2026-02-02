@@ -88,7 +88,19 @@ class RequiredDocumentsTable
             ->columns([
                 TextColumn::make('requirement')
                     ->searchable()
-                    ->wrap(),
+                    ->wrap()
+                    ->limit(100)
+                    ->searchable()
+                    ->tooltip(function (TextColumn $column): ?string {
+                        $state = $column->getState();
+
+                        if (strlen($state) <= $column->getCharacterLimit()) {
+                            return null;
+                        }
+
+                        // Only render the tooltip if the column contents exceeds the length limit.
+                        return $state;
+                    }),
                 TextColumn::make('agency_name')
                     ->label('Requiring Agency')
                     ->searchable()
