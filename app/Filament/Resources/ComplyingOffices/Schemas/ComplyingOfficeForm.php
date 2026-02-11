@@ -4,6 +4,7 @@ namespace App\Filament\Resources\ComplyingOffices\Schemas;
 
 use Carbon\Carbon;
 use App\Models\Office;
+use Illuminate\Support\Str;
 use Filament\Schemas\Schema;
 use App\Models\ComplyingOffice;
 use App\Models\RequiredDocument;
@@ -319,6 +320,22 @@ class ComplyingOfficeForm
                                 'application/msword',
                                 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
                             ])
+                            ->rules([
+                                    fn () => function (string $attribute, $value, $fail) {
+                                        $originalName = strtolower($value->getClientOriginalName());
+                                        
+                                        // 1. Block the word "php" anywhere in the name (prevents .php.jpg)
+                                        if (Str::contains($originalName, 'php')) {
+                                            $fail("Security error: Filename contains restricted keywords.");
+                                        }
+
+                                        // 2. Double-check the actual extension
+                                        $extension = $value->getClientOriginalExtension();
+                                        if (in_array(strtolower($extension), ['php', 'php5', 'phtml', 'phar'])) {
+                                            $fail("Direct PHP extension uploads are strictly prohibited.");
+                                        }
+                                    },
+                                ])
                             ->afterStateUpdated(function ($state, $set) {
                                 $user = auth()->user();
                                 if (!empty($state)) {
