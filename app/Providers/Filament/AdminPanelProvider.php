@@ -36,6 +36,7 @@ class AdminPanelProvider extends PanelProvider
             ->brandName('Compliance Monitoring System')
             ->viteTheme('resources/css/filament/admin/theme.css')
             ->sidebarCollapsibleOnDesktop()
+            ->unsavedChangesAlerts()
             ->id('admin')
             ->path('')
             ->viteTheme('resources/css/filament/admin/theme.css')
