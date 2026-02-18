@@ -3,7 +3,7 @@
 use App\Http\Controllers\Api\ComplianceController;
 use App\Http\Controllers\Api\ComplianceTrackingPrintController;
 use App\Http\Controllers\Api\RequiredDocumentController;
-use App\Http\Controllers\AuthController;
+// use App\Http\Controllers\AuthController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -38,21 +38,25 @@ use Illuminate\Support\Facades\Route;
 //     return $request->user();
 // });
 
-Route::post('/register', [AuthController::class, 'register']);
-Route::post('/authenticate/get-access-token', [AuthController::class, 'accessToken']);
 
-// Protected routes — require Sanctum token
-Route::middleware('auth:sanctum')->group(function () {
-    // Get current authenticated user
-    Route::get('/user', function (Request $request) {
-        return $request->user();
-    });
 
-    Route::get('/compliance-monitoring-system', [ComplianceController::class, 'index']);
 
-     // Logout current token
-    Route::post('/logout', [AuthController::class, 'logout']);
-});
+
+// Route::post('/register', [AuthController::class, 'register']);
+// Route::post('/authenticate/get-access-token', [AuthController::class, 'accessToken']);
+
+// // Protected routes — require Sanctum token
+// Route::middleware('auth:sanctum')->group(function () {
+//     // Get current authenticated user
+//     Route::get('/user', function (Request $request) {
+//         return $request->user();
+//     });
+
+//     Route::get('/compliance-monitoring-system', [ComplianceController::class, 'index']);
+
+//      // Logout current token
+//     Route::post('/logout', [AuthController::class, 'logout']);
+// });
 
 
 Route::get('/required-documents', [RequiredDocumentController::class, 'show']);
