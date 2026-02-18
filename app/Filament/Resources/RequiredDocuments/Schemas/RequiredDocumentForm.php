@@ -103,6 +103,20 @@ class RequiredDocumentForm
                             )
                             ->searchable()
                             ->reactive()
+                            ->createOptionForm([
+                                TextInput::make('category')
+                                    ->label('New Category')
+                                    ->required()
+                                    ->maxLength(255),
+                            ])
+
+                            ->createOptionUsing(function (array $data) {
+                                $category = DocumentCategory::create([
+                                    'category' => $data['category'],
+                                ]);
+
+                                return $category->id; // Important: return the ID
+                            })
                             ->afterStateUpdated(function ($state, $set) {
                                 $set('document_category_id', $state); // update ID input
                             })
@@ -144,52 +158,50 @@ class RequiredDocumentForm
                             ->reactive()
                             ->options(function ($get) {
                                 $type = $get('agency_type');
+                                
+                                if (!$type) {
+                                    return [];
+                                }
+
+                                $query = Office::on('mysql2');
 
                                 if ($type === 'internal') {
-                                    return Office::on('mysql2')
-                                        ->whereBetween('id', [1, 26]) // adjust your range if needed
-                                        ->pluck('office', 'office'); // key and value are the name itself
+                                    $query->whereBetween('id', [1, 26]);
                                 }
 
                                 if ($type === 'external') {
-                                    return Office::on('mysql2')
-                                        ->where('id', '>=', 27)
-                                        ->pluck('office', 'office');
+                                    $query->where('id', '>=', 27);
                                 }
 
-                                return [];
+                                return $query->get()
+                                    ->mapWithKeys(function ($office) {
+                                        $label = $office->office;
+
+                                        if (!empty($office->short_name)) {
+                                            $label .= ' (' . $office->short_name . ')';
+                                        }
+
+                                        return [$office->office => $label];
+                                    })
+                                    ->toArray();
                             })
                             ->required()
-                            ->afterStateHydrated(function ($component, $get, $state) {
-                                if (!$state) return;
-                                // If editing, pre-select agency name
-                                $component->state($state);
-                            })
-                            ->createOptionForm([
-                                TextInput::make('agency_name')
-                                    ->label('New External Agency Name')
-                                    ->required(),
-                            ])
-                            ->createOptionUsing(function (array $data) {
-                                // Save new external agency to FMS database
-                                return Office::on('mysql2')->create([
-                                    'office' => $data['agency_name'],
-                                ])->office; // return the office name so it gets saved in required_documents
-                                    
-                            })
                             ->disabled(function ($record) {
                                 if (!$record) return false;
+
                                 $user = auth()->user();
                                 $userOfficeName = optional($user->office)->office;
+
                                 return $userOfficeName !== $record->agency_name;
                             }),
+
                         
                         Toggle::make('is_confidential')
                             ->label('Confidential')->disabled(function ($record) {
-                            if (!$record) return false;
-                            $user = auth()->user();
-                            $userOfficeName = optional($user->office)->office;
-                            return $userOfficeName !== $record->agency_name;
+                                if (!$record) return false;
+                                    $user = auth()->user();
+                                    $userOfficeName = optional($user->office)->office;
+                                return $userOfficeName !== $record->agency_name;
                         }),
                         Grid::make(1) // parent grid: 1 column 
                             ->schema([ 
@@ -206,8 +218,8 @@ class RequiredDocumentForm
                                         } 
                                     })->disabled(function ($record) {
                                         if (!$record) return false;
-                                        $user = auth()->user();
-                                        $userOfficeName = optional($user->office)->office;
+                                            $user = auth()->user();
+                                            $userOfficeName = optional($user->office)->office;
                                         return $userOfficeName !== $record->agency_name;
                                     }), 
 
@@ -235,8 +247,8 @@ class RequiredDocumentForm
                                             ->dehydrateStateUsing(fn($state, $get) => $get('is_recurring') ? $state : null)
                                             ->disabled(function ($record) {
                                                 if (!$record) return false;
-                                                $user = auth()->user();
-                                                $userOfficeName = optional($user->office)->office;
+                                                    $user = auth()->user();
+                                                    $userOfficeName = optional($user->office)->office;
                                                 return $userOfficeName !== $record->agency_name;
                                             }), 
 
@@ -261,59 +273,69 @@ class RequiredDocumentForm
                             ->schema([
         
                                 Select::make('complying_offices')
-                                        ->label('Complying Offices')
-                                        ->required()
-                                        ->multiple()
-                                        ->options(
-                                            Office::orderBy('office')
-                                                ->pluck('office', 'department_code')
-                                                ->toArray()
-                                        )
-                                        ->preload()
-                                        ->searchable()
-                                        ->disabled(function ($record) {
-                                            if (!$record) return false;
+                                    ->label('Complying Offices')
+                                    ->required()
+                                    ->multiple()
+                                    ->options(
+                                        Office::orderBy('office')
+                                            ->get()
+                                            ->mapWithKeys(function ($office) {
+                                                $label = $office->office;
+
+                                                if (!empty($office->short_name)) {
+                                                    $label .= ' (' . $office->short_name . ')';
+                                                }
+
+                                                return [$office->department_code => $label];
+                                            })
+                                            ->toArray()
+                                    )
+
+                                    ->preload()
+                                    ->searchable()
+                                    ->disabled(function ($record) {
+                                        if (!$record) return false;
                                             $user = auth()->user();
                                             $userOfficeName = optional($user->office)->office;
-                                            return $userOfficeName !== $record->agency_name;
-                                        })
-                                        ->afterStateHydrated(function ($component, $state, $record) {
-                                            if ($record?->exists) {
-                                                $component->state(
-                                                    $record->complyingOffices()->pluck('department_code')->toArray()
-                                                );
-                                            }
-                                        })
+                                        return $userOfficeName !== $record->agency_name;
+                                    })
+                                    ->afterStateHydrated(function ($component, $state, $record) {
+                                        if ($record?->exists) {
+                                            $component->state(
+                                                $record->complyingOffices()->pluck('department_code')->toArray()
+                                            );
+                                        }
+                                    })
 
-                                        ->helperText('Select one or more offices that must comply with this requirement.')
-                                        ->suffixActions([
-                                            Action::make('selectAll')
-                                                ->label('Select All')
-                                                ->icon('heroicon-o-check-circle')
-                                                ->action(fn (callable $set) =>
-                                                    $set('complying_offices', Office::pluck('department_code')->toArray())
-                                                )
-                                                ->disabled(function ($record) {
-                                                    if (!$record) return false;
+                                    ->helperText('Select one or more offices that must comply with this requirement.')
+                                    ->suffixActions([
+                                        Action::make('selectAll')
+                                            ->label('Select All')
+                                            ->icon('heroicon-o-check-circle')
+                                            ->action(fn (callable $set) =>
+                                                $set('complying_offices', Office::pluck('department_code')->toArray())
+                                            )
+                                            ->disabled(function ($record) {
+                                                if (!$record) return false;
                                                     $user = auth()->user();
                                                     $userOfficeName = optional($user->office)->office;
-                                                    return $userOfficeName !== $record->agency_name;
-                                                }),
+                                                return $userOfficeName !== $record->agency_name;
+                                            }),
 
-                                            Action::make('clearAll')
-                                                ->label('Clear')
-                                                ->icon('heroicon-o-x-circle')
-                                                ->color('danger')
-                                                ->action(fn (callable $set) =>
-                                                    $set('complying_offices', [])
-                                                )
-                                                ->disabled(function ($record) {
-                                                    if (!$record) return false;
+                                        Action::make('clearAll')
+                                            ->label('Clear')
+                                            ->icon('heroicon-o-x-circle')
+                                            ->color('danger')
+                                            ->action(fn (callable $set) =>
+                                                $set('complying_offices', [])
+                                            )
+                                            ->disabled(function ($record) {
+                                                if (!$record) return false;
                                                     $user = auth()->user();
                                                     $userOfficeName = optional($user->office)->office;
-                                                    return $userOfficeName !== $record->agency_name;
-                                                }),
-                                            ]),
+                                                return $userOfficeName !== $record->agency_name;
+                                            }),
+                                        ]),
                                     
 
                                 ])->columnSpanFull(),

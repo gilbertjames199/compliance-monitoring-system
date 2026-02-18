@@ -68,44 +68,87 @@ class DocumentCategoryForm
                                 ->reactive()
                                 ->required(),
 
+                            // Select::make('agency_name')
+                            //     ->label('Requiring Agency')
+                            //     ->searchable()
+                            //     ->reactive()
+                            //     ->options(function ($get) {
+                            //         $type = $get('agency_type');
+
+                            //         if ($type === 'internal') {
+                            //             return Office::on('mysql2')
+                            //                 ->whereBetween('id', [1, 26]) // adjust your range if needed
+                            //                 ->pluck('office', 'office'); // key and value are the name itself
+                            //         }
+
+                            //         if ($type === 'external') {
+                            //             return Office::on('mysql2')
+                            //                 ->where('id', '>=', 27)
+                            //                 ->pluck('office', 'office');
+                            //         }
+
+                            //         return [];
+                            //     })
+                            //     ->required()
+                            //     ->afterStateHydrated(function ($component, $get, $state) {
+                            //         if (!$state) return;
+                            //         // If editing, pre-select agency name
+                            //         $component->state($state);
+                            //     })
+                            //     ->createOptionForm([
+                            //         TextInput::make('agency_name')
+                            //             ->label('New External Agency Name')
+                            //             ->required(),
+                            //     ])
+                            //     ->createOptionUsing(function (array $data) {
+                            //         // Save new external agency to FMS database
+                            //         return Office::on('mysql2')->create([
+                            //             'office' => $data['agency_name'],
+                            //         ])->office; // return the office name so it gets saved in required_documents
+                                     
+                            //     }),
+
                             Select::make('agency_name')
                                 ->label('Requiring Agency')
                                 ->searchable()
                                 ->reactive()
                                 ->options(function ($get) {
                                     $type = $get('agency_type');
+                                    
+                                    if (!$type) {
+                                        return [];
+                                    }
+                                    
+                                    $query = Office::on('mysql2');
 
                                     if ($type === 'internal') {
-                                        return Office::on('mysql2')
-                                            ->whereBetween('id', [1, 26]) // adjust your range if needed
-                                            ->pluck('office', 'office'); // key and value are the name itself
+                                        $query->whereBetween('id', [1, 26]);
                                     }
 
                                     if ($type === 'external') {
-                                        return Office::on('mysql2')
-                                            ->where('id', '>=', 27)
-                                            ->pluck('office', 'office');
+                                        $query->where('id', '>=', 27);
                                     }
 
-                                    return [];
+                                    return $query->get()
+                                        ->mapWithKeys(function ($office) {
+                                            $label = $office->office;
+
+                                            if (!empty($office->short_name)) {
+                                                $label .= ' (' . $office->short_name . ')';
+                                            }
+
+                                            return [$office->office => $label];
+                                        })
+                                        ->toArray();
                                 })
                                 ->required()
-                                ->afterStateHydrated(function ($component, $get, $state) {
-                                    if (!$state) return;
-                                    // If editing, pre-select agency name
-                                    $component->state($state);
-                                })
-                                ->createOptionForm([
-                                    TextInput::make('agency_name')
-                                        ->label('New External Agency Name')
-                                        ->required(),
-                                ])
-                                ->createOptionUsing(function (array $data) {
-                                    // Save new external agency to FMS database
-                                    return Office::on('mysql2')->create([
-                                        'office' => $data['agency_name'],
-                                    ])->office; // return the office name so it gets saved in required_documents
-                                     
+                                ->disabled(function ($record) {
+                                    if (!$record) return false;
+
+                                    $user = auth()->user();
+                                    $userOfficeName = optional($user->office)->office;
+
+                                    return $userOfficeName !== $record->agency_name;
                                 }),
 
                             DatePicker::make('date_from')  
@@ -244,7 +287,18 @@ class DocumentCategoryForm
                                 ->multiple()
                                 ->required()
                                 ->options(
-                                    Office::orderBy('office')->pluck('office', 'department_code')
+                                    Office::orderBy('office')
+                                        ->get()
+                                        ->mapWithKeys(function ($office) {
+                                            $label = $office->office;
+
+                                            if (!empty($office->short_name)) {
+                                                $label .= ' (' . $office->short_name . ')';
+                                            }
+
+                                            return [$office->department_code => $label];
+                                        })
+                                        ->toArray()
                                 )
                                 ->preload()
                                 ->searchable()

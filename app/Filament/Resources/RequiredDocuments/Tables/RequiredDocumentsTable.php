@@ -234,6 +234,14 @@ class RequiredDocumentsTable
             ])
 
             ->recordActions([
+                Action::make('Print')
+                    ->label('Print Details')
+                    ->icon('heroicon-o-printer')
+                    ->color('primary')
+                    ->modalContent(fn($record) => view('filament.print', [
+                        'requirement_id' => $record->id,
+                    ]))
+                    ->slideOver(),
                 EditAction::make(),
 
                 Action::make('manage_compliance')
@@ -457,7 +465,7 @@ class RequiredDocumentsTable
 
 
                                     DateTimePicker::make("office_{$office->id}_validated_at")
-                                    ->label(fn ($get) => match ($get("office_{$office->id}_validation_status")) {
+                                        ->label(fn ($get) => match ($get("office_{$office->id}_validation_status")) {
                                             'validated' => 'Validated At',
                                             'returned'  => 'Returned At',
                                             default     => '',

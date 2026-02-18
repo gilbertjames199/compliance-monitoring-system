@@ -1,8 +1,10 @@
 <?php
 
-use App\Models\User;
-use App\Models\RequiredDocument;
+use App\Http\Controllers\Api\ComplianceTrackingPrintController;
+use App\Http\Controllers\Api\RequiredDocumentController;
 use App\Mail\DueDateReminderMail;
+use App\Models\RequiredDocument;
+use App\Models\User;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Route;
 
@@ -31,3 +33,5 @@ Route::get('email-test', function() {
         }
     }
 });
+
+Route::get('compliance/print', [ComplianceTrackingPrintController::class, 'print']);
