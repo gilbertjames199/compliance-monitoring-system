@@ -292,6 +292,14 @@ class ComplyingOfficesRelationManager extends RelationManager
                 TextColumn::make('office.office')
                     ->label('Office Name')
                     ->searchable(),
+
+                TextColumn::make('submitted_at')
+                    ->label('Submission Date')
+                    ->formatStateUsing(function ($state) {
+                        return $state ? Carbon::parse($state)->format('M d, Y') : 'Not Submitted';
+                    })
+                    ->sortable()
+                    ->searchable(),
                 TextColumn::make('status')
                     ->label('Compliance Status')
                     ->formatStateUsing(function ($state) {
