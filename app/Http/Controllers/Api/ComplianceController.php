@@ -20,6 +20,8 @@ class ComplianceController extends Controller
 
         // Transform the data
         $data = $offices->map(function ($office) {
+            $isConfidential = (bool) ($requiredDoc?->is_confidential ?? false);
+
             return [
                 'Requirement'  => $office->requiredDocument?->requirement ?? null,
                 'Complying Office' => $office->office?->office ?? null, // name of the office
@@ -37,6 +39,8 @@ class ComplianceController extends Controller
                      'validated' => 'Validated',
                      default => 'Unknown',
                 },
+
+                'Confidentiality' => $office->requiredDocument?->is_confidential? 'Confidential': 'Not Confidential',
                 
                 'Start Date' => $office->requiredDocument?->date_from
                     ? $office->requiredDocument->date_from->format('Y-m-d')
@@ -46,9 +50,11 @@ class ComplianceController extends Controller
                     ? $office->requiredDocument->due_date->format('Y-m-d')
                     : null,
 
+                'attachments' => $office->attachments ?? [],
             ];
         });
 
         return response()->json($data);
     }
+
 }

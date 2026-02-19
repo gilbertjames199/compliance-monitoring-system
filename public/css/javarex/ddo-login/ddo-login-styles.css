@@ -994,7 +994,6 @@
         border-radius: var(--radius-2xl);
         /* margin: 1rem */
     }
-    
 
     .login-form-panel {
         padding: calc(var(--spacing)*6)
