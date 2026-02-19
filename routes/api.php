@@ -50,7 +50,7 @@ Route::middleware('auth:sanctum')->group(function () {
         return $request->user();
     });
     Route::get('/compliance-monitoring-system', [ComplianceController::class, 'index']);
-    Route::get('compliance/print', [ComplianceTrackingPrintController::class, 'print']);
+    
      // Logout current token
     Route::post('/logout', [AuthController::class, 'logout']);
 });
@@ -61,4 +61,4 @@ Route::get('/compliance-monitoring-system', [ComplianceController::class, 'index
 
 
 
-//  Route::get('compliance/print', [ComplianceTrackingPrintController::class, 'print']);
+Route::get('compliance/print', [ComplianceTrackingPrintController::class, 'print']);
