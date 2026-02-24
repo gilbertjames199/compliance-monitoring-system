@@ -21,7 +21,7 @@ class ValidationStatusChart extends ChartWidget
             // sees all - no filter
         } elseif ($user->hasRoleSafe('department_head')) {
             $query->where('department_code', $user->department_code);
-        } elseif ($user->hasAnyRole(['AO', 'admin'])) {
+        } elseif ($user->hasRoleSafe('AO', 'admin')) {
             $query->where('department_code', $user->department_code)
                 ->whereHas('requiredDocument', fn ($q) =>
                     $q->where('is_confidential', 0)

@@ -22,7 +22,7 @@ class ComplyingOfficeForm
 {
     public static function configure(Schema $schema): Schema
     {
-        $isAdmin = auth()->user()->hasAnyRole(['super_admin']);
+        $isAdmin = auth()->user()->hasRoleSafe('super_admin');
 
         return $schema
             ->components([

@@ -50,7 +50,7 @@ class ComplianceOverviewTable extends TableWidget
                         // Department head sees all within their department
                         $query->where('complying_offices.department_code', $user->department_code);
                     } 
-                    elseif ($user->hasAnyRole(['AO', 'admin'])) {
+                    elseif ($user->hasRoleSafe('AO', 'admin')) {
                         // AO/Admin sees non-confidential within their department
                         $query
                             ->where('complying_offices.department_code', $user->department_code)

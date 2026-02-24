@@ -26,7 +26,7 @@ class ComplianceStatusPieChart extends ChartWidget
             $requiredDocsQuery->whereHas('complyingOffices', fn ($q) =>
                 $q->where('department_code', $user->department_code)
             );
-        } elseif ($user->hasAnyRole(['AO', 'admin'])) {
+        } elseif ($user->hasRoleSafe('AO', 'admin')) {
             $complyingQuery->where('department_code', $user->department_code)
                         ->whereHas('requiredDocument', fn ($q) =>
                             $q->where('is_confidential', 0)

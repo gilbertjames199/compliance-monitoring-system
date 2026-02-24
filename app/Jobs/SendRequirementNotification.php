@@ -95,10 +95,16 @@ class SendRequirementNotification implements ShouldQueue
             $usersQuery = User::whereIn('department_code', $departmentCodes)->distinct();
             
             // If confidential, only send to super_admin and department_head
+            // If confidential, only send to super_admin and department_head
             if ($document->is_confidential) {
-                $usersQuery->whereHas('roles', function ($query) {
-                    $query->whereIn('name', ['super_admin', 'department_head']);
-                });
+                $allowedUserIds = DB::connection('mysql')
+                    ->table('model_has_roles')
+                    ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
+                    ->whereIn('roles.name', ['super_admin', 'department_head'])
+                    ->where('model_type', User::class)
+                    ->pluck('model_id')
+                    ->toArray();
+                $usersQuery->whereIn('recid', $allowedUserIds);
             }
             
             $users = $usersQuery->get();

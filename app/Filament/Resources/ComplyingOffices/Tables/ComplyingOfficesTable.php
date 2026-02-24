@@ -39,7 +39,7 @@ class ComplyingOfficesTable
                 //         // Department head sees all within their department
                 //         $query->where('complying_offices.department_code', $user->department_code);
                 //     } 
-                //     elseif ($user->hasAnyRole(['AO', 'admin'])) {
+                //     elseif ($user->hasRoleSafe('AO', 'admin')) {
                 //         // AO/Admin sees non-confidential within their department
                 //         $query
                 //             ->where('complying_offices.department_code', $user->department_code)
@@ -68,7 +68,7 @@ class ComplyingOfficesTable
                     /**
                      * EXTRA RULES PER ROLE
                      */
-                    if ($user->hasAnyRole(['AO', 'admin'])) {
+                    if ($user->hasRoleSafe('AO', 'admin')) {
                         // AO/Admin cannot see confidential requirements
                         $query
                             ->join(

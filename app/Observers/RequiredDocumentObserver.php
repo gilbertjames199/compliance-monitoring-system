@@ -2,9 +2,10 @@
 
 namespace App\Observers;
 
-use App\Models\User;
 use App\Models\RequiredDocument;
+use App\Models\User;
 use App\Notifications\RequiredDocumentCreatedNotification;
+use Illuminate\Support\Facades\DB;
 
 class RequiredDocumentObserver
 {
@@ -25,9 +26,14 @@ class RequiredDocumentObserver
 
         // If confidential, only send to super_admin and department_head
         if ($requiredDocument->is_confidential) {
-            $usersQuery->whereHas('roles', function ($query) {
-                $query->whereIn('name', ['super_admin', 'department_head']);
-            });
+            $allowedUserIds = DB::connection('mysql')
+                ->table('model_has_roles')
+                ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
+                ->whereIn('roles.name', ['super_admin', 'department_head'])
+                ->where('model_type', User::class)
+                ->pluck('model_id')
+                ->toArray();
+            $usersQuery->whereIn('recid', $allowedUserIds);
         }
 
         $users = $usersQuery->get();

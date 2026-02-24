@@ -86,7 +86,7 @@ class RequiredDocumentsTable
                 $query->where('agency_name', $officeName);
 
                 // Optionally hide confidential requirements from AO & Admin
-                if ($user->hasAnyRole(['AO', 'admin'])) {
+                if ($user->hasRoleSafe('AO', 'admin')) {
                     $query->where('is_confidential', false);
                 }
             })

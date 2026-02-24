@@ -410,7 +410,7 @@ class ComplyingOfficesRelationManager extends RelationManager
                             foreach ($users as $user) {
 
                                 // Skip AO/Admin for confidential requirements
-                                if ($requirement->is_confidential && $user->hasAnyRole(['AO', 'admin'])) {
+                                if ($requirement->is_confidential && $user->hasRoleSafe('AO', 'admin')) {
                                     continue;
                                 }
 
