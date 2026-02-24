@@ -2,15 +2,16 @@
 
 namespace App\Filament\Resources\RequiredDocuments\Pages;
 
-use App\Models\User;
-use Filament\Actions\Action;
-use App\Models\ComplyingOffice;
-use App\Mail\DueDateReminderMail;
-use Filament\Notifications\Notification;
-use Illuminate\Support\Facades\Mail;
-use Filament\Resources\Pages\CreateRecord;
 use App\Filament\Resources\RequiredDocuments\RequiredDocumentResource;
 use App\Filament\Resources\RequiredDocuments\Schemas\RequiredDocumentForm;
+use App\Mail\DueDateReminderMail;
+use App\Models\ComplyingOffice;
+use App\Models\User;
+use Illuminate\Support\Facades\DB;
+use Filament\Actions\Action;
+use Filament\Notifications\Notification;
+use Filament\Resources\Pages\CreateRecord;
+use Illuminate\Support\Facades\Mail;
 
 class CreateRequiredDocument extends CreateRecord
 {
@@ -63,9 +64,14 @@ class CreateRequiredDocument extends CreateRecord
         
         if ($this->record->is_confidential) {
             // Only super_admin and department_head for confidential
-            $modalUsers->whereHas('roles', function ($query) {
-                $query->whereIn('name', ['super_admin', 'department_head']);
-            });
+            $allowedUserIds = DB::connection('mysql')
+                ->table('model_has_roles')
+                ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
+                ->whereIn('roles.name', ['super_admin', 'department_head'])
+                ->where('model_type', User::class)
+                ->pluck('model_id')
+                ->toArray();
+            $modalUsers->whereIn('recid', $allowedUserIds);
         }
         // For non-confidential, all users get modal notifications (including AO & admin)
         
@@ -73,7 +79,7 @@ class CreateRequiredDocument extends CreateRecord
         $requirementTitle = $this->record->requirement;
         $requiringAgency = $this->record->agency_name;
         $deadline = $this->record->due_date;
-
+        
         // Send modal notifications only to allowed users
         foreach ($modalUsers as $user) {
             $actions = [];
@@ -81,8 +87,8 @@ class CreateRequiredDocument extends CreateRecord
             // Show View action if document is not confidential OR user is super_admin/department_head
             // Also show for admin and ao roles if document is not confidential
             $canViewRecord = !$this->record->is_confidential || 
-                            $user->roles()->whereIn('name', ['super_admin', 'department_head'])->exists() ||
-                            (!$this->record->is_confidential && $user->roles()->whereIn('name', ['admin', 'AO'])->exists());
+                $user->hasRoleSafe('super_admin', 'department_head') ||
+                (!$this->record->is_confidential && $user->hasRoleSafe('admin', 'AO'));
             
             if ($canViewRecord) {
                 // Get the ComplyingOffice record for this user's department
