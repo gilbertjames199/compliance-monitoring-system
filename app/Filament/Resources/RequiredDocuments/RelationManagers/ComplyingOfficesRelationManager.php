@@ -140,8 +140,11 @@ class ComplyingOfficesRelationManager extends RelationManager
 
                         $user = auth()->user();
                         $requiredDocument = $this->getOwnerRecord();
-                        $userOfficeName = optional($user->office)->office;
-                        $isRequiringAgency = $userOfficeName === $requiredDocument->agency_name;
+
+                        $agencyDepartmentCode = \App\Models\Office::where('office', $requiredDocument->agency_name)
+                            ->value('department_code');
+
+                        $isRequiringAgency = $user->department_code === $agencyDepartmentCode;
                         $isComplied = (int)$record->status === 1;
 
                         if (!$isRequiringAgency) {
@@ -156,26 +159,25 @@ class ComplyingOfficesRelationManager extends RelationManager
                     })
                     ->disabled(function ($record) {
                         if (!$record) {
-                            return true; // disable on create
+                            return true;
                         }
 
                         $user = auth()->user();
 
-                        // Get the parent RequiredDocument record to access agency_name
+                        // Superadmin can always edit
+                        if ($user->hasRole('super_admin')) {
+                            return false;
+                        }
+
                         $requiredDocument = $this->getOwnerRecord();
 
-                        // Check if user's office name matches the requiring agency
-                        $userOfficeName = optional($user->office)->office;
-                        $isRequiringAgency = $userOfficeName === $requiredDocument->agency_name;
+                        // Look up the office/agency by name to get its department_code
+                        $agencyDepartmentCode = \App\Models\Office::where('office', $requiredDocument->agency_name)
+                            ->value('department_code');
 
-                        // Alternative: Also check if user's department_code matches
-                        // (uncomment if you want to enable for users in the same department)
-                        // $userDeptCode = $user->department_code;
-                        // $isRequiringAgency = $isRequiringAgency || $userDeptCode === $requiredDocument->department_code;
+                        // Compare user's department_code with the agency's department_code
+                        $isRequiringAgency = $user->department_code === $agencyDepartmentCode;
 
-                        // Enable only if:
-                        // 1. User is from the requiring agency, AND
-                        // 2. The compliance status is 1 (Complied)
                         $isComplied = (int)$record->status === 1;
 
                         return !($isRequiringAgency && $isComplied);
@@ -217,47 +219,51 @@ class ComplyingOfficesRelationManager extends RelationManager
                     ->required()
                     ->columnSpanFull()
                     ->disabled(function ($record) {
-                            if (!$record) {
-                                return true; // disable on create
-                            }
+                        if (!$record) {
+                            return true;
+                        }
 
-                            $user = auth()->user();
+                        $user = auth()->user();
 
-                            // Get the parent RequiredDocument record to access agency_name
-                            $requiredDocument = $this->getOwnerRecord();
+                        // Superadmin can always edit
+                        if ($user->hasRole('super_admin')) {
+                            return false;
+                        }
 
-                            // Check if user's office name matches the requiring agency
-                            $userOfficeName = optional($user->office)->office;
-                            $isRequiringAgency = $userOfficeName === $requiredDocument->agency_name;
+                        $requiredDocument = $this->getOwnerRecord();
 
-                            // Enable only if:
-                            // 1. User is from the requiring agency, AND
-                            // 2. The compliance status is 1 (Complied)
-                            $isComplied = (int)$record->status === 1;
+                        $agencyDepartmentCode = \App\Models\Office::where('office', $requiredDocument->agency_name)
+                            ->value('department_code');
 
-                            return !($isRequiringAgency && $isComplied);
-                        })
-                        ->helperText(function ($record) {
-                            if (!$record) {
-                                return '';
-                            }
+                        $isRequiringAgency = $user->department_code === $agencyDepartmentCode;
+                        $isComplied = (int)$record->status === 1;
 
-                            $user = auth()->user();
-                            $requiredDocument = $this->getOwnerRecord();
-                            $userOfficeName = optional($user->office)->office;
-                            $isRequiringAgency = $userOfficeName === $requiredDocument->agency_name;
-                            $isComplied = (int)$record->status === 1;
+                        return !($isRequiringAgency && $isComplied);
+                    })
+                    ->helperText(function ($record) {
+                        if (!$record) {
+                            return '';
+                        }
 
-                            if (!$isRequiringAgency) {
-                                return 'Only the requiring agency can add remarks.';
-                            }
+                        $user = auth()->user();
+                        $requiredDocument = $this->getOwnerRecord();
 
-                            if (!$isComplied) {
-                                return 'Remarks can only be added when the status is "Complied".';
-                            }
+                        $agencyDepartmentCode = \App\Models\Office::where('office', $requiredDocument->agency_name)
+                            ->value('department_code');
 
-                            return 'Add validation remarks for this submission.';
-                        }),  
+                        $isRequiringAgency = $user->department_code === $agencyDepartmentCode;
+                        $isComplied = (int)$record->status === 1;
+
+                        if (!$isRequiringAgency) {
+                            return 'Only the requiring agency (' . $requiredDocument->agency_name . ') can add remarks.';
+                        }
+
+                        if (!$isComplied) {
+                            return 'Remarks can only be added when the status is "Complied".';
+                        }
+
+                        return 'Add validation remarks for this submission.';
+                    }),  
                         
                 TextInput::make('validated_by')
                     ->label(fn ($get) =>

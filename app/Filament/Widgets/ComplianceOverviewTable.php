@@ -43,7 +43,7 @@ class ComplianceOverviewTable extends TableWidget
                     $query->whereIn('status', [-1, 0]);
 
                     // Role-based access control
-                    if ($user->hasRole('superadmin')) {
+                    if ($user->hasRole('super_admin')) {
                         // Superadmin sees all - no filters
                     } 
                     elseif ($user->hasRole('department_head')) {
@@ -57,7 +57,11 @@ class ComplianceOverviewTable extends TableWidget
                             ->join('required_documents', 'required_documents.id', '=', 'complying_offices.required_document_id')
                             ->where('required_documents.is_confidential', false)
                             ->select('complying_offices.*');
-                    }  
+                    }
+                    else {
+                        // No role — restrict everything
+                        $query->whereRaw('1 = 0');
+                    }
                 })
             ->defaultGroup('office.office')
             

@@ -44,7 +44,7 @@ class AdminPanelProvider extends PanelProvider
             ->passwordReset()
             ->emailVerification()
             ->emailChangeVerification()
-            ->databaseNotifications()
+            // ->databaseNotifications()
             
             ->colors([
                 'danger' => Color::Rose,
@@ -82,8 +82,8 @@ class AdminPanelProvider extends PanelProvider
             ->plugins([
                 \Javarex\DdoLogin\LoginDdoPlugin::make(),
                 FilamentShieldPlugin::make(),
-
             ])
+            ->login(CustomLogin::class)
             ->userMenuItems([
                 'profile' => 
                 fn (Action $action) => $action->label(fn(): Htmlable => new HtmlString('

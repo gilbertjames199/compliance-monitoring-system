@@ -8,7 +8,7 @@ use Spatie\Permission\Models\Permission as SpatiePermission;
 class Permission extends SpatiePermission
 {
     protected $connection = "mysql";
-    protected $table = 'permissions';
-    protected $guarded = ['id'];
+    // protected $table = 'permissions';
+    // protected $guarded = ['id'];
 
 }

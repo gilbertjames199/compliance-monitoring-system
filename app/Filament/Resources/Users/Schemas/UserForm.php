@@ -2,28 +2,30 @@
 
 namespace App\Filament\Resources\Users\Schemas;
 
-use App\Models\Role;
 use App\Models\Office;
 use App\Models\Permission;
-use Illuminate\Support\Str;
+use App\Models\Role;
+use App\Models\User;
+use BezhanSalleh\FilamentShield\Support\Utils;
+use Dom\Text;
 use Filament\Actions\Action;
-use Filament\Schemas\Schema;
 use Filament\Facades\Filament;
-use Filament\Forms\Components\Select;
-use Filament\Schemas\Components\Form;
-use Filament\Schemas\Components\Grid;
-use Filament\Support\Enums\Operation;
-use Illuminate\Database\Eloquent\Model;
-use Illuminate\Validation\Rules\Unique;
-
-//FILAMENT
-use Filament\Forms\Components\TextInput;
-use Filament\Schemas\Components\Actions;
-use Filament\Schemas\Components\Section;
-use Filament\Schemas\Components\Fieldset;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DateTimePicker;
-use BezhanSalleh\FilamentShield\Support\Utils;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Actions;
+use Filament\Schemas\Components\Fieldset;
+
+//FILAMENT
+use Filament\Schemas\Components\Form;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
+use Filament\Support\Enums\Operation;
+use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Str;
+use Illuminate\Validation\Rules\Unique;
 
 class UserForm
 {
@@ -34,31 +36,52 @@ class UserForm
         // dd($permissionGroups);
         return $schema
             ->components([
-                TextInput::make('name')
-                    ->required(),
-                TextInput::make('username')
-                    ->required()
-                    ->unique(),
+                TextInput::make('FullName')
+                    ->required(fn ($livewire, $record) => !$record),
                 TextInput::make('email')
                     ->label('Email address')
                     ->email()
-                    ->required()
-                    ->unique(),
-                DateTimePicker::make('email_verified_at'),
+                    ->required(fn ($livewire, $record) => !$record),
                 TextInput::make('cats_number')
-                    ->required()
-                    ->unique(),
+                    ->required(fn ($livewire, $record) => !$record),
                 // TextInput::make('department_code')
                 //     ->required(),
+               Select::make('department_code')
+                    ->label('Department Code')
+                    ->options(fn () => Office::pluck('department_code', 'department_code'))
+                    ->searchable()
+                    ->reactive()
+                    ->afterStateUpdated(function (callable $set, $state) {
+                        $office = Office::where('department_code', $state)->first();
+                        $set('office', $office?->office);
+                    }),
+
                 Select::make('department_code')
                     ->label('Office')
-                    ->options(Office::all()->pluck('office', 'department_code'))
+                    ->options(
+                        Office::orderBy('office')
+                            ->get()
+                            ->mapWithKeys(function ($office) {
+                                $label = $office->office;
+
+                                if (!empty($office->short_name)) {
+                                    $label .= ' (' . $office->short_name . ')';
+                                }
+
+                                return [
+                                    $office->department_code => $label
+                                ];
+                            })
+                            ->toArray()
+                    )
                     ->searchable()
-                    ->required(),
-                TextInput::make('password')
-                     ->label('Password')
+                    ->preload(),
+                TextInput::make('UserName')
+                    ->required(fn ($livewire, $record) => !$record),
+                TextInput::make('UserPassword')
+                    ->label('Password')
                     ->password()
-                    ->minLength(8)
+                    ->revealable()
                     // ->hiddenOn(Operation::Edit)
                     ->required(fn ($livewire, $record) => !$record) // required on create only
                     ->dehydrateStateUsing(function ($state, $record) {

@@ -77,7 +77,13 @@ class RequiredDocumentsTable
                 }
 
                 // Only show records where the requiring agency matches the user's office name
-                $query->where('agency_name', $user->office->office);
+                // $query->where('agency_name', $user->office->office);
+
+                $officeName = Office::on('mysql2') // if cross-database
+                    ->where('department_code', $user->department_code)
+                    ->value('office'); // just get the office name as string
+
+                $query->where('agency_name', $officeName);
 
                 // Optionally hide confidential requirements from AO & Admin
                 if ($user->hasAnyRole(['AO', 'admin'])) {
@@ -355,39 +361,50 @@ class RequiredDocumentsTable
                                         ->reactive()
                                         ->dehydrated()
                                         ->disabled(function ($get, $record) use ($office) {
-                                            // Check if status is not "Complied" (1)
-                                            $isComplied = $get("office_{$office->id}_status") == 1;
-                                            
-                                            if (!$isComplied) {
-                                                return true;
-                                            }
+                                                $user = auth()->user();
 
-                                            // Check if user is from the requiring agency
-                                            $user = auth()->user();
-                                            $userOfficeName = optional($user->office)->office;
-                                            
-                                            // Get the agency_name from the record (RequiredDocument)
-                                            $isRequiringAgency = $userOfficeName === $record?->agency_name;
+                                                // Superadmin can always edit (but still requires complied status)
+                                                $isComplied = $get("office_{$office->id}_status") == 1;
 
-                                            // Enable only if user is from requiring agency AND status is complied
-                                            return !$isRequiringAgency;
-                                        })
-                                        ->helperText(function ($get, $record) use ($office) {
-                                            $user = auth()->user();
-                                            $userOfficeName = optional($user->office)->office;
-                                            $isRequiringAgency = $userOfficeName === $record?->agency_name;
-                                            $isComplied = $get("office_{$office->id}_status") == 1;
+                                                if ($user->hasRole('super_admin')) {
+                                                    return !$isComplied;
+                                                }
 
-                                            if (!$isRequiringAgency) {
-                                                return 'Only the requiring agency (' . ($record?->agency_name ?? 'N/A') . ') can validate submissions.';
-                                            }
+                                                if (!$isComplied) {
+                                                    return true;
+                                                }
 
-                                            if (!$isComplied) {
-                                                return 'Validation is only available when the compliance status is "Complied".';
-                                            }
+                                                // Match user's department_code with the agency's department_code
+                                                $agencyDepartmentCode = \App\Models\Office::where('office', $record?->agency_name)
+                                                    ->value('department_code');
 
-                                            return 'Review and validate the submitted documents.';
-                                        })
+                                                $isRequiringAgency = $user->department_code === $agencyDepartmentCode;
+
+                                                return !$isRequiringAgency;
+                                            })
+                                            ->helperText(function ($get, $record) use ($office) {
+                                                $user = auth()->user();
+                                                $isComplied = $get("office_{$office->id}_status") == 1;
+
+                                                if ($user->hasRole('super_admin')) {
+                                                    return $isComplied ? 'Review and validate the submitted documents.' : 'Validation is only available when the compliance status is "Complied".';
+                                                }
+
+                                                $agencyDepartmentCode = \App\Models\Office::where('office', $record?->agency_name)
+                                                    ->value('department_code');
+
+                                                $isRequiringAgency = $user->department_code === $agencyDepartmentCode;
+
+                                                if (!$isRequiringAgency) {
+                                                    return 'Only the requiring agency (' . ($record?->agency_name ?? 'N/A') . ') can validate submissions.';
+                                                }
+
+                                                if (!$isComplied) {
+                                                    return 'Validation is only available when the compliance status is "Complied".';
+                                                }
+
+                                                return 'Review and validate the submitted documents.';
+                                            })
                                         ->afterStateUpdated(function ($state, $set) use ($office) {
                                         if (in_array($state, ['validated', 'returned'])) {
                                             $set("office_{$office->id}_validated_by", auth()->user()->name);
@@ -421,12 +438,17 @@ class RequiredDocumentsTable
                                             }
 
                                             $user = auth()->user();
-
-                                            // $record IS the RequiredDocument
-                                            $userOfficeName = optional($user->office)->office;
-                                            $isRequiringAgency = $userOfficeName === $record->agency_name;
-
                                             $isComplied = (int) $office->status === 1;
+
+                                            // Superadmin can always edit (but still requires complied status)
+                                            if ($user->hasRole('super_admin')) {
+                                                return !$isComplied;
+                                            }
+
+                                            $agencyDepartmentCode = \App\Models\Office::where('office', $record->agency_name)
+                                                ->value('department_code');
+
+                                            $isRequiringAgency = $user->department_code === $agencyDepartmentCode;
 
                                             return !($isRequiringAgency && $isComplied);
                                         })
@@ -436,9 +458,16 @@ class RequiredDocumentsTable
                                             }
 
                                             $user = auth()->user();
-                                            $userOfficeName = optional($user->office)->office;
-                                            $isRequiringAgency = $userOfficeName === $record->agency_name;
                                             $isComplied = (int) $office->status === 1;
+
+                                            if ($user->hasRole('super_admin')) {
+                                                return $isComplied ? 'Add validation remarks for this submission.' : 'Remarks can only be added when the status is "Complied".';
+                                            }
+
+                                            $agencyDepartmentCode = \App\Models\Office::where('office', $record->agency_name)
+                                                ->value('department_code');
+
+                                            $isRequiringAgency = $user->department_code === $agencyDepartmentCode;
 
                                             if (!$isRequiringAgency) {
                                                 return 'Only the requiring agency can add remarks.';

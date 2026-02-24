@@ -2,14 +2,17 @@
 
 namespace App\Filament\Resources\Users\Tables;
 
-use Filament\Tables\Table;
-use Filament\Actions\EditAction;
-use Filament\Resources\Resource;
+use App\Models\Office;
+use Dom\Text;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Resources\Resource;
+use Filament\Tables\Columns\BadgeColumn;
 use Filament\Tables\Columns\TextColumn;
-use STS\FilamentImpersonate\Actions\Impersonate;
+use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use STS\FilamentImpersonate\Actions\Impersonate;
 
 class UsersTable
 {
@@ -33,25 +36,33 @@ class UsersTable
                 return $query->where('department_code', $user->department_code);
             })
             ->columns([
-                TextColumn::make('name')
+                // TextColumn::make('recid'),
+                TextColumn::make('FullName')
                     ->searchable(),
-                TextColumn::make('username')
+                TextColumn::make('UserName')
+                    ->label('Username')
                     ->searchable(),
+                BadgeColumn::make('is_active')
+                    ->label('Active Status')
+                    ->colors([
+                        'success' => fn ($state) => $state,
+                        'danger' => fn ($state) => ! $state,
+                    ])
+                    ->formatStateUsing(fn ($state) => $state ? 'Active' : 'Inactive')
+                    ->searchable(), // now works because it's using the database column
                 TextColumn::make('email')
                     ->label('Email address')
                     ->searchable(),
-                TextColumn::make('email_verified_at')
-                    ->dateTime()
-                    ->sortable(),
-                // TextColumn::make('userEmployee.employee_name')
-                //     ->name('Name')
-                //     ->searchable(),
-                TextColumn::make('office.short_name')
-                    ->label('Department')
+                TextColumn::make('department_code')
+                    ->label('Department Code')
+                    ->searchable(),
+                TextColumn::make('Designation')
+                    ->label('Designation')
                     ->searchable(),
                 TextColumn::make('roles.name')
                     ->label('Role')
                     ->badge()
+                    ->searchable()
                     ->color(fn (string $state) => collect([
                         'primary',
                         'success',
@@ -59,18 +70,9 @@ class UsersTable
                         'danger',
                         'info',
                         'gray',
-                    ])[abs(crc32($state)) % 6])
-                    ->searchable(),
-                TextColumn::make('created_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('updated_at')
-                    ->dateTime()
-                    ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ])[abs(crc32($state)) % 6]),
             ])
-            ->defaultSort('created_at', 'desc')
+            ->defaultSort('recid', 'asc')
             ->filters([
                 //
             ])

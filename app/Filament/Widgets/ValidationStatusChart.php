@@ -8,26 +8,27 @@ use Illuminate\Support\Facades\Auth;
 
 class ValidationStatusChart extends ChartWidget
 {
-    protected ?string $heading = 'Validation Status Chart';
+    protected ?string $heading = 'Validation Status Chart ';
     protected static ?int $sort = 3;
 
     protected function getData(): array
     {
         $user = Auth::user();
 
-        $query = ComplyingOffice::query()->with('requiredDocument');
+        $query = ComplyingOffice::query();
 
-        if (!$user->hasRole('super_admin')) {
-            if ($user->hasRole('department_head')) {
-                // Department head sees all documents in their department
-                $query->where('department_code', $user->department_code);
-            } elseif ($user->hasAnyRole(['AO', 'admin'])) {
-                // AO or admin sees only non-confidential documents in their department
-                $query->where('department_code', $user->department_code)
-                      ->whereHas('requiredDocument', function ($q) {
-                          $q->where('is_confidential', 0);
-                      });
-            }
+        if ($user->hasRole('super_admin')) {
+            // sees all - no filter
+        } elseif ($user->hasRole('department_head')) {
+            $query->where('department_code', $user->department_code);
+        } elseif ($user->hasAnyRole(['AO', 'admin'])) {
+            $query->where('department_code', $user->department_code)
+                ->whereHas('requiredDocument', fn ($q) =>
+                    $q->where('is_confidential', 0)
+                );
+        } else {
+            // Unknown role sees nothing
+            $query->whereRaw('1 = 0');
         }
 
         $statuses = [
@@ -37,15 +38,15 @@ class ValidationStatusChart extends ChartWidget
         ];
 
         return [
-            'labels' => ['Pending Review', 'Returned', 'Validated'],
+            'labels'   => ['Pending Review', 'Returned', 'Validated'],
             'datasets' => [
                 [
-                    'label' => 'Validation Status',
-                    'data' => array_values($statuses),
+                    'label'           => 'Validation Status',
+                    'data'            => array_values($statuses),
                     'backgroundColor' => [
-                        '#ff9500', // warning
-                        '#E91E63', // danger
-                        '#1DB584', // success
+                        '#ff9500', // warning - Pending Review
+                        '#E91E63', // danger  - Returned
+                        '#1DB584', // success - Validated
                     ],
                 ],
             ],

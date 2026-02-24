@@ -418,8 +418,14 @@ class ComplyingOfficeForm
                             ->dehydrated()
                             ->required()
                             ->disabled(function ($record) {
-                                // Disable ONLY if not their own office (read-only)
-                                return $record && auth()->user()->department_code !== $record->department_code;
+                                if (! $record) {
+                                    return false;
+                                }
+
+                                $isNotOwnOffice = auth()->user()->department_code !== $record->department_code;
+                                $isComplied = $record->status === '1';
+
+                                return $isNotOwnOffice || $isComplied;
                             })
                             ->columnSpanFull(),
 

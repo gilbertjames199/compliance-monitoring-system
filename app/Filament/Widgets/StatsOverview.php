@@ -20,31 +20,31 @@ class StatsOverview extends BaseWidget
         $requiredDocsQuery = RequiredDocument::query();
 
         // Apply filters based on role
-        if ($user->hasRole('superadmin')) {
+        if ($user->hasRole('super_admin')) {
             // Superadmin sees all
         } 
         elseif ($user->hasRole('department_head')) {
-            // Department head sees all documents in their department
-            $requiredDocsQuery->whereHas('complyingOffices', function ($query) use ($user) {
-                $query->where('department_code', $user->department_code);
-            });
+            $requiredDocsQuery->whereHas('complyingOffices', fn ($q) => 
+                $q->where('department_code', $user->department_code)
+            );
         } 
         elseif ($user->hasAnyRole(['AO', 'admin'])) {
-            // AO/Admin sees non-confidential documents in their department
-            $requiredDocsQuery->whereHas('complyingOffices', function ($query) use ($user) {
-                $query->where('department_code', $user->department_code);
-            })->where('is_confidential', 0);
+            $requiredDocsQuery->whereHas('complyingOffices', fn ($q) => 
+                $q->where('department_code', $user->department_code)
+            )->where('is_confidential', 0);
+        } 
+        else {
+            $requiredDocsQuery->whereRaw('1 = 0');
         }
 
         // Status mappings for ComplyingOffice
         $statuses = [
-            'Not Complied' => ['status' => '-1', 'color' => 'danger', 'icon' => 'heroicon-m-x-circle'],
-            'Partially Complied' => ['status' => '0', 'color' => 'warning', 'icon' => 'heroicon-m-exclamation-circle'],
-            'Complied' => ['status' => '1', 'color' => 'success', 'icon' => 'heroicon-m-check-circle'],
+            'Not Complied'     => ['status' => '-1', 'color' => 'danger',  'icon' => 'heroicon-m-x-circle'],
+            'Partially Complied' => ['status' => '0',  'color' => 'warning', 'icon' => 'heroicon-m-exclamation-circle'],
+            'Complied'         => ['status' => '1',  'color' => 'success', 'icon' => 'heroicon-m-check-circle'],
         ];
 
         $stats = [
-            // Total Required Documents
             Stat::make('Total Required Documents', $requiredDocsQuery->count())
                 ->description('All documents that need compliance based on your role and department')
                 ->descriptionIcon('heroicon-m-document-text')
@@ -52,20 +52,23 @@ class StatsOverview extends BaseWidget
                 ->chart($requiredDocsQuery->latest()->take(7)->pluck('id')->toArray()),
         ];
 
-        // Add stats for each ComplyingOffice status
         foreach ($statuses as $label => $options) {
             $query = ComplyingOffice::where('status', $options['status']);
 
-            if (!$user->hasRole('superadmin')) {
-                if ($user->hasRole('department_head')) {
-                    $query->where('department_code', $user->department_code);
-                } 
-                elseif ($user->hasAnyRole(['AO', 'admin'])) {
-                    $query->where('department_code', $user->department_code)
-                          ->whereHas('requiredDocument', function ($q) {
-                              $q->where('is_confidential', 0);
-                          });
-                }
+            if ($user->hasRole('super_admin')) {
+                // Sees all - no filters
+            } 
+            elseif ($user->hasRole('department_head')) {
+                $query->where('department_code', $user->department_code);
+            } 
+            elseif ($user->hasAnyRole(['AO', 'admin'])) {
+                $query->where('department_code', $user->department_code)
+                      ->whereHas('requiredDocument', fn ($q) => 
+                          $q->where('is_confidential', 0)
+                      );
+            } 
+            else {
+                $query->whereRaw('1 = 0');
             }
 
             $stats[] = Stat::make("{$label} Documents", $query->count())

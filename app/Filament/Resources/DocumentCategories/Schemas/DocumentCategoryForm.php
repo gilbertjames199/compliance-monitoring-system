@@ -143,13 +143,20 @@ class DocumentCategoryForm
                                 })
                                 ->required()
                                 ->disabled(function ($record) {
-                                    if (!$record) return false;
+                                        if (!$record) return false;
 
-                                    $user = auth()->user();
-                                    $userOfficeName = optional($user->office)->office;
+                                        $user = auth()->user();
 
-                                    return $userOfficeName !== $record->agency_name;
-                                }),
+                                        // Superadmin is never disabled
+                                        if ($user->hasRole('super_admin')) {
+                                            return false;
+                                        }
+
+                                        $agencyDepartmentCode = \App\Models\Office::where('office', $record->agency_name)
+                                            ->value('department_code');
+
+                                        return $user->department_code !== $agencyDepartmentCode;
+                                    }), 
 
                             DatePicker::make('date_from')  
                                 ->label('Start Date')
@@ -163,18 +170,49 @@ class DocumentCategoryForm
                                     $set('due_date', null); // Optional: clear due_date when date_from changes
                                 })
                                 ->disabled(function ($record) {
-                                if (!$record) return false;
-                                $user = auth()->user();
-                                $userOfficeName = optional($user->office)->office;
+                                    if (!$record) return false;
 
-                                // Disable if the user is NOT from the requiring agency
-                                if ($userOfficeName !== $record->agency_name) {
-                                    return true;
-                                }
-                                // Disable if any complying office has status 0 (Partially Complied) or 1 (Complied)
-                                return $record->complyingOffices()
-                                            ->whereIn('status', [0, 1])
-                                            ->exists();
+                                    $user = auth()->user();
+
+                                    // Superadmin is never disabled
+                                    if ($user->hasRole('super_admin')) {
+                                        return false;
+                                    }
+
+                                    $agencyDepartmentCode = \App\Models\Office::where('office', $record->agency_name)
+                                        ->value('department_code');
+
+                                    // Disable if the user is NOT from the requiring agency
+                                    if ($user->department_code !== $agencyDepartmentCode) {
+                                        return true;
+                                    }
+
+                                    // Disable if any complying office has status 0 (Partially Complied) or 1 (Complied)
+                                    return $record->complyingOffices()
+                                                ->whereIn('status', [0, 1])
+                                                ->exists();
+                                })
+                                ->helperText(function ($record) {
+                                    if (!$record) return '';
+
+                                    $user = auth()->user();
+
+                                    if ($user->hasRole('super_admin')) {
+                                        return 'As superadmin, you can edit this field.';
+                                    }
+
+                                    $agencyDepartmentCode = \App\Models\Office::where('office', $record->agency_name)
+                                        ->value('department_code');
+
+                                    if ($user->department_code !== $agencyDepartmentCode) {
+                                        return 'Only the requiring agency (' . $record->agency_name . ') can edit this field.';
+                                    }
+
+                                    if ($record->complyingOffices()->whereIn('status', [0, 1])->exists()) {
+                                        return 'This field cannot be edited because one or more offices have already started complying.';
+                                    }
+
+                                    return null;
                                 }),
 
                             DatePicker::make('due_date')
@@ -187,18 +225,49 @@ class DocumentCategoryForm
                                 ->afterOrEqual('date_from') // Validation rule
                                 ->minDate(fn (Get $get) => $get('date_from')) // Disables dates before date_from in picker
                                 ->disabled(function ($record) {
-                                if (!$record) return false;
-                                $user = auth()->user();
-                                $userOfficeName = optional($user->office)->office;
+                                    if (!$record) return false;
 
-                                // Disable if the user is NOT from the requiring agency
-                                if ($userOfficeName !== $record->agency_name) {
-                                    return true;
-                                }
-                                // Disable if any complying office has status 0 (Partially Complied) or 1 (Complied)
-                                return $record->complyingOffices()
-                                            ->whereIn('status', [0, 1])
-                                            ->exists();
+                                    $user = auth()->user();
+
+                                    // Superadmin is never disabled
+                                    if ($user->hasRole('super_admin')) {
+                                        return false;
+                                    }
+
+                                    $agencyDepartmentCode = \App\Models\Office::where('office', $record->agency_name)
+                                        ->value('department_code');
+
+                                    // Disable if the user is NOT from the requiring agency
+                                    if ($user->department_code !== $agencyDepartmentCode) {
+                                        return true;
+                                    }
+
+                                    // Disable if any complying office has status 0 (Partially Complied) or 1 (Complied)
+                                    return $record->complyingOffices()
+                                                ->whereIn('status', [0, 1])
+                                                ->exists();
+                                })
+                                ->helperText(function ($record) {
+                                    if (!$record) return '';
+
+                                    $user = auth()->user();
+
+                                    if ($user->hasRole('super_admin')) {
+                                        return 'As superadmin, you can edit this field.';
+                                    }
+
+                                    $agencyDepartmentCode = \App\Models\Office::where('office', $record->agency_name)
+                                        ->value('department_code');
+
+                                    if ($user->department_code !== $agencyDepartmentCode) {
+                                        return 'Only the requiring agency (' . $record->agency_name . ') can edit this field.';
+                                    }
+
+                                    if ($record->complyingOffices()->whereIn('status', [0, 1])->exists()) {
+                                        return 'This field cannot be edited because one or more offices have already started complying.';
+                                    }
+
+                                    return null;
                                 }),
 
                             Toggle::make('is_confidential')
@@ -217,11 +286,21 @@ class DocumentCategoryForm
                                                 $set('recurrence_type', null); 
                                                 $set('recurrence_interval', null); 
                                             } 
-                                        })->disabled(function ($record) {
+                                        })
+                                        ->disabled(function ($record) {
                                             if (!$record) return false;
+
                                             $user = auth()->user();
-                                            $userOfficeName = optional($user->office)->office;
-                                            return $userOfficeName !== $record->agency_name;
+
+                                            // Superadmin is never disabled
+                                            if ($user->hasRole('super_admin')) {
+                                                return false;
+                                            }
+
+                                            $agencyDepartmentCode = \App\Models\Office::where('office', $record->agency_name)
+                                                ->value('department_code');
+
+                                            return $user->department_code !== $agencyDepartmentCode;
                                         }), 
 
                                     // Nested grid for recurrence fields
@@ -248,9 +327,18 @@ class DocumentCategoryForm
                                                 ->dehydrateStateUsing(fn($state, $get) => $get('is_recurring') ? $state : null)
                                                 ->disabled(function ($record) {
                                                     if (!$record) return false;
+
                                                     $user = auth()->user();
-                                                    $userOfficeName = optional($user->office)->office;
-                                                    return $userOfficeName !== $record->agency_name;
+
+                                                    // Superadmin is never disabled
+                                                    if ($user->hasRole('super_admin')) {
+                                                        return false;
+                                                    }
+
+                                                    $agencyDepartmentCode = \App\Models\Office::where('office', $record->agency_name)
+                                                        ->value('department_code');
+
+                                                    return $user->department_code !== $agencyDepartmentCode;
                                                 }), 
 
                                             TextInput::make('recurrence_interval') 
@@ -268,15 +356,22 @@ class DocumentCategoryForm
                             ]),
                         ])
                         ->visible(function ($record) {
-                                    if (!$record) {
-                                        return true; // Allow viewing during creation
-                                    }
-                                    $user = auth()->user();
-                                    $userOfficeName = optional($user->office)->office;
-                                    
-                                    // Show only if user is from the requiring agency
-                                    return $userOfficeName === $record->agency_name;
-                                }),
+                            if (!$record) {
+                                return true;
+                            }
+
+                            $user = auth()->user();
+
+                            // Superadmin can always see
+                            if ($user->hasRole('super_admin')) {
+                                return true;
+                            }
+
+                            $agencyDepartmentCode = \App\Models\Office::where('office', $record->agency_name)
+                                ->value('department_code');
+
+                            return $user->department_code === $agencyDepartmentCode;
+                        }),
 
                     Section::make('Complying Offices')
                         // ->columns(2)
@@ -304,9 +399,18 @@ class DocumentCategoryForm
                                 ->searchable()
                                 ->disabled(function ($record) {
                                     if (!$record) return false;
+
                                     $user = auth()->user();
-                                    $userOfficeName = optional($user->office)->office;
-                                    return $userOfficeName !== $record->agency_name;
+
+                                    // Superadmin is never disabled
+                                    if ($user->hasRole('super_admin')) {
+                                        return false;
+                                    }
+
+                                    $agencyDepartmentCode = \App\Models\Office::where('office', $record->agency_name)
+                                        ->value('department_code');
+
+                                    return $user->department_code !== $agencyDepartmentCode;
                                 })
                                 ->loadStateFromRelationshipsUsing(fn ($component, $record) =>
                                     $component->state(
@@ -334,9 +438,18 @@ class DocumentCategoryForm
                                         )
                                         ->disabled(function ($record) {
                                             if (!$record) return false;
+
                                             $user = auth()->user();
-                                            $userOfficeName = optional($user->office)->office;
-                                            return $userOfficeName !== $record->agency_name;
+
+                                            // Superadmin is never disabled
+                                            if ($user->hasRole('super_admin')) {
+                                                return false;
+                                            }
+
+                                            $agencyDepartmentCode = \App\Models\Office::where('office', $record->agency_name)
+                                                ->value('department_code');
+
+                                            return $user->department_code !== $agencyDepartmentCode;
                                         }),
 
                                     Action::make('clear')
@@ -347,22 +460,37 @@ class DocumentCategoryForm
                                         )
                                         ->disabled(function ($record) {
                                             if (!$record) return false;
+
                                             $user = auth()->user();
-                                            $userOfficeName = optional($user->office)->office;
-                                            return $userOfficeName !== $record->agency_name;
+
+                                            // Superadmin is never disabled
+                                            if ($user->hasRole('super_admin')) {
+                                                return false;
+                                            }
+
+                                            $agencyDepartmentCode = \App\Models\Office::where('office', $record->agency_name)
+                                                ->value('department_code');
+
+                                            return $user->department_code !== $agencyDepartmentCode;
                                         }),
                                     ])
                                 ])
                                 ->visible(function ($record) {
                                     if (!$record) {
-                                        return true; // Allow viewing during creation
+                                        return true;
                                     }
-                                    
+
                                     $user = auth()->user();
-                                    $userOfficeName = optional($user->office)->office;
-                                    
-                                    // Show only if user is from the requiring agency
-                                    return $userOfficeName === $record->agency_name;
+
+                                    // Superadmin can always see
+                                    if ($user->hasRole('super_admin')) {
+                                        return true;
+                                    }
+
+                                    $agencyDepartmentCode = \App\Models\Office::where('office', $record->agency_name)
+                                        ->value('department_code');
+
+                                    return $user->department_code === $agencyDepartmentCode;
                                 }),
                             ])
                 ]);

@@ -2,14 +2,15 @@
 
 namespace App\Models;
 
+use App\Models\DatabaseNotification;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
-use Spatie\Permission\Traits\HasRoles;
 use Laravel\Sanctum\HasApiTokens;
+use Spatie\Permission\Traits\HasRoles;
 
 // class User extends Authenticatable implements MustVerifyEmail
 // class User extends Authenticatable implements FilamentUser
@@ -18,6 +19,50 @@ class User extends Authenticatable implements FilamentUser
     /** @use HasFactory<\Database\Factories\UserFactory> */
     use HasFactory, Notifiable, HasRoles, HasApiTokens;
 
+    protected $connection = 'mysql2';
+    protected $table = 'systemusers';
+    protected $primaryKey = 'recid';
+    public $timestamps = false;
+    public $incrementing = true;
+    protected $keyType = 'int';
+    protected $guard_name = 'web';
+    protected $guarded = ['recid'];
+
+
+    protected $hidden = [
+        'UserPassword',
+        'laravel_password',
+        'remember_token',
+    ];
+
+    public function getNameAttribute(): string
+    {
+        return (string) ($this->FullName ?? $this->UserName ?? 'Unknown');
+    }
+
+    public function getAuthPasswordName(): string
+    {
+        return 'UserPassword';
+    }
+    public function getAuthPassword()
+    {
+        return $this->UserPassword;
+    }
+    public function getAuthIdentifierName()
+    {
+        return 'recid'; // ← must match the primary key
+    }
+
+    public function getRememberTokenName()
+    {
+        return null; // systemusers has no remember_token column
+    }
+
+    // Disable password rehashing (no password column update)
+    public function rehashPasswordIfRequired($password, array $options = [], bool $force = false): void
+    {
+        // Do nothing
+    }
     /**
      * The attributes that are mass assignable.
      *
@@ -45,29 +90,31 @@ class User extends Authenticatable implements FilamentUser
     //     // return $this->is_admin === true;
     // }
 
-    protected $guarded = ['id'];
-    /**
-     * The attributes that should be hidden for serialization.
-     *
-     * @var list<string>
-     */
-    protected $hidden = [
-        'password',
-        'remember_token',
-    ];
 
-    /**
-     * Get the attributes that should be cast.
-     *
-     * @return array<string, string>
-     */
-    protected function casts(): array
-    {
-        return [
-            'email_verified_at' => 'datetime',
-            'password' => 'hashed',
-        ];
-    }
+
+    // protected $guarded = ['id'];
+    // /**
+    //  * The attributes that should be hidden for serialization.
+    //  *
+    //  * @var list<string>
+    //  */
+    // protected $hidden = [
+    //     'password',
+    //     'remember_token',
+    // ];
+
+    // /**
+    //  * Get the attributes that should be cast.
+    //  *
+    //  * @return array<string, string>
+    //  */
+    // protected function casts(): array
+    // {
+    //     return [
+    //         'email_verified_at' => 'datetime',
+    //         'password' => 'hashed',
+    //     ];
+    // }
 
     public function office()
     {
@@ -98,6 +145,25 @@ class User extends Authenticatable implements FilamentUser
     public function isAdminOrSuperAdmin(): bool
     {
         return in_array($this->role, ['admin', 'super_admin']);
+    }
+
+    public function notifications()
+    {
+        return $this->morphMany(
+            DatabaseNotification::class,
+            'notifiable'
+        )->orderBy('created_at', 'desc');
+    }
+
+
+    public function readNotifications()
+    {
+        return $this->notifications()->whereNotNull('read_at');
+    }
+
+    public function unreadNotifications()
+    {
+        return $this->notifications()->whereNull('read_at');
     }
 
 }

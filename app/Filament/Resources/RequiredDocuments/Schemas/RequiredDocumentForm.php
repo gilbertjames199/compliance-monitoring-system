@@ -31,16 +31,7 @@ class RequiredDocumentForm
                         
                         TextInput::make('requirement')
                             ->required()
-                            ->disabled(function ($record) {
-                                if (!$record) {
-                                    return false; // Allow creation
-                                }
-                                $user = auth()->user();
-                                $userOfficeName = optional($user->office)->office;
-                                
-                                // Disable if user is NOT from the requiring agency
-                                return $userOfficeName !== $record->agency_name;
-                            }),
+                            ->disabled(fn ($record) => self::isNotRequiringAgency($record)),
                         TextInput::make('year')
                             ->numeric()
                             ->default(date('Y')) // automatically sets the current year
@@ -57,18 +48,34 @@ class RequiredDocumentForm
                                 $set('due_date', null); // Optional: clear due_date when date_from changes
                             })
                             ->disabled(function ($record) {
-                                if (!$record) return false;
-                                $user = auth()->user();
-                                $userOfficeName = optional($user->office)->office;
+                                if (self::isNotRequiringAgency($record)) return true;
 
-                                // Disable if the user is NOT from the requiring agency
-                                if ($userOfficeName !== $record->agency_name) {
-                                    return true;
-                                }
                                 // Disable if any complying office has status 0 (Partially Complied) or 1 (Complied)
-                                return $record->complyingOffices()
+                                return $record?->complyingOffices()
                                             ->whereIn('status', [0, 1])
                                             ->exists();
+                            })
+                            ->helperText(function ($record) {
+                                if (!$record) return '';
+
+                                $user = auth()->user();
+
+                                if ($user->hasRole('super_admin')) {
+                                    return 'As superadmin, you can edit this field.';
+                                }
+
+                                $agencyDepartmentCode = \App\Models\Office::where('office', $record->agency_name)
+                                    ->value('department_code');
+
+                                if ($user->department_code !== $agencyDepartmentCode) {
+                                    return 'Only the requiring agency (' . $record->agency_name . ') can edit this field.';
+                                }
+
+                                if ($record->complyingOffices()->whereIn('status', [0, 1])->exists()) {
+                                    return 'This field cannot be edited because one or more offices have already started complying.';
+                                }
+                                
+                                return null;
                             }),
                         DatePicker::make('due_date')
                             ->label('Deadline')
@@ -80,18 +87,35 @@ class RequiredDocumentForm
                             ->afterOrEqual('date_from') // Validation rule
                             ->minDate(fn (Get $get) => $get('date_from'))
                             ->disabled(function ($record) {
-                                if (!$record) return false;
-                                $user = auth()->user();
-                                $userOfficeName = optional($user->office)->office;
-                                // Disable if the user is NOT from the requiring agency
-                                if ($userOfficeName !== $record->agency_name) {
-                                    return true;
-                                }
+                                if (self::isNotRequiringAgency($record)) return true;
+
                                 // Disable if any complying office has status 0 (Partially Complied) or 1 (Complied)
-                                return $record->complyingOffices()
+                                return $record?->complyingOffices()
                                             ->whereIn('status', [0, 1])
                                             ->exists();
-                            }), // Disables dates before date_from in picker
+                            })
+                            ->helperText(function ($record) {
+                                if (!$record) return '';
+
+                                $user = auth()->user();
+
+                                if ($user->hasRole('super_admin')) {
+                                    return 'As superadmin, you can edit this field.';
+                                }
+
+                                $agencyDepartmentCode = \App\Models\Office::where('office', $record->agency_name)
+                                    ->value('department_code');
+
+                                if ($user->department_code !== $agencyDepartmentCode) {
+                                    return 'Only the requiring agency (' . $record->agency_name . ') can edit this field.';
+                                }
+
+                                if ($record->complyingOffices()->whereIn('status', [0, 1])->exists()) {
+                                    return 'This field cannot be edited because one or more offices have already started complying.';
+                                }
+                                
+                                return null;
+                            }),
 
                         Select::make('category')
                             ->label('Category')
@@ -126,12 +150,7 @@ class RequiredDocumentForm
                                     $set('document_category_id', $record->document_category_id);
                                 }
                             })
-                            ->disabled(function ($record) {
-                                if (!$record) return false;
-                                $user = auth()->user();
-                                $userOfficeName = optional($user->office)->office;
-                                return $userOfficeName !== $record->agency_name;
-                            }),
+                            ->disabled(fn ($record) => self::isNotRequiringAgency($record)),
 
                         TextInput::make('document_category_id')
                             ->label('Category ID')
@@ -145,12 +164,7 @@ class RequiredDocumentForm
                             ])
                             ->reactive()
                             ->required()
-                            ->disabled(function ($record) {
-                                if (!$record) return false;
-                                $user = auth()->user();
-                                $userOfficeName = optional($user->office)->office;
-                                return $userOfficeName !== $record->agency_name;
-                            }),
+                            ->disabled(fn ($record) => self::isNotRequiringAgency($record)),
 
                         Select::make('agency_name')
                             ->label('Requiring Agency')
@@ -186,23 +200,12 @@ class RequiredDocumentForm
                                     ->toArray();
                             })
                             ->required()
-                            ->disabled(function ($record) {
-                                if (!$record) return false;
-
-                                $user = auth()->user();
-                                $userOfficeName = optional($user->office)->office;
-
-                                return $userOfficeName !== $record->agency_name;
-                            }),
-
+                            ->disabled(fn ($record) => self::isNotRequiringAgency($record)),
                         
                         Toggle::make('is_confidential')
-                            ->label('Confidential')->disabled(function ($record) {
-                                if (!$record) return false;
-                                    $user = auth()->user();
-                                    $userOfficeName = optional($user->office)->office;
-                                return $userOfficeName !== $record->agency_name;
-                        }),
+                            ->label('Confidential')
+                            ->disabled(fn ($record) => self::isNotRequiringAgency($record)),
+
                         Grid::make(1) // parent grid: 1 column 
                             ->schema([ 
                                 // Toggle for recurring
@@ -216,12 +219,8 @@ class RequiredDocumentForm
                                             $set('recurrence_type', null); 
                                             $set('recurrence_interval', null); 
                                         } 
-                                    })->disabled(function ($record) {
-                                        if (!$record) return false;
-                                            $user = auth()->user();
-                                            $userOfficeName = optional($user->office)->office;
-                                        return $userOfficeName !== $record->agency_name;
-                                    }), 
+                                    })
+                                    ->disabled(fn ($record) => self::isNotRequiringAgency($record)), 
 
                                 // Nested grid for recurrence fields
                                 Grid::make(2) // one column grid to stack the fields vertically 
@@ -293,12 +292,7 @@ class RequiredDocumentForm
 
                                     ->preload()
                                     ->searchable()
-                                    ->disabled(function ($record) {
-                                        if (!$record) return false;
-                                            $user = auth()->user();
-                                            $userOfficeName = optional($user->office)->office;
-                                        return $userOfficeName !== $record->agency_name;
-                                    })
+                                    ->disabled(fn ($record) => self::isNotRequiringAgency($record))
                                     ->afterStateHydrated(function ($component, $state, $record) {
                                         if ($record?->exists) {
                                             $component->state(
@@ -315,12 +309,7 @@ class RequiredDocumentForm
                                             ->action(fn (callable $set) =>
                                                 $set('complying_offices', Office::pluck('department_code')->toArray())
                                             )
-                                            ->disabled(function ($record) {
-                                                if (!$record) return false;
-                                                    $user = auth()->user();
-                                                    $userOfficeName = optional($user->office)->office;
-                                                return $userOfficeName !== $record->agency_name;
-                                            }),
+                                            ->disabled(fn ($record) => self::isNotRequiringAgency($record)),
 
                                         Action::make('clearAll')
                                             ->label('Clear')
@@ -329,18 +318,29 @@ class RequiredDocumentForm
                                             ->action(fn (callable $set) =>
                                                 $set('complying_offices', [])
                                             )
-                                            ->disabled(function ($record) {
-                                                if (!$record) return false;
-                                                    $user = auth()->user();
-                                                    $userOfficeName = optional($user->office)->office;
-                                                return $userOfficeName !== $record->agency_name;
-                                            }),
+                                            ->disabled(fn ($record) => self::isNotRequiringAgency($record)),
                                         ]),
                                     
 
                                 ])->columnSpanFull(),
 
             ]);
+    }
+
+    private static function isNotRequiringAgency($record): bool
+    {
+        if (!$record) return false;
+
+        $user = auth()->user();
+
+        // Super admin can always edit
+        if ($user->hasRole('super_admin')) return false;
+
+        $requiringOffice = Office::on('mysql2')
+            ->where('office', $record->agency_name)
+            ->first();
+
+        return $user->department_code !== optional($requiringOffice)->department_code;
     }
 
     public static function mutateFormDataBeforeCreate(array $data): array
@@ -352,6 +352,8 @@ class RequiredDocumentForm
 
         $data['_selected_offices'] = $data['complying_offices'] ?? [];
         
+        $data['created_by'] = auth()->id(); // returns recid value
+
         // Keep these for the model - don't unset them!
         // They should be saved to the required_documents table
         if (!isset($data['is_recurring'])) {

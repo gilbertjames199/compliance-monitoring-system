@@ -2,91 +2,108 @@
 
 namespace App\Filament\Auth;
 
+use App\Models\User;
+use DanHarrin\LivewireRateLimiting\Exceptions\TooManyRequestsException;
 use Filament\Auth\Http\Responses\Contracts\LoginResponse;
-use Filament\Auth\Pages\Login;
+use Filament\Facades\Filament;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Form;
-use Filament\Schemas\Components\Component;
-use Filament\Schemas\Components\Form as ComponentsForm;
+use Filament\Notifications\Notification;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\Auth;
-use Illuminate\Support\Facades\Blade;
-use Illuminate\Support\HtmlString;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\ValidationException;
-use SensitiveParameter;
+use Javarex\DdoLogin\Pages\Login as DdoLogin;
 
-class CustomLogin extends Login
+class CustomLogin extends DdoLogin
 {
-    /**
-     * Create a new class instance.
-     */
-    public function __construct()
-    {
-        //
-    }
-
     public function form(Schema $schema): Schema
     {
         return $schema
             ->components([
-                $this->getUsernameFormComponent(),
+                $this->getUserNameFormComponent(),
                 $this->getPasswordFormComponent(),
                 $this->getRememberFormComponent(),
             ]);
     }
 
-    protected function getUsernameFormComponent(): Component
+    protected function getUserNameFormComponent(): TextInput
     {
-        return TextInput::make('username')
+        return TextInput::make('UserName')
             ->label('Username')
             ->required()
-            ->autocomplete()
-            ->rules(['exists:users,username'])
-            ->validationAttribute('username')
+            ->autocomplete('username')
             ->autofocus()
             ->extraInputAttributes(['tabindex' => 1]);
     }
 
-    protected function getPasswordFormComponent(): Component
+    protected function getPasswordFormComponent(): TextInput
     {
-        return TextInput::make('password')
-            ->label(__('filament-panels::auth/pages/login.form.password.label'))
-            ->hint(filament()->hasPasswordReset() ? new HtmlString(Blade::render('<x-filament::link :href="filament()->getRequestPasswordResetUrl()" tabindex="3"> {{ __(\'filament-panels::auth/pages/login.actions.request_password_reset.label\') }}</x-filament::link>')) : null)
-            ->password()
-            ->revealable(filament()->arePasswordsRevealable())
-            ->autocomplete('current-password')
+        return TextInput::make('UserPassword')
+            ->label('Password')
             ->required()
-            ->extraInputAttributes(['tabindex' => 2]);
+            ->password()
+            ->revealable();
     }
-    protected function getCredentialsFromFormData(#[SensitiveParameter] array $data): array
+
+    protected function getCredentialsFromFormData(array $data): array
     {
         return [
-            'username' => $data['username'],
-            'password' => $data['password'],
+            'UserName'     => $data['UserName'],
+            'UserPassword' => $data['UserPassword'],
         ];
     }
 
-    // public function authenticate(): ?LoginResponse
-    // {
-    //     $data = $this->form->getState();
+    public function authenticate(): ?LoginResponse
+    {
+        try {
+            $this->rateLimit(100);
+        } catch (TooManyRequestsException $exception) {
+            $this->getRateLimitedNotification($exception)?->send();
+            return null;
+        }
 
-    //     if (!Auth::attempt([
-    //         'username' => $data['username'],
-    //         'password' => $data['password'],
-    //     ], $data['remember'] ?? false)) {
-    //         throw ValidationException::withMessages([
-    //             'username' => __('The provided username or password is incorrect.'),
-    //         ]);
-    //     }
+        try {
+            $data = $this->form->getState();
 
-    //     // Return the normal Filament login response
-    //     return app(LoginResponse::class);
-    // }
-    // public function authenticate(): ?LoginResponse
-    // {
-    //      $data = $this->form->getState();
+            // 1. Fetch user from fms database systemusers table
+            $user = User::where('UserName', $data['UserName'])->first();
 
-    //      if(!Auth::attempt([
-    //      ]))
-    // }
+            // 2. Validate existence and MD5 password
+            if (! $user || md5($data['UserPassword']) !== $user->UserPassword) {
+                throw ValidationException::withMessages([
+                    'data.UserName' => __('filament-panels::auth/pages/login.messages.failed'),
+                ]);
+            }
+
+            // 3. Check if account is active
+            if (! $user->is_active) {
+                Notification::make()
+                    ->title('Account Inactive')
+                    ->danger()
+                    ->body('Please contact your administrator.')
+                    ->send();
+
+                return null;
+            }
+
+            // 4. Log the user in
+            // Filament::auth()->login($user, $data['remember'] ?? false);
+            Auth::guard('web')->login($user, $data['remember'] ?? false);
+
+            // 5. Regenerate session
+            session()->regenerate();
+          
+            return app(LoginResponse::class);
+
+        } catch (ValidationException $e) {
+            throw $e;
+        }
+    }
+
+    protected function throwFailureValidationException(): never
+    {
+        throw ValidationException::withMessages([
+            'data.UserName' => __('filament-panels::auth/pages/login.messages.failed'),
+        ]);
+    }
 }
