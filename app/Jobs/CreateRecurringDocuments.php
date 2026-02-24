@@ -57,8 +57,25 @@ class CreateRecurringDocuments implements ShouldQueue
             $this->recurrenceInterval
         );
 
+        /**
+         * 🪵 DEBUG LOG — tells you exactly why it skips or proceeds
+         */
+        Log::info('Recurring job tick', [
+            'record_id'       => $this->record->id,
+            'latest_id'       => $latest->id,
+            'latest_date_from'=> Carbon::parse($latest->date_from)->toDateString(),
+            'next_date_from'  => $nextDateFrom->toDateString(),
+            'today'           => Carbon::today()->toDateString(),
+            'date_match'      => Carbon::today()->isSameDay($nextDateFrom),
+            'recurrence_type' => $this->recurrenceType,
+        ]);
+
         // ⛔ Only run on the exact recurrence day
         if (!Carbon::today()->isSameDay($nextDateFrom)) {
+            Log::info('Recurring skipped: not yet the recurrence day', [
+            'next_date_from' => $nextDateFrom->toDateString(),
+            'today'          => Carbon::today()->toDateString(),
+            ]);
             return;
         }
 
@@ -71,6 +88,9 @@ class CreateRecurringDocuments implements ShouldQueue
             ->exists();
 
         if ($exists) {
+            Log::info('Recurring skipped: duplicate already exists', [
+                'next_date_from' => $nextDateFrom->toDateString(),
+            ]);
             return;
         }
 
@@ -119,6 +139,8 @@ class CreateRecurringDocuments implements ShouldQueue
         Log::info('Recurring document created successfully', [
             'from_id' => $latest->id,
             'to_id'   => $duplicate->id,
+            'new_date_from' => $duplicate->date_from,
+            'new_due_date'  => $duplicate->due_date,
         ]);
     }
 
