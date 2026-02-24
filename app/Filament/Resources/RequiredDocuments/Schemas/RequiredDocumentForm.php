@@ -244,12 +244,7 @@ class RequiredDocumentForm
                                             }) 
                                             ->dehydrated(true) 
                                             ->dehydrateStateUsing(fn($state, $get) => $get('is_recurring') ? $state : null)
-                                            ->disabled(function ($record) {
-                                                if (!$record) return false;
-                                                    $user = auth()->user();
-                                                    $userOfficeName = optional($user->office)->office;
-                                                return $userOfficeName !== $record->agency_name;
-                                            }), 
+                                            ->disabled(fn ($record) => self::isNotRequiringAgency($record)), 
 
                                         TextInput::make('recurrence_interval') 
                                             ->label('Custom Interval (days)') 

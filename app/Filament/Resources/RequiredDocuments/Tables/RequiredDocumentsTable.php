@@ -2,37 +2,38 @@
 
 namespace App\Filament\Resources\RequiredDocuments\Tables;
 
-use Carbon\Carbon;
-use App\Models\User;
-use App\Models\Office;
-use Filament\Tables\Table;
-use Filament\Actions\Action;
+use App\Mail\RequirementDeadlineMail;
 use App\Models\ComplyingOffice;
 use App\Models\DocumentCategory;
+use App\Models\Office;
 use App\Models\RequiredDocument;
-use Filament\Actions\EditAction;
-use Filament\Resources\Resource;
-use Filament\Tables\Filters\Filter;
-use Illuminate\Support\Facades\Mail;
-use App\Mail\RequirementDeadlineMail;
+use App\Models\User;
+use Carbon\Carbon;
+use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
-use Filament\Forms\Components\Select;
-use Filament\Schemas\Components\Grid;
-use Filament\Schemas\Components\View;
-use Illuminate\Support\Facades\Blade;
+use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
-use Filament\Forms\Components\Textarea;
-use Filament\Tables\Columns\IconColumn;
-use Filament\Tables\Columns\TextColumn;
-use Illuminate\Support\Facades\Storage;
-use Filament\Forms\Components\TextInput;
-use Filament\Notifications\Notification;
-use Filament\Schemas\Components\Section;
-use Illuminate\Database\Eloquent\Builder;
-use Filament\Forms\Components\Placeholder;
-use Filament\Forms\Components\ToggleButtons;
+use Filament\Actions\EditAction;
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\ToggleButtons;
+use Filament\Notifications\Notification;
+use Filament\Resources\Resource;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\View;
+use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\Layout\View as LayoutView;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 
 class RequiredDocumentsTable 
 {
@@ -249,6 +250,30 @@ class RequiredDocumentsTable
                     ]))
                     ->slideOver(),
                 EditAction::make(),
+
+                
+                DeleteAction::make()
+                    ->visible(function ($record) {
+                        $user = auth()->user();
+
+                        if ($user->hasRoleSafe('super_admin')) {
+                            return true;
+                        }
+
+                        if ($user->hasRoleSafe('department_head')) {
+                            $officeName = Office::on('mysql2')
+                                ->where('department_code', $user->department_code)
+                                ->value('office');
+
+                            $hasCompliance = $record->complyingOffices()
+                                ->whereIn('status', [0, 1])
+                                ->exists();
+
+                            return $record->agency_name === $officeName && !$hasCompliance;
+                        }
+
+                        return false;
+                    }),
 
                 Action::make('manage_compliance')
                     ->label('Validate Submissions')
@@ -551,7 +576,33 @@ class RequiredDocumentsTable
             ->toolbarActions([
                 BulkActionGroup::make([
                     DeleteBulkAction::make()
-                          ->visible(fn ($records, $livewire) => auth()->user()->hasRoleSafe('super_admin')),
+                        ->visible(function () {
+                            $user = auth()->user();
+                            return $user->hasRoleSafe('super_admin') || $user->hasRoleSafe('department_head');
+                        })
+                        ->authorize(function ($records) {
+                            $user = auth()->user();
+
+                            if ($user->hasRoleSafe('super_admin')) {
+                                return true;
+                            }
+
+                            if ($user->hasRoleSafe('department_head')) {
+                                $officeName = Office::on('mysql2')
+                                    ->where('department_code', $user->department_code)
+                                    ->value('office');
+
+                                return $records->every(function ($record) use ($officeName) {
+                                    $hasCompliance = $record->complyingOffices()
+                                        ->whereIn('status', [0, 1])
+                                        ->exists();
+
+                                    return $record->agency_name === $officeName && !$hasCompliance;
+                                });
+                            }
+
+                            return false;
+                        }),
                 ]),
             ]);
     }

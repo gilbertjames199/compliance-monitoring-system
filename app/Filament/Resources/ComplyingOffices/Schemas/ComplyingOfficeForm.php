@@ -417,15 +417,29 @@ class ComplyingOfficeForm
                             ->rows(2)
                             ->dehydrated()
                             ->required()
-                            ->disabled(function ($record) {
+                            ->disabled(function ($record, $get) {
                                 if (! $record) {
                                     return false;
                                 }
 
-                                $isNotOwnOffice = auth()->user()->department_code !== $record->department_code;
-                                $isComplied = $record->status === '1';
+                                $user = auth()->user();
 
-                                return $isNotOwnOffice || $isComplied;
+                                // Must belong to same office
+                                if ($user->department_code !== $record->department_code) {
+                                    return true;
+                                }
+
+                                $validationStatus = $get('validation_status') ?? $record->validation_status;
+
+                                // Hard lock once validated
+                                if ($validationStatus === 'validated') {
+                                    return true;
+                                }
+
+                                $isComplied = (int) $record->status === 1;
+
+                                // Lock if complied and NOT returned
+                                return $isComplied && $validationStatus !== 'returned';
                             })
                             ->columnSpanFull(),
 
