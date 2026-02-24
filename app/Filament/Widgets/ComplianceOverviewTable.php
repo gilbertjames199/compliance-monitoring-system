@@ -43,10 +43,10 @@ class ComplianceOverviewTable extends TableWidget
                     $query->whereIn('status', [-1, 0]);
 
                     // Role-based access control
-                    if ($user->hasRole('super_admin')) {
+                    if ($user->hasRoleSafe('super_admin')) {
                         // Superadmin sees all - no filters
                     } 
-                    elseif ($user->hasRole('department_head')) {
+                    elseif ($user->hasRoleSafe('department_head')) {
                         // Department head sees all within their department
                         $query->where('complying_offices.department_code', $user->department_code);
                     } 
@@ -218,7 +218,7 @@ class ComplianceOverviewTable extends TableWidget
             ->toolbarActions([
                 BulkActionGroup::make([
                     DeleteBulkAction::make()
-                        ->visible(fn ($records, $livewire) => auth()->user()->hasRole('super_admin')),
+                        ->visible(fn ($records, $livewire) => auth()->user()->hasRoleSafe('super_admin')),
                 ]),
             ]);
     }

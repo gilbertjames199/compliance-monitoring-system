@@ -60,7 +60,7 @@ class RequiredDocumentForm
 
                                 $user = auth()->user();
 
-                                if ($user->hasRole('super_admin')) {
+                                if ($user->hasRoleSafe('super_admin')) {
                                     return 'As superadmin, you can edit this field.';
                                 }
 
@@ -99,7 +99,7 @@ class RequiredDocumentForm
 
                                 $user = auth()->user();
 
-                                if ($user->hasRole('super_admin')) {
+                                if ($user->hasRoleSafe('super_admin')) {
                                     return 'As superadmin, you can edit this field.';
                                 }
 
@@ -334,7 +334,7 @@ class RequiredDocumentForm
         $user = auth()->user();
 
         // Super admin can always edit
-        if ($user->hasRole('super_admin')) return false;
+        if ($user->hasRoleSafe('super_admin')) return false;
 
         $requiringOffice = Office::on('mysql2')
             ->where('office', $record->agency_name)

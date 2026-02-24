@@ -17,9 +17,9 @@ class ValidationStatusChart extends ChartWidget
 
         $query = ComplyingOffice::query();
 
-        if ($user->hasRole('super_admin')) {
+        if ($user->hasRoleSafe('super_admin')) {
             // sees all - no filter
-        } elseif ($user->hasRole('department_head')) {
+        } elseif ($user->hasRoleSafe('department_head')) {
             $query->where('department_code', $user->department_code);
         } elseif ($user->hasAnyRole(['AO', 'admin'])) {
             $query->where('department_code', $user->department_code)

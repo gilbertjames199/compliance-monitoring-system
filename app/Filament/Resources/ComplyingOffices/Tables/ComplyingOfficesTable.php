@@ -32,10 +32,10 @@ class ComplyingOfficesTable
                 //     }
 
                 //     // Role-based access control
-                //     if ($user->hasRole('superadmin')) {
+                //     if ($user->hasRoleSafe('superadmin')) {
                 //         // Superadmin sees all - no filters
                 //     } 
-                //     elseif ($user->hasRole('department_head')) {
+                //     elseif ($user->hasRoleSafe('department_head')) {
                 //         // Department head sees all within their department
                 //         $query->where('complying_offices.department_code', $user->department_code);
                 //     } 

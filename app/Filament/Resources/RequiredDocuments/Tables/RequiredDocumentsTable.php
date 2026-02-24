@@ -68,11 +68,11 @@ class RequiredDocumentsTable
                 }
 
                 // Superadmin sees everything
-                if ($user->hasRole('super_admin')) {
+                if ($user->hasRoleSafe('super_admin')) {
                     return;
                 }
 
-                if ($user->department_code == 25 && $user->hasRole('department_head')) {
+                if ($user->department_code == 25 && $user->hasRoleSafe('department_head')) {
                     return;
                 }
 
@@ -366,7 +366,7 @@ class RequiredDocumentsTable
                                                 // Superadmin can always edit (but still requires complied status)
                                                 $isComplied = $get("office_{$office->id}_status") == 1;
 
-                                                if ($user->hasRole('super_admin')) {
+                                                if ($user->hasRoleSafe('super_admin')) {
                                                     return !$isComplied;
                                                 }
 
@@ -386,7 +386,7 @@ class RequiredDocumentsTable
                                                 $user = auth()->user();
                                                 $isComplied = $get("office_{$office->id}_status") == 1;
 
-                                                if ($user->hasRole('super_admin')) {
+                                                if ($user->hasRoleSafe('super_admin')) {
                                                     return $isComplied ? 'Review and validate the submitted documents.' : 'Validation is only available when the compliance status is "Complied".';
                                                 }
 
@@ -441,7 +441,7 @@ class RequiredDocumentsTable
                                             $isComplied = (int) $office->status === 1;
 
                                             // Superadmin can always edit (but still requires complied status)
-                                            if ($user->hasRole('super_admin')) {
+                                            if ($user->hasRoleSafe('super_admin')) {
                                                 return !$isComplied;
                                             }
 
@@ -460,7 +460,7 @@ class RequiredDocumentsTable
                                             $user = auth()->user();
                                             $isComplied = (int) $office->status === 1;
 
-                                            if ($user->hasRole('super_admin')) {
+                                            if ($user->hasRoleSafe('super_admin')) {
                                                 return $isComplied ? 'Add validation remarks for this submission.' : 'Remarks can only be added when the status is "Complied".';
                                             }
 
@@ -551,7 +551,7 @@ class RequiredDocumentsTable
             ->toolbarActions([
                 BulkActionGroup::make([
                     DeleteBulkAction::make()
-                          ->visible(fn ($records, $livewire) => auth()->user()->hasRole('super_admin')),
+                          ->visible(fn ($records, $livewire) => auth()->user()->hasRoleSafe('super_admin')),
                 ]),
             ]);
     }

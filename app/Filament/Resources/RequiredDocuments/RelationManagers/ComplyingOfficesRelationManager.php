@@ -165,7 +165,7 @@ class ComplyingOfficesRelationManager extends RelationManager
                         $user = auth()->user();
 
                         // Superadmin can always edit
-                        if ($user->hasRole('super_admin')) {
+                        if ($user->hasRoleSafe('super_admin')) {
                             return false;
                         }
 
@@ -226,7 +226,7 @@ class ComplyingOfficesRelationManager extends RelationManager
                         $user = auth()->user();
 
                         // Superadmin can always edit
-                        if ($user->hasRole('super_admin')) {
+                        if ($user->hasRoleSafe('super_admin')) {
                             return false;
                         }
 

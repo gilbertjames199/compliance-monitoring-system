@@ -39,7 +39,7 @@ class DocumentCategoriesTable
             ->toolbarActions([
                 BulkActionGroup::make([
                     DeleteBulkAction::make()
-                        ->visible(fn ($records, $livewire) => auth()->user()->hasRole('super_admin')),
+                        ->visible(fn ($records, $livewire) => auth()->user()->hasRoleSafe('super_admin')),
                 ]),
             ]);
     }

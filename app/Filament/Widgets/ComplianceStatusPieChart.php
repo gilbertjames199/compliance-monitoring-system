@@ -19,9 +19,9 @@ class ComplianceStatusPieChart extends ChartWidget
         $complyingQuery      = ComplyingOffice::query();
         $requiredDocsQuery   = RequiredDocument::query();
 
-        if ($user->hasRole('super_admin')) {
+        if ($user->hasRoleSafe('super_admin')) {
             // sees all - no filters
-        } elseif ($user->hasRole('department_head')) {
+        } elseif ($user->hasRoleSafe('department_head')) {
             $complyingQuery->where('department_code', $user->department_code);
             $requiredDocsQuery->whereHas('complyingOffices', fn ($q) =>
                 $q->where('department_code', $user->department_code)
@@ -46,7 +46,7 @@ class ComplianceStatusPieChart extends ChartWidget
         // Case 2: RequiredDocument has NO ComplyingOffice record at all
         $noRecordNotComplied = (clone $requiredDocsQuery)
             ->whereDoesntHave('complyingOffices', function ($q) use ($user) {
-                if (!$user->hasRole('super_admin')) {
+                if (!$user->hasRoleSafe('super_admin')) {
                     $q->where('department_code', $user->department_code);
                 }
             })->count();

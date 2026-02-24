@@ -20,10 +20,10 @@ class StatsOverview extends BaseWidget
         $requiredDocsQuery = RequiredDocument::query();
 
         // Apply filters based on role
-        if ($user->hasRole('super_admin')) {
+        if ($user->hasRoleSafe('super_admin')) {
             // Superadmin sees all
         } 
-        elseif ($user->hasRole('department_head')) {
+        elseif ($user->hasRoleSafe('department_head')) {
             $requiredDocsQuery->whereHas('complyingOffices', fn ($q) => 
                 $q->where('department_code', $user->department_code)
             );
@@ -55,10 +55,10 @@ class StatsOverview extends BaseWidget
         foreach ($statuses as $label => $options) {
             $query = ComplyingOffice::where('status', $options['status']);
 
-            if ($user->hasRole('super_admin')) {
+            if ($user->hasRoleSafe('super_admin')) {
                 // Sees all - no filters
             } 
-            elseif ($user->hasRole('department_head')) {
+            elseif ($user->hasRoleSafe('department_head')) {
                 $query->where('department_code', $user->department_code);
             } 
             elseif ($user->hasAnyRole(['AO', 'admin'])) {

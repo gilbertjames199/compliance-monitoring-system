@@ -150,18 +150,18 @@ class ComplyingOfficeForm
                                 }
 
                                 // AO cannot change status at all
-                                if ($user->hasRole('AO')) {
+                                if ($user->hasRoleSafe('AO')) {
                                     return true;
                                 }
                                 
                                 // Department Head can change when status = 0 or partially complied
-                                if ($user->hasRole('department_head')) {
+                                if ($user->hasRoleSafe('department_head')) {
                                     $allowedStatuses = [0, 1];
                                     return !in_array($record->status, $allowedStatuses);
                                 }
                                 
                                 // Super Admin → can edit only their own office and status = 0
-                                if ($user->hasRole('super_admin')) {
+                                if ($user->hasRoleSafe('super_admin')) {
                                     $isOwnOffice = $record->department_code === $user->department_code;
                                     $statusIsZero = $record->status == 0;
                                     return !($isOwnOffice && $statusIsZero);
@@ -261,7 +261,7 @@ class ComplyingOfficeForm
                                 $isOwnOffice = $record
                                     && auth()->user()->department_code === $record->department_code;
                                 $user = auth()->user(); // <-- define $user inside closure
-                                if ($user->hasRole('requiring_agency')) {
+                                if ($user->hasRoleSafe('requiring_agency')) {
                                     return 'Enter your review comments, clarifications, or audit notes for this submission.';
                                 }
 
@@ -340,7 +340,7 @@ class ComplyingOfficeForm
                                 $user = auth()->user();
                                 if (!empty($state)) {
                                     // ✅ Files exist → update status automatically
-                                    if ($user->hasRole('department_head') || $user->hasRole('super_admin')) {
+                                    if ($user->hasRoleSafe('department_head') || $user->hasRoleSafe('super_admin')) {
                                         $set('status', 1); // Complied
                                     } else {
                                         $set('status', 0); // Partially complied

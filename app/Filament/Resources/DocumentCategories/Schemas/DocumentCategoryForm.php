@@ -148,7 +148,7 @@ class DocumentCategoryForm
                                         $user = auth()->user();
 
                                         // Superadmin is never disabled
-                                        if ($user->hasRole('super_admin')) {
+                                        if ($user->hasRoleSafe('super_admin')) {
                                             return false;
                                         }
 
@@ -175,7 +175,7 @@ class DocumentCategoryForm
                                     $user = auth()->user();
 
                                     // Superadmin is never disabled
-                                    if ($user->hasRole('super_admin')) {
+                                    if ($user->hasRoleSafe('super_admin')) {
                                         return false;
                                     }
 
@@ -197,7 +197,7 @@ class DocumentCategoryForm
 
                                     $user = auth()->user();
 
-                                    if ($user->hasRole('super_admin')) {
+                                    if ($user->hasRoleSafe('super_admin')) {
                                         return 'As superadmin, you can edit this field.';
                                     }
 
@@ -230,7 +230,7 @@ class DocumentCategoryForm
                                     $user = auth()->user();
 
                                     // Superadmin is never disabled
-                                    if ($user->hasRole('super_admin')) {
+                                    if ($user->hasRoleSafe('super_admin')) {
                                         return false;
                                     }
 
@@ -252,7 +252,7 @@ class DocumentCategoryForm
 
                                     $user = auth()->user();
 
-                                    if ($user->hasRole('super_admin')) {
+                                    if ($user->hasRoleSafe('super_admin')) {
                                         return 'As superadmin, you can edit this field.';
                                     }
 
@@ -293,7 +293,7 @@ class DocumentCategoryForm
                                             $user = auth()->user();
 
                                             // Superadmin is never disabled
-                                            if ($user->hasRole('super_admin')) {
+                                            if ($user->hasRoleSafe('super_admin')) {
                                                 return false;
                                             }
 
@@ -331,7 +331,7 @@ class DocumentCategoryForm
                                                     $user = auth()->user();
 
                                                     // Superadmin is never disabled
-                                                    if ($user->hasRole('super_admin')) {
+                                                    if ($user->hasRoleSafe('super_admin')) {
                                                         return false;
                                                     }
 
@@ -363,7 +363,7 @@ class DocumentCategoryForm
                             $user = auth()->user();
 
                             // Superadmin can always see
-                            if ($user->hasRole('super_admin')) {
+                            if ($user->hasRoleSafe('super_admin')) {
                                 return true;
                             }
 
@@ -403,7 +403,7 @@ class DocumentCategoryForm
                                     $user = auth()->user();
 
                                     // Superadmin is never disabled
-                                    if ($user->hasRole('super_admin')) {
+                                    if ($user->hasRoleSafe('super_admin')) {
                                         return false;
                                     }
 
@@ -442,7 +442,7 @@ class DocumentCategoryForm
                                             $user = auth()->user();
 
                                             // Superadmin is never disabled
-                                            if ($user->hasRole('super_admin')) {
+                                            if ($user->hasRoleSafe('super_admin')) {
                                                 return false;
                                             }
 
@@ -464,7 +464,7 @@ class DocumentCategoryForm
                                             $user = auth()->user();
 
                                             // Superadmin is never disabled
-                                            if ($user->hasRole('super_admin')) {
+                                            if ($user->hasRoleSafe('super_admin')) {
                                                 return false;
                                             }
 
@@ -483,7 +483,7 @@ class DocumentCategoryForm
                                     $user = auth()->user();
 
                                     // Superadmin can always see
-                                    if ($user->hasRole('super_admin')) {
+                                    if ($user->hasRoleSafe('super_admin')) {
                                         return true;
                                     }
 

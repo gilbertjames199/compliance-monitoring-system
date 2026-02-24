@@ -25,7 +25,7 @@ class UsersTable
                 $user = auth()->user();
                 
                 // If user has superadmin role, show all records
-                if ($user->hasRole('super_admin')) {
+                if ($user->hasRoleSafe('super_admin')) {
                     return $query;
                 }
                 

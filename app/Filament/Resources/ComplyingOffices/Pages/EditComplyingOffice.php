@@ -42,7 +42,7 @@ class EditComplyingOffice extends EditRecord
         
         } else {
             // ✅ Files exist → set compliance based on role
-            if ($user->hasRole('department_head') || $user->hasRole('super_admin')) {
+            if ($user->hasRoleSafe('department_head') || $user->hasRoleSafe('super_admin')) {
                 $data['status'] = 1; // Complied
             } else {
                 $data['status'] = 0; // Partially complied

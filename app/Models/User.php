@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\DatabaseNotification;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -85,7 +86,7 @@ class User extends Authenticatable implements FilamentUser
     //     return true;
 
     //     // Better: real authorization examples
-    //     // return $this->hasRole('admin'); // if using spatie/laravel-permission
+    //     // return $this->hasRoleSafe('admin'); // if using spatie/laravel-permission
     //     // return str_ends_with($this->email, '@yourdomain.com') && $this->email_verified_at !== null;
     //     // return $this->is_admin === true;
     // }
@@ -164,6 +165,24 @@ class User extends Authenticatable implements FilamentUser
     public function unreadNotifications()
     {
         return $this->notifications()->whereNull('read_at');
+    }
+
+    public function hasRoleSafe(string ...$roles): bool
+    {
+        $roleIds = \DB::connection('mysql')
+            ->table('model_has_roles')
+            ->where('model_id', $this->recid)
+            ->where('model_type', static::class)
+            ->pluck('role_id')
+            ->toArray();
+
+    if (empty($roleIds)) return false;
+
+    return \DB::connection('mysql')
+        ->table('roles')
+        ->whereIn('id', $roleIds)
+        ->whereIn('name', $roles)
+        ->exists();
     }
 
 }
