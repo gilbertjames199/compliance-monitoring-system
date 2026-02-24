@@ -2,18 +2,19 @@
 
 namespace App\Jobs;
 
-use App\Models\User;
-use Illuminate\Bus\Queueable;
+use App\Mail\DueDateReminderMail;
+use App\Mail\RequirementDeadlineMail;
 use App\Models\ComplyingOffice;
 use App\Models\RequiredDocument;
-use App\Mail\DueDateReminderMail;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Log;
-use App\Mail\RequirementDeadlineMail;
-use Illuminate\Queue\SerializesModels;
-use Illuminate\Queue\InteractsWithQueue;
+use App\Models\User;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Mail;
 
 class SendRequirementNotification implements ShouldQueue
 {
@@ -51,9 +52,14 @@ class SendRequirementNotification implements ShouldQueue
 
             // If confidential, only send to super_admin and department_head
             if ($record->is_confidential) {
-                $usersQuery->whereHas('roles', function ($query) {
-                    $query->whereIn('name', ['super_admin', 'department_head']);
-                });
+                $allowedUserIds = DB::connection('mysql')
+                    ->table('model_has_roles')
+                    ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
+                    ->whereIn('roles.name', ['super_admin', 'department_head'])
+                    ->where('model_type', User::class)
+                    ->pluck('model_id')
+                    ->toArray();
+                $usersQuery->whereIn('recid', $allowedUserIds);
             }
 
             $users = $usersQuery->get();
