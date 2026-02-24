@@ -62,7 +62,6 @@ class UsersTable
                 TextColumn::make('roles.name')
                     ->label('Role')
                     ->badge()
-                    ->searchable()
                     ->color(fn (string $state) => collect([
                         'primary',
                         'success',
