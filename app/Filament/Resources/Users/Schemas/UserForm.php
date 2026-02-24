@@ -103,6 +103,7 @@ class UserForm
                     ->multiple()
                     ->relationship('roles', 'name')
                     ->preload()
+                    ->searchable()
                     ->afterStateUpdated(function (callable $set, $state) {
                         // When roles change, update the permissions list
                         $rolePermissions = Permission::whereHas('roles', function ($q) use ($state) {

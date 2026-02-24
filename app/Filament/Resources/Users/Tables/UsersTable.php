@@ -10,8 +10,10 @@ use Filament\Actions\EditAction;
 use Filament\Resources\Resource;
 use Filament\Tables\Columns\BadgeColumn;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 use STS\FilamentImpersonate\Actions\Impersonate;
 
 class UsersTable
@@ -73,7 +75,51 @@ class UsersTable
             ])
             ->defaultSort('recid', 'asc')
             ->filters([
-                //
+                // Active/Inactive filter
+                SelectFilter::make('is_active')
+                    ->label('Active Status')
+                    ->options([
+                        '1' => 'Active',
+                        '0' => 'Inactive',
+                    ]),
+
+                // Department filter
+                SelectFilter::make('department_code')
+                    ->label('Department')
+                    ->options(fn () => Office::pluck('department_code', 'department_code')->toArray())
+                    ->searchable(),
+
+                // Designation filter
+                SelectFilter::make('Designation')
+                    ->label('Designation')
+                    ->options(fn () => \App\Models\User::select('Designation')
+                        ->whereNotNull('Designation')
+                        ->distinct()
+                        ->pluck('Designation', 'Designation')
+                        ->toArray())
+                    ->searchable(),
+
+                // Role filter — uses two separate queries to avoid cross-server join
+                SelectFilter::make('role')
+                    ->label('Role')
+                    ->options(fn () => DB::connection('mysql')
+                        ->table('roles')
+                        ->pluck('name', 'id')
+                        ->toArray())
+                    ->searchable()
+                    ->query(function (Builder $query, array $data) {
+                        if (empty($data['value'])) return;
+
+                        // Get user IDs that have this role (queried from compliance_monitoring DB)
+                        $userIds = DB::connection('mysql')
+                            ->table('model_has_roles')
+                            ->where('role_id', $data['value'])
+                            ->where('model_type', \App\Models\User::class)
+                            ->pluck('model_id')
+                            ->toArray();
+
+                        $query->whereIn('recid', $userIds);
+                    }),
             ])
             ->recordActions([
                 Impersonate::make(),
