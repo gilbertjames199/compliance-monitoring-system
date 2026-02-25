@@ -24,6 +24,11 @@ class ComplyingOffice extends Model
         'attachments' => 'array',
     ];
 
+    public function getRequirementTitleAttribute(): string
+    {
+        return $this->requiredDocument?->requirement ?? (string) $this->required_document_id;
+    }
+
     public function office()
     {
         return $this->belongsTo(Office::class, 'department_code', 'department_code');
