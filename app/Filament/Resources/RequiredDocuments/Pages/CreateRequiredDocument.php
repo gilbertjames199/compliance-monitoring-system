@@ -84,31 +84,26 @@ class CreateRequiredDocument extends CreateRecord
         foreach ($modalUsers as $user) {
             $actions = [];
             
-            // Show View action if document is not confidential OR user is super_admin/department_head
-            // Also show for admin and ao roles if document is not confidential
-            $canViewRecord = !$this->record->is_confidential || 
-                $user->hasRoleSafe('super_admin', 'department_head') ||
-                (!$this->record->is_confidential && $user->hasRoleSafe('admin', 'AO'));
-            
-            if ($canViewRecord) {
-                // Get the ComplyingOffice record for this user's department
+            // Generate View action dynamically
+            if (!$this->record->is_confidential || $user->hasRoleSafe('super_admin', 'department_head')) {
                 $complyingOffice = $complyingOfficeRecords[$user->department_code] ?? null;
-                
                 if ($complyingOffice) {
                     $actions[] = Action::make('View')
-                        ->url(
-                            \App\Filament\Resources\ComplyingOffices\ComplyingOfficeResource::getUrl(
-                                'edit',
-                                ['record' => $complyingOffice]
-                            )
-                        );
+                        ->url(\App\Filament\Resources\ComplyingOffices\ComplyingOfficeResource::getUrl('edit',['record' => $complyingOffice]));
                 }
             }
             
+            $canView = !$this->record->is_confidential || $user->hasRoleSafe('super_admin', 'department_head');
+
+            $body = $canView
+                ? "{$requiringAgency} assigned a new requirement: {$requirementTitle}. Deadline: {$deadline->format('F j, Y')}."
+                : "{$requiringAgency} assigned a new confidential requirement. Deadline: {$deadline->format('F j, Y')}.";
+
             Notification::make()
                 ->title('New Requirement Assigned')
                 ->icon('heroicon-o-document-text')
-                ->body("**{$requiringAgency}** assigned a new requirement: **{$requirementTitle}**. Deadline: **{$deadline->format('F j, Y')}**.")
+                // ->body("**{$requiringAgency}** assigned a new requirement: **{$requirementTitle}**. Deadline: **{$deadline->format('F j, Y')}**.")
+                ->body($body)
                 ->actions($actions)
                 ->sendToDatabase($user);
         }

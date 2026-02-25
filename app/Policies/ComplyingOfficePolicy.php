@@ -17,9 +17,26 @@ class ComplyingOfficePolicy
         return $authUser->can('ViewAny:ComplyingOffice');
     }
 
+    // public function view(AuthUser $authUser, ComplyingOffice $complyingOffice): bool
+    // {
+    //     return $authUser->can('View:ComplyingOffice');
+    // }
     public function view(AuthUser $authUser, ComplyingOffice $complyingOffice): bool
     {
-        return $authUser->can('View:ComplyingOffice');
+        // Must have base permission first
+        if (!$authUser->can('View:ComplyingOffice')) {
+            return false;
+        }
+
+        $requiredDocument = $complyingOffice->requiredDocument;
+
+        // If NOT confidential → allow
+        if (!$requiredDocument->is_confidential) {
+            return true;
+        }
+
+        // If confidential → only super_admin & department_head
+        return $authUser->hasRoleSafe('super_admin', 'department_head');
     }
 
     public function create(AuthUser $authUser): bool
@@ -27,9 +44,24 @@ class ComplyingOfficePolicy
         return $authUser->can('Create:ComplyingOffice');
     }
 
+    // public function update(AuthUser $authUser, ComplyingOffice $complyingOffice): bool
+    // {
+    //     return $authUser->can('Update:ComplyingOffice');
+    // }
     public function update(AuthUser $authUser, ComplyingOffice $complyingOffice): bool
     {
-        return $authUser->can('Update:ComplyingOffice');
+        // Must have base permission
+        if (!$authUser->can('Update:ComplyingOffice')) {
+            return false;
+        }
+
+        $requiredDocument = $complyingOffice->requiredDocument;
+
+        if (!$requiredDocument->is_confidential) {
+            return true;
+        }
+
+        return $authUser->hasRoleSafe('super_admin', 'department_head');
     }
 
     public function delete(AuthUser $authUser, ComplyingOffice $complyingOffice): bool
