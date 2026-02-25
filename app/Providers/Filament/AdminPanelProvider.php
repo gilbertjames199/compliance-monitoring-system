@@ -44,7 +44,7 @@ class AdminPanelProvider extends PanelProvider
             ->passwordReset()
             ->emailVerification()
             ->emailChangeVerification()
-            // ->databaseNotifications()
+            ->databaseNotifications()
             
             ->colors([
                 'danger' => Color::Rose,

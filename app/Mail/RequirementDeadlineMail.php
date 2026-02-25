@@ -2,6 +2,7 @@
 
 namespace App\Mail;
 
+use App\Models\Office;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
@@ -15,12 +16,19 @@ class RequirementDeadlineMail extends Mailable
 
     
     public $requirement;
+    public $user;
+    public $office;
     /**
      * Create a new message instance.
      */
-    public function __construct($requirement)
+    public function __construct($requirement, $user)
     {
           $this->requirement = $requirement;
+          $this->user = $user;
+
+        // Get office name from FMS database
+        $this->office = Office::where('department_code', $user->department_code)
+            ->value('office');
     }
 
     /**
@@ -49,6 +57,8 @@ class RequirementDeadlineMail extends Mailable
                     ->view('emails.requirement_deadline')
                     ->with([
                         'requirement' => $this->requirement, // explicitly pass it
+                        'user' => $this->user,
+                        'office' => $this->office,
                     ]);
     }
 

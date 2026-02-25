@@ -409,13 +409,23 @@ class ComplyingOfficesRelationManager extends RelationManager
 
                             foreach ($users as $user) {
 
-                                // Skip AO/Admin for confidential requirements
-                                if ($requirement->is_confidential && $user->hasRoleSafe('AO', 'admin')) {
+                                // Skip users without roles
+                                if ($user->roles->isEmpty()) {
                                     continue;
                                 }
 
+                                // Skip invalid emails
+                                if (empty($user->email) || !filter_var($user->email, FILTER_VALIDATE_EMAIL)) {
+                                    continue;
+                                }
+
+                                 // If confidential, skip AO/Admin only
+                                if ($requirement->is_confidential && $user->hasRoleSafe('AO', 'admin')) {
+                                    continue;
+                                }
                                 Mail::to($user->email)
-                                    ->send(new RequirementDeadlineMail($requirement));
+                                    ->send(new RequirementDeadlineMail($requirement, $user));
+                                sleep(1);
                             }
                         }
                     })
