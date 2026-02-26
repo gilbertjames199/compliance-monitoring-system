@@ -71,21 +71,19 @@ class RequiredDocumentController extends Controller
         }
 
         return response()->json([
-            'data' => $results,
-            'meta' => [
-                'current_page' => $documents->currentPage(),
-                'per_page'     => $documents->perPage(),
-                'total'        => $documents->total(),
-                'last_page'    => $documents->lastPage(),
-                'from'         => $documents->firstItem(),
-                'to'           => $documents->lastItem(),
-            ],
-            'links' => [
-                'first' => $documents->url(1),
-                'last'  => $documents->url($documents->lastPage()),
-                'prev'  => $documents->previousPageUrl(),
-                'next'  => $documents->nextPageUrl(),
-            ],
+            'total'            => $documents->total(),
+            'per_page'         => $documents->perPage(),
+            'current_page'     => $documents->currentPage(),
+            'last_page'        => $documents->lastPage(),
+            'current_page_url' => $documents->url($documents->currentPage()),
+            'first_page_url'   => $documents->url(1),
+            'last_page_url'    => $documents->url($documents->lastPage()),
+            'next_page_url'    => $documents->nextPageUrl(),
+            'prev_page_url'    => $documents->previousPageUrl(),
+            'path'             => $documents->path(),
+            'from'             => $documents->firstItem(),
+            'to'               => $documents->lastItem(),
+            'data'             => $results,
         ]);
     }
 }
