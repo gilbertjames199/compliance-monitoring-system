@@ -10,46 +10,46 @@ class RequiredDocumentController extends Controller
 {
     public function show(Request $request)
     {
-        // ✅ Return empty if no department_code provided
         if (!$request->has('department_code')) {
             return response()->json([]);
         }
 
-        // ✅ Validate input (department_code is required now)
         $validated = $request->validate([
-            'department_code'  => 'required|string|exists:complying_offices,department_code',
+            'department_code' => 'required|string|exists:complying_offices,department_code',
+            'per_page'        => 'sometimes|integer|min:1|max:100',
+            'page'            => 'sometimes|integer|min:1',
         ]);
 
-        // ✅ Query with eager loading
-        $query = RequiredDocument::with([
+        $perPage = $validated['per_page'] ?? 10;
+
+        $documents = RequiredDocument::whereHas('complyingOffices', function ($q) use ($validated) {
+            $q->whereIn('status', [-1, 1])
+            ->where('department_code', $validated['department_code']);
+            })
+        ->with([
             'category',
             'requiringAgency',
             'complyingOffices' => function ($q) use ($validated) {
-
-                // Only Not Complied and Complied
-                $q->whereIn('status', [-1, 1]);
-
-                // Filter by department_code
-                $q->where('department_code', $validated['department_code']);
+                $q->whereIn('status', [-1, 1])
+                ->where('department_code', $validated['department_code']);
             },
             'complyingOffices.office'
-        ]);
-
-        $documents = $query->get();
+        ])
+        ->paginate($perPage);
 
         $results = [];
 
         foreach ($documents as $document) {
             foreach ($document->complyingOffices as $office) {
                 $results[] = [
-                    'requirement' => $document->requirement,
-                    'complying_office' => $office->office?->office ?? null,
-                    'requiring_agency' => $document->agency_name ?? null,
+                    'requirement'       => $document->requirement,
+                    'complying_office'  => $office->office?->office ?? null,
+                    'requiring_agency'  => $document->agency_name ?? null,
                     'document_category' => $document->category?->category ?? null,
                     'compliance_status' => match ((int) $office->status) {
-                        -1 => 'Not Complied',
-                         1 => 'Complied',
-                         default => 'Unknown',
+                        -1      => 'Not Complied',
+                        1       => 'Complied',
+                        default => 'Unknown',
                     },
                     'validation_status' => match ($office->validation_status) {
                         'pending_review' => 'Pending Review',
@@ -57,14 +57,12 @@ class RequiredDocumentController extends Controller
                         'validated'      => 'Validated',
                         default          => 'Unknown',
                     },
-                    'confidentiality' => $document->is_confidential
-                        ? 'Confidential'
-                        : 'Not Confidential',
-                    'start_date' => $document->date_from?->format('Y-m-d'),
-                    'deadline' => $document->due_date?->format('Y-m-d'),
-                    'attachments' => $office->attachments
+                    'confidentiality' => $document->is_confidential ? 'Confidential' : 'Not Confidential',
+                    'start_date'      => $document->date_from?->format('Y-m-d'),
+                    'deadline'        => $document->due_date?->format('Y-m-d'),
+                    'attachments'     => $office->attachments
                         ? collect((array) $office->attachments)
-                            ->map(fn ($path) => url('storage/' . $path))
+                            ->map(fn($path) => url('storage/' . $path))
                             ->values()
                             ->toArray()
                         : [],
@@ -72,6 +70,22 @@ class RequiredDocumentController extends Controller
             }
         }
 
-        return response()->json($results);
+        return response()->json([
+            'data' => $results,
+            'meta' => [
+                'current_page' => $documents->currentPage(),
+                'per_page'     => $documents->perPage(),
+                'total'        => $documents->total(),
+                'last_page'    => $documents->lastPage(),
+                'from'         => $documents->firstItem(),
+                'to'           => $documents->lastItem(),
+            ],
+            'links' => [
+                'first' => $documents->url(1),
+                'last'  => $documents->url($documents->lastPage()),
+                'prev'  => $documents->previousPageUrl(),
+                'next'  => $documents->nextPageUrl(),
+            ],
+        ]);
     }
 }
