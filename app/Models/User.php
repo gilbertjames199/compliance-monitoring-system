@@ -14,7 +14,6 @@ use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
 // class User extends Authenticatable implements MustVerifyEmail
-// class User extends Authenticatable implements FilamentUser
 class User extends Authenticatable implements FilamentUser
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
