@@ -76,27 +76,55 @@ class UserForm
                     )
                     ->searchable()
                     ->preload(),
+
+                Select::make('is_active')
+                    ->label('Active')
+                    ->options([
+                        1 => 'Yes',
+                        0 => 'No',
+                    ])
+                    ->required(fn ($livewire, $record) => !$record),
+                    
                 TextInput::make('UserName')
                     ->required(fn ($livewire, $record) => !$record),
+                // TextInput::make('UserPassword')
+                //     ->label('Password')
+                //     ->password()
+                //     ->revealable()
+                //     // ->hiddenOn(Operation::Edit)
+                //     ->required(fn ($livewire, $record) => !$record) // required on create only
+                //     ->dehydrateStateUsing(function ($state, $record) {
+                //         if ($state) {
+                //             return bcrypt($state); // hash if provided
+                //         }
+
+                //         // if editing and left empty, keep current password
+                //         if ($record) {
+                //             return $record->password;
+                //         }
+
+                //         // if creating and empty (should not happen due to required), return dummy to prevent null
+                //         return ''; // or throw exception if you want strict
+                //     }),
                 TextInput::make('UserPassword')
                     ->label('Password')
                     ->password()
                     ->revealable()
-                    // ->hiddenOn(Operation::Edit)
                     ->required(fn ($livewire, $record) => !$record) // required on create only
+                    ->dehydrated(true)
                     ->dehydrateStateUsing(function ($state, $record) {
                         if ($state) {
-                            return bcrypt($state); // hash if provided
+                            return md5($state); // create MD5 hash
                         }
 
-                        // if editing and left empty, keep current password
+                        // if editing and left empty, keep existing password
                         if ($record) {
-                            return $record->password;
+                            return $record->UserPassword;
                         }
 
-                        // if creating and empty (should not happen due to required), return dummy to prevent null
-                        return ''; // or throw exception if you want strict
-                    }),
+                        return null;
+                    })
+                    ->afterStateHydrated(fn ($component) => $component->state('')),
                 // 🧩 Roles
                 Select::make('roles')
                     ->label('Roles')
