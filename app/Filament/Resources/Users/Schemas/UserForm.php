@@ -40,9 +40,16 @@ class UserForm
                     ->required(fn ($livewire, $record) => !$record),
                 TextInput::make('email')
                     ->label('Email address')
-                    ->email()
+                    ->email(fn ($livewire, $record) => !$record)
                     ->required(fn ($livewire, $record) => !$record),
-                TextInput::make('cats_number')
+                Select::make('is_active')
+                    ->label('Active')
+                    ->options([
+                        1 => 'Yes',
+                        0 => 'No',
+                    ])
+                    ->required(fn ($livewire, $record) => !$record),
+                TextInput::make('cats')
                     ->required(fn ($livewire, $record) => !$record),
                 // TextInput::make('department_code')
                 //     ->required(),
@@ -77,14 +84,6 @@ class UserForm
                     ->searchable()
                     ->preload(),
 
-                Select::make('is_active')
-                    ->label('Active')
-                    ->options([
-                        1 => 'Yes',
-                        0 => 'No',
-                    ])
-                    ->required(fn ($livewire, $record) => !$record),
-                    
                 TextInput::make('UserName')
                     ->required(fn ($livewire, $record) => !$record),
                 // TextInput::make('UserPassword')
