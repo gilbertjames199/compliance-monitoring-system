@@ -70,6 +70,10 @@ class RequiredDocument extends Model
 
     protected static function booted()
     {
+        static::creating(function ($model) {
+            $model->created_by ??= auth()->id();
+        });
+
         static::created(function ($requiredDocument) {
             // Dispatch the job to run 5 minutes later
             SendRequirementNotification::dispatch($requiredDocument->id)->delay(now()->addMinutes(5));

@@ -125,7 +125,9 @@ class RequiredDocumentsTable
                     ->searchable(),
                 TextColumn::make('category.category')
                     ->label('Category')
-                    ->searchable(),
+                    ->searchable()
+                    ->wrap()
+                    ->limit(100),
                 TextColumn::make('date_from')
                     ->label('Start Date')
                     ->date()
