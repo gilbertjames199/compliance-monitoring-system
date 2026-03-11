@@ -113,7 +113,18 @@ class ComplianceTrackingPrintController extends Controller
                         WHEN DATE(complying_offices.submitted_at) > DATE(required_documents.due_date) THEN "submitted_late"
                         ELSE "not_submitted"
                     END as status
-                ')
+                '),
+
+                // totals repeated for each row
+                DB::raw('COUNT(*) OVER() as total_offices_required'),
+                DB::raw('SUM(CASE WHEN complying_offices.submitted_at IS NOT NULL THEN 1 ELSE 0 END) OVER() as total_reports_submitted'),
+                DB::raw('SUM(CASE WHEN complying_offices.submitted_at IS NULL THEN 1 ELSE 0 END) OVER() as total_no_submission'),
+                DB::raw('CONCAT(
+                    ROUND(
+                        (SUM(CASE WHEN complying_offices.submitted_at IS NOT NULL THEN 1 ELSE 0 END) OVER() 
+                        / COUNT(*) OVER()) * 100,
+                    2),
+                "%") as compliance_rate')
                 
             )
             // ->when($request->filled('requirement_id'), function ($query) use ($request) {
