@@ -244,7 +244,7 @@ class RequiredDocumentsTable
 
             ->recordActions([
                 Action::make('Print')
-                    ->label('Print Details')
+                    ->label('Print Summary Details')
                     ->icon('heroicon-o-printer')
                     ->color('primary')
                     ->modalContent(fn($record) => view('filament.print', [
