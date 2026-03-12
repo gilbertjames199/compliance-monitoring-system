@@ -117,14 +117,24 @@ class ComplianceTrackingPrintController extends Controller
 
                 // totals repeated for each row
                 DB::raw('COUNT(*) OVER() as total_offices_required'),
-                DB::raw('SUM(CASE WHEN complying_offices.submitted_at IS NOT NULL THEN 1 ELSE 0 END) OVER() as total_reports_submitted'),
-                DB::raw('SUM(CASE WHEN complying_offices.submitted_at IS NULL THEN 1 ELSE 0 END) OVER() as total_no_submission'),
+                // DB::raw('SUM(CASE WHEN complying_offices.submitted_at IS NOT NULL THEN 1 ELSE 0 END) OVER() as total_reports_submitted'),
+                // DB::raw('SUM(CASE WHEN complying_offices.submitted_at IS NULL THEN 1 ELSE 0 END) OVER() as total_no_submission'),
+                
+
+                 // --- New compliance status totals ---
+                DB::raw('SUM(CASE WHEN complying_offices.status = "1" THEN 1 ELSE 0 END) OVER() as total_offices_complied'),
+                DB::raw('SUM(CASE WHEN complying_offices.status = "0" THEN 1 ELSE 0 END) OVER() as total_offices_partially_complied'),
+                DB::raw('SUM(CASE WHEN complying_offices.status = "-1" THEN 1 ELSE 0 END) OVER() as total_offices_not_complied'),
+                DB::raw('SUM(CASE WHEN complying_offices.validation_status = "pending_review" THEN 1 ELSE 0 END) OVER() as total_offices_pending_review'),
+                DB::raw('SUM(CASE WHEN complying_offices.validation_status = "returned" THEN 1 ELSE 0 END) OVER() as total_offices_returned'),
+                DB::raw('SUM(CASE WHEN complying_offices.validation_status = "validated" THEN 1 ELSE 0 END) OVER() as total_offices_validated'),
+
                 DB::raw('CONCAT(
                     ROUND(
-                        (SUM(CASE WHEN complying_offices.submitted_at IS NOT NULL THEN 1 ELSE 0 END) OVER() 
+                        (SUM(CASE WHEN complying_offices.status = "1" THEN 1 ELSE 0 END) OVER()
                         / COUNT(*) OVER()) * 100,
                     2),
-                "%") as compliance_rate')
+                "%") as compliance_rate'),
                 
             )
             // ->when($request->filled('requirement_id'), function ($query) use ($request) {
