@@ -131,10 +131,16 @@ class ComplianceTrackingPrintController extends Controller
 
                 DB::raw('CONCAT(
                     ROUND(
-                        (SUM(CASE WHEN complying_offices.status = "1" THEN 1 ELSE 0 END) OVER()
+                        (SUM(CASE WHEN complying_offices.validation_status = "validated" THEN 1 ELSE 0 END) OVER()
                         / COUNT(*) OVER()) * 100,
                     2),
                 "%") as compliance_rate'),
+
+                 // ✅ Validation status and date & time
+                'complying_offices.validation_status',
+                DB::raw('DATE_FORMAT(complying_offices.validated_at, "%Y-%m-%d %H:%i:%s") as validated_at'),
+    
+
                 
             )
             // ->when($request->filled('requirement_id'), function ($query) use ($request) {
