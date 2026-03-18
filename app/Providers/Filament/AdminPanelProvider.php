@@ -89,7 +89,8 @@ class AdminPanelProvider extends PanelProvider
                 fn (Action $action) => $action->label(fn(): Htmlable => new HtmlString('
                     <div>' . auth()->user()->name . '</div>
                     <div style="font-size: 0.875rem; color: gray;">' . auth()->user()->getRoleNames()->first() . '</div>
-                ')),
+                '))
+                ->disabled(),
                 // Action::make()
                 //     ->label('test')
                 //     // ->label(fn() => auth()->user()->name . ' • ' . auth()->user()->getRoleNames()->first())
