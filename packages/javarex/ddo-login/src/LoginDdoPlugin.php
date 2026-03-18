@@ -59,7 +59,7 @@ class LoginDdoPlugin implements Plugin
 
         $panel
             ->login(Login::class)
-            ->profile(Edit::class)
+            // ->profile(Edit::class)
             ->userMenuItems([
                 'profile' => fn(Action $action) => $action->label(fn() => auth()->user()->name)->url(''),
                 // 'edit-profile' => fn(Action $action) => $action->make('edit-profile')->url(fn (): string => Edit::getUrl())->label('Edit Account')->icon('heroicon-o-pencil-square'),
