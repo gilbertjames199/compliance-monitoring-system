@@ -1,0 +1,26 @@
+{
+    "name": "javarex/ddo-login",
+    "description": "Custom Login",
+    "type": "library",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Javarex\\DdoLogin\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "javarex",
+            "email": "raymartnayreitanong11@gmail.com"
+        }
+    ],
+    "minimum-stability": "dev",
+    "require": {},
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Javarex\\DdoLogin\\Providers\\LoginDdoServiceProvider"
+            ]
+        }
+    }
+}

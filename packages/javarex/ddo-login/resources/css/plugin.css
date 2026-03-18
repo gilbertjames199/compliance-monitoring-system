@@ -1,0 +1,8 @@
+@import 'tailwindcss';
+@import './login.css';
+
+#ddo-login .fi-fo-field-label-content,
+#ddo-login .fi-input
+{
+  @apply text-gray-800;
+}

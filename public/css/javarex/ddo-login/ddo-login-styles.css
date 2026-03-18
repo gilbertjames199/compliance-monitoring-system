@@ -992,7 +992,6 @@
 @media (max-width:640px) {
     .login-card {
         border-radius: var(--radius-2xl);
-        /* margin: 1rem */
     }
 
     .login-form-panel {

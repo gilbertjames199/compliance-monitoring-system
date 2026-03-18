@@ -1,0 +1,468 @@
+/* Modern Login Page Styles */
+/* Light and Dark mode support with smooth animations */
+
+/* ============================================
+   COLOR VARIABLES - Easy to customize
+   ============================================ */
+:root {
+    /* Primary Colors (Yellow theme) */
+    --login-primary-light: #fef9c3;       /* Light yellow for backgrounds */
+    --login-primary: #facc15;              /* Main yellow */
+    --login-primary-dark: #eab308;         /* Darker yellow */
+    --login-primary-darker: #ca8a04;       /* Even darker yellow */
+    --login-primary-darkest: #a16207;      /* Darkest yellow */
+
+    /* Gradient colors for brand panel */
+    --login-gradient-start: #a16207;       /* Dark golden */
+    --login-gradient-mid: #ca8a04;         /* Golden */
+    --login-gradient-end: #facc15;         /* Bright yellow */
+
+    /* Accent/glow colors */
+    --login-glow-color: rgba(250, 204, 21, 0.08);
+    --login-glow-color-dark: rgba(250, 204, 21, 0.1);
+
+    /* Button shadow colors */
+    --login-btn-shadow: rgba(250, 204, 21, 0.35);
+    --login-btn-shadow-hover: rgba(250, 204, 21, 0.45);
+}
+
+/* ============================================
+   LIGHT MODE (Default)
+   ============================================ */
+
+/* Background with animated gradient - Light */
+.login-background {
+    @apply min-h-screen flex items-center justify-center p-4;
+    background: linear-gradient(135deg, #fffbeb 0%, var(--login-primary-light) 50%, #fffbeb 100%);
+    background-size: 400% 400%;
+    animation: gradientShift 15s ease infinite;
+    position: relative;
+    overflow: hidden;
+}
+
+.login-background::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(circle, var(--login-glow-color) 0%, transparent 50%);
+    animation: pulse 8s ease-in-out infinite;
+}
+
+@keyframes gradientShift {
+    0%, 100% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); opacity: 0.5; }
+    50% { transform: scale(1.1); opacity: 0.8; }
+}
+
+/* Main login card - Light */
+.login-card {
+    @apply flex flex-col sm:flex-row w-full max-w-4xl overflow-hidden;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(20px);
+    border-radius: 24px;
+    box-shadow:
+        0 25px 50px -12px rgba(0, 0, 0, 0.15),
+        0 0 0 1px rgba(0, 0, 0, 0.05),
+        inset 0 1px 0 rgba(255, 255, 255, 0.8);
+    animation: cardAppear 0.6s ease-out;
+}
+
+@keyframes cardAppear {
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.98);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* Brand panel (left side) - Light */
+.login-brand-panel {
+    @apply hidden sm:flex sm:basis-1/2 relative overflow-hidden;
+    background: linear-gradient(145deg, var(--login-gradient-start) 0%, var(--login-gradient-mid) 50%, var(--login-gradient-end) 100%);
+    padding: 3rem;
+}
+
+.login-brand-content {
+    @apply flex flex-col items-center justify-center gap-6 relative z-10 w-full;
+}
+
+.login-logo-glow {
+    @apply absolute;
+    width: 200px;
+    height: 200px;
+    background: radial-gradient(circle, rgba(255, 255, 255, 0.3) 0%, transparent 70%);
+    filter: blur(40px);
+    animation: glowPulse 3s ease-in-out infinite;
+}
+
+@keyframes glowPulse {
+    0%, 100% { opacity: 0.5; transform: scale(1); }
+    50% { opacity: 0.8; transform: scale(1.2); }
+}
+
+.login-logo {
+    @apply w-28 h-28 bg-no-repeat bg-contain bg-center relative z-10;
+    filter: drop-shadow(0 10px 20px rgba(0, 0, 0, 0.3));
+    animation: logoFloat 4s ease-in-out infinite;
+}
+
+@keyframes logoFloat {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+}
+
+.login-app-name {
+    @apply text-white font-bold text-2xl uppercase tracking-wider text-center;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+}
+
+.login-tagline {
+    @apply text-white/80 text-sm tracking-wide text-center;
+}
+
+.login-brand-decoration {
+    @apply absolute inset-0 pointer-events-none;
+    background-image:
+        radial-gradient(circle at 20% 80%, rgba(255, 255, 255, 0.15) 0%, transparent 50%),
+        radial-gradient(circle at 80% 20%, rgba(255, 255, 255, 0.15) 0%, transparent 50%);
+}
+
+/* Form panel (right side) - Light */
+.login-form-panel {
+    @apply basis-full sm:basis-1/2 p-8 sm:p-10;
+    background: rgba(255, 255, 255, 0.98);
+}
+
+.login-form-header {
+    @apply mb-8;
+}
+
+.login-welcome {
+    @apply text-3xl font-bold mb-2;
+    background: linear-gradient(135deg, var(--login-gradient-start) 0%, var(--login-primary-dark) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.login-subtitle {
+    @apply text-gray-500 text-sm;
+}
+
+/* Form labels - Light */
+.login-form-panel label,
+.login-form-panel .fi-fo-field-wrp-label span {
+    @apply !text-gray-700 !font-medium !text-sm !tracking-wide;
+}
+
+/* Input fields - Light */
+.login-form-panel .fi-input-wrp {
+    @apply !bg-gray-50 !rounded-xl !border !border-gray-200 !shadow-none;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.login-form-panel .fi-input-wrp:hover {
+    @apply !border-gray-300;
+    background: rgba(249, 250, 251, 1) !important;
+}
+
+.login-form-panel .fi-input-wrp:focus-within {
+    border-color: var(--login-primary-dark) !important;
+    @apply !ring-2;
+    --tw-ring-color: rgba(234, 179, 8, 0.2);
+    background: white !important;
+}
+
+.login-form-panel input,
+.login-form-panel .fi-input,
+.login-form-panel input[type="text"],
+.login-form-panel input[type="email"],
+.login-form-panel input[type="password"] {
+    @apply !bg-transparent !border-none !text-gray-900 !py-3 !px-4 !text-base !shadow-none !rounded-xl;
+    transition: all 0.3s ease;
+}
+
+.login-form-panel input::placeholder {
+    @apply !text-gray-400;
+}
+
+/* Checkbox styling - Light */
+.login-form-panel input[type="checkbox"] {
+    @apply !w-5 !h-5 !rounded-md !border-2 !border-gray-300 !bg-white !p-0;
+    transition: all 0.2s ease;
+}
+
+.login-form-panel input[type="checkbox"]:checked {
+    background-color: var(--login-primary-dark) !important;
+    border-color: var(--login-primary-dark) !important;
+}
+
+.login-form-panel input[type="checkbox"]:hover {
+    @apply !border-gray-400;
+}
+
+/* Remember me & links text - Light */
+.login-form-panel .fi-fo-checkbox label span,
+.login-form-panel span:not(.login-welcome):not(.login-subtitle) {
+    @apply !text-gray-600;
+}
+
+/* Submit button - Gold gradient with white text for light mode */
+.login-form-panel .fi-btn-primary,
+.login-form-panel button[type="submit"] {
+    @apply !border-none !rounded-xl !py-3.5 !px-6 !font-bold !text-base !tracking-wide !w-full !text-white dark:!text-white;
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 50%, #d97706 100%) !important;
+    /* color: white !important; */
+    box-shadow:
+        0 4px 15px rgba(245, 158, 11, 0.4),
+        0 1px 3px rgba(0, 0, 0, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    position: relative;
+    overflow: hidden;
+}
+/* .dark .login-form-panel .fi-fo-checkbox label span, */
+
+#login-button span
+{
+    @apply !text-white;
+}
+
+.login-form-panel .fi-btn-primary span,
+.login-form-panel button[type="submit"] span {
+    @apply !text-white;
+    /* color: white !important; */
+}
+
+.login-form-panel .fi-btn-primary::before,
+.login-form-panel button[type="submit"]::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.3), transparent);
+    transition: left 0.5s ease;
+}
+
+.login-form-panel .fi-btn-primary:hover,
+.login-form-panel button[type="submit"]:hover {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 50%, #b45309 100%) !important;
+    transform: translateY(-2px) !important;
+    box-shadow:
+        0 8px 25px rgba(245, 158, 11, 0.5),
+        0 4px 10px rgba(0, 0, 0, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+}
+
+.login-form-panel .fi-btn-primary:hover::before,
+.login-form-panel button[type="submit"]:hover::before {
+    left: 100%;
+}
+
+.login-form-panel .fi-btn-primary:active,
+.login-form-panel button[type="submit"]:active {
+    transform: translateY(0) !important;
+    box-shadow:
+        0 2px 10px rgba(245, 158, 11, 0.4),
+        0 1px 3px rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Links - Light */
+.login-form-panel a {
+    color: var(--login-primary-darker) !important;
+    @apply !font-medium !no-underline;
+    transition: all 0.2s ease !important;
+}
+
+.login-form-panel a:hover {
+    color: var(--login-primary-darkest) !important;
+}
+
+/* Form spacing adjustments */
+.login-form-panel .fi-fo-field-wrp {
+    @apply mb-5;
+}
+
+/* Registration link styling */
+.login-register-link {
+    @apply mt-6 text-center text-sm text-gray-600;
+}
+
+.login-register-link span {
+    @apply mr-1;
+}
+
+.login-register-anchor {
+    color: var(--login-primary-darker) !important;
+    @apply font-semibold;
+    transition: all 0.2s ease;
+}
+
+.login-register-anchor:hover {
+    color: var(--login-primary-darkest) !important;
+    text-decoration: underline;
+}
+
+/* Hide Filament's default heading since we have custom one */
+.login-form-panel .fi-simple-header {
+    @apply hidden;
+}
+
+/* Validation error styling */
+.login-form-panel .fi-fo-field-wrp-error-message {
+    @apply !text-red-500 !text-xs !mt-1.5;
+}
+
+
+/* ============================================
+   DARK MODE
+   ============================================ */
+
+/* Background - Dark */
+.dark .login-background {
+    background: linear-gradient(135deg, #1c1917 0%, #422006 50%, #1c1917 100%);
+}
+
+.dark .login-background::before {
+    background: radial-gradient(circle, var(--login-glow-color-dark) 0%, transparent 50%);
+}
+
+/* Main login card - Dark */
+.dark .login-card {
+    background: rgba(28, 25, 23, 0.9);
+    box-shadow:
+        0 25px 50px -12px rgba(0, 0, 0, 0.5),
+        0 0 0 1px rgba(250, 204, 21, 0.1),
+        inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Brand panel - Dark */
+.dark .login-brand-panel {
+    background: linear-gradient(145deg, var(--login-gradient-start) 0%, var(--login-gradient-mid) 50%, var(--login-primary) 100%);
+}
+
+/* Form panel - Dark */
+.dark .login-form-panel {
+    background: rgba(28, 25, 23, 0.95);
+}
+
+.dark .login-welcome {
+    background: linear-gradient(135deg, #ffffff 0%, #94a3b8 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+.dark .login-subtitle {
+    @apply text-slate-400;
+}
+
+/* Form labels - Dark */
+.dark .login-form-panel label,
+.dark .login-form-panel .fi-fo-field-wrp-label span {
+    @apply !text-slate-300;
+}
+
+/* Input fields - Dark */
+.dark .login-form-panel .fi-input-wrp {
+    @apply !bg-slate-800/50 !border-slate-700/50;
+}
+
+.dark .login-form-panel .fi-input-wrp:hover {
+    @apply !border-slate-600;
+    background: rgba(51, 65, 85, 0.5) !important;
+}
+
+.dark .login-form-panel .fi-input-wrp:focus-within {
+    border-color: var(--login-primary) !important;
+    --tw-ring-color: rgba(250, 204, 21, 0.2);
+    background: rgba(51, 65, 85, 0.6) !important;
+}
+
+.dark .login-form-panel input,
+.dark .login-form-panel .fi-input,
+.dark .login-form-panel input[type="text"],
+.dark .login-form-panel input[type="email"],
+.dark .login-form-panel input[type="password"] {
+    @apply !text-white;
+}
+
+.dark .login-form-panel input::placeholder {
+    @apply !text-slate-500;
+}
+
+/* Checkbox - Dark */
+.dark .login-form-panel input[type="checkbox"] {
+    @apply !border-slate-600 !bg-slate-800/50;
+}
+
+.dark .login-form-panel input[type="checkbox"]:hover {
+    @apply !border-slate-500;
+}
+
+/* Remember me & links text - Dark */
+/* .dark .login-form-panel .fi-fo-checkbox label span, */
+.dark .login-form-panel span:not(.login-welcome):not(.login-subtitle) {
+    @apply !text-slate-200;
+}
+
+/* Links - Dark */
+.dark .login-form-panel a {
+    color: var(--login-primary) !important;
+}
+
+.dark .login-form-panel a:hover {
+    color: var(--login-primary-light) !important;
+    text-shadow: 0 0 10px rgba(250, 204, 21, 0.5);
+}
+
+/* Validation error - Dark */
+.dark .login-form-panel .fi-fo-field-wrp-error-message {
+    @apply !text-red-400;
+}
+
+/* Registration link - Dark */
+.dark .login-register-link {
+    @apply text-slate-400;
+}
+
+.dark .login-register-anchor {
+    color: var(--login-primary) !important;
+}
+
+.dark .login-register-anchor:hover {
+    color: var(--login-primary-light) !important;
+    text-shadow: 0 0 10px rgba(250, 204, 21, 0.5);
+}
+
+
+/* ============================================
+   MOBILE RESPONSIVE (Both modes)
+   ============================================ */
+
+@media (max-width: 640px) {
+    .login-card {
+        @apply rounded-2xl;
+        margin: 1rem;
+    }
+
+    .login-form-panel {
+        @apply p-6;
+    }
+
+    .login-welcome {
+        @apply text-2xl;
+    }
+}
