@@ -31,6 +31,7 @@ class EditDocumentCategory extends EditRecord
 
     protected function mutateFormDataBeforeSave(array $data): array
     {
+        $data['created_by'] = auth()->id();
         // dd($data);
         $state = $this->form->getState();
         // if (!empty($state['requiredDocuments'][0])) {

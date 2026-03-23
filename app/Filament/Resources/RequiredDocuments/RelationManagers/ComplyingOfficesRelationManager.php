@@ -186,15 +186,6 @@ class ComplyingOfficesRelationManager extends RelationManager
                     ->afterStateUpdated(function ($state, $set, $record) {
                         $user = auth()->user();
 
-                        // Set validated_at when validation_status becomes "validated"
-                        // if (in_array($state, ['validated', 'returned'])) {
-                        //     $set('validated_by', $user->name);
-                        //     $set('validated_at', now());
-                        // } else {
-                        //     $set('validated_by', null);
-                        //     $set('validated_at', null);
-                        // }
-
                         if ($state === 'returned') {
                             $set('status', 0); // Automatically change compliance status to Partially Complied
                             $set('validated_by', $user->name);

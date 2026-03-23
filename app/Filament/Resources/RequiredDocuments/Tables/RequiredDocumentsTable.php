@@ -42,23 +42,6 @@ class RequiredDocumentsTable
     public static function configure(Table $table): Table
     {
         // dd(auth()->user());
-
-
-            // ->query(function ($query) {
-            //     $user = auth()->user();
-            //     $departmentCode = $user->department_code;
-            //     // dd($user);
-            //     // If department_code = 25, show all records
-            //     if ($departmentCode == 25) {
-            //         return $query;
-            //     }
-
-            //     // Otherwise, filter records based on related complyingOffices
-            //     return $query->whereHas('complyingOffices', function ($q) use ($departmentCode) {
-            //         $q->where('department_code', $departmentCode);
-            //     });
-            // })
-            
             
         return $table
              ->modifyQueryUsing(function (Builder $query) {
@@ -582,11 +565,12 @@ class RequiredDocumentsTable
                             $user = auth()->user();
                             return $user->hasRoleSafe('super_admin') || $user->hasRoleSafe('department_head');
                         })
-                        ->authorize(function ($records) {
+                        ->before(function (DeleteBulkAction $action, $records) {
                             $user = auth()->user();
 
+                            // Super admin can always delete
                             if ($user->hasRoleSafe('super_admin')) {
-                                return true;
+                                return;
                             }
 
                             if ($user->hasRoleSafe('department_head')) {
@@ -594,17 +578,53 @@ class RequiredDocumentsTable
                                     ->where('department_code', $user->department_code)
                                     ->value('office');
 
-                                return $records->every(function ($record) use ($officeName) {
-                                    $hasCompliance = $record->complyingOffices()
+                                $hasRestricted = $records->contains(function ($record) use ($officeName) {
+                                    // Block if not their agency
+                                    if ($record->agency_name !== $officeName) {
+                                        return true;
+                                    }
+
+                                    // Block if any complying office has already submitted
+                                    return $record->complyingOffices()
                                         ->whereIn('status', [0, 1])
                                         ->exists();
-
-                                    return $record->agency_name === $officeName && !$hasCompliance;
                                 });
-                            }
 
-                            return false;
-                        }),
+                                if ($hasRestricted) {
+                                    Notification::make()
+                                        ->title('Deletion Not Allowed')
+                                        ->body('One or more selected requirements cannot be deleted because offices have already submitted compliance.')
+                                        ->danger()
+                                        ->persistent()
+                                        ->send();
+
+                                    $action->cancel();
+                                }
+                            }
+                        })
+                        // ->authorize(function ($records) {
+                        //     $user = auth()->user();
+
+                        //     if ($user->hasRoleSafe('super_admin')) {
+                        //         return true;
+                        //     }
+
+                        //     if ($user->hasRoleSafe('department_head')) {
+                        //         $officeName = Office::on('mysql2')
+                        //             ->where('department_code', $user->department_code)
+                        //             ->value('office');
+
+                        //         return $records->every(function ($record) use ($officeName) {
+                        //             $hasCompliance = $record->complyingOffices()
+                        //                 ->whereIn('status', [0, 1])
+                        //                 ->exists();
+
+                        //             return $record->agency_name === $officeName && !$hasCompliance;
+                        //         });
+                        //     }
+
+                        //     return false;
+                        // }),
                 ]),
             ]);
     }

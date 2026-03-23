@@ -2,22 +2,21 @@
 
 namespace App\Filament\Resources\RequiredDocuments\Schemas;
 
-use Carbon\Carbon;
-use App\Models\Office;
-use Filament\Actions\Action;
-use Filament\Schemas\Schema;
 use App\Models\ComplyingOffice;
 use App\Models\DocumentCategory;
-use Filament\Forms\Components\Field;
+use App\Models\Office;
+use Carbon\Carbon;
+use Filament\Actions\Action;
+use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Grid;
-use Filament\Forms\Components\TextInput;
-use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Section;
-use Filament\Forms\Components\DatePicker;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Schema;
+use Illuminate\Support\Facades\DB;
 
 class RequiredDocumentForm
 {
@@ -120,11 +119,28 @@ class RequiredDocumentForm
                         Select::make('category')
                             ->label('Category')
                             ->required()
-                            ->options(
-                                DocumentCategory::orderBy('category')
-                                    ->pluck('category', 'id')
-                                    ->toArray()
-                            )
+                            // ->options(
+                            //     DocumentCategory::orderBy('category')
+                            //         ->pluck('category', 'id')
+                            //         ->toArray()
+                            // )
+                            ->options(function () {
+                                $user = auth()->user();
+
+                                $query = DocumentCategory::orderBy('category');
+
+                                if (!$user->hasRoleSafe('super_admin')) {
+                                    $userIds = DB::connection('mysql2')
+                                        ->table('systemusers')
+                                        ->where('department_code', $user->department_code)
+                                        ->pluck('recid')
+                                        ->toArray();
+
+                                    $query->whereIn('created_by', $userIds); // only their department, no nulls
+                                }
+
+                                return $query->pluck('category', 'id')->toArray();
+                            })
                             ->searchable()
                             ->reactive()
                             ->createOptionForm([
