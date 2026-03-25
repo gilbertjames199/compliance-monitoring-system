@@ -11,6 +11,11 @@ use Illuminate\Support\Facades\Route;
 // });
 
 
+Route::get('/', function () {
+    return redirect()->route('filament.admin.auth.login');
+
+});
+
 Route::get('email-test', function() {
 
     $documents = RequiredDocument::with('complyingOffices')->where('due_date', now()->addDays(2)->toDateString())->get();

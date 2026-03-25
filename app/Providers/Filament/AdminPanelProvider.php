@@ -38,7 +38,7 @@ class AdminPanelProvider extends PanelProvider
             ->sidebarCollapsibleOnDesktop()
             ->unsavedChangesAlerts()
             ->id('admin')
-            ->path('')
+            ->path('/admin')
             ->viteTheme('resources/css/filament/admin/theme.css')
             // ->login(CustomLogin::class)
             ->passwordReset()
