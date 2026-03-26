@@ -11,7 +11,6 @@ use App\Models\RequiredDocument;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
-use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Section;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Placeholder;
@@ -26,7 +25,7 @@ class ComplyingOfficeForm
 
         return $schema
             ->components([
-                 // SECTION 1: REQUIREMENT INFORMATION
+                // SECTION 1: REQUIREMENT INFORMATION
                 Section::make('Requirement Information')
                     ->schema([
                         Select::make('required_document_id')
@@ -150,18 +149,21 @@ class ComplyingOfficeForm
                                 }
 
                                 // AO cannot change status at all
-                                if ($user->hasRoleSafe('AO')) {
+                                //if ($user->hasRoleSafe('AO')) {
+                                if (! $user->can('UpdateComplianceStatus:ComplyingOffice')) {
                                     return true;
                                 }
                                 
                                 // Department Head can change when status = 0 or partially complied
-                                if ($user->hasRoleSafe('department_head')) {
+                                //if ($user->hasRoleSafe('department_head')) {
+                                if ($user->can('UpdateDepartmentComplianceStatus:ComplyingOffice')) {
                                     $allowedStatuses = [0, 1];
                                     return !in_array($record->status, $allowedStatuses);
                                 }
                                 
                                 // Super Admin → can edit only their own office and status = 0
-                                if ($user->hasRoleSafe('super_admin')) {
+                                //if ($user->hasRoleSafe('super_admin')) {
+                                if ($user->can('UpdateOwnOfficeComplianceStatus:ComplyingOffice')) {
                                     $isOwnOffice = $record->department_code === $user->department_code;
                                     $statusIsZero = $record->status == 0;
                                     return !($isOwnOffice && $statusIsZero);
@@ -310,6 +312,7 @@ class ComplyingOfficeForm
                             ->imageEditor()
                             ->imagePreviewHeight(200)
                             ->required()
+                            ->maxFiles(3)
                             ->maxSize(10240) // 10MB
                             // ->panelLayout('grid')
                             ->reactive()
@@ -341,7 +344,8 @@ class ComplyingOfficeForm
                                 $user = auth()->user();
                                 if (!empty($state)) {
                                     // ✅ Files exist → update status automatically
-                                    if ($user->hasRoleSafe('department_head') || $user->hasRoleSafe('super_admin')) {
+                                    // if ($user->can('UpdateDepartmentComplianceStatus:ComplyingOffice') || $user->can('super_admin')) {
+                                    if ($user->can('UpdateDepartmentComplianceStatus:ComplyingOffice')) {
                                         $set('status', 1); // Complied
                                     } else {
                                         $set('status', 0); // Partially complied
@@ -350,7 +354,8 @@ class ComplyingOfficeForm
                                     $set('submitted_at', now());
                                 
                                 } else {
-                                    $data['status'] = -1;
+                                    //$data['status'] = -1;
+                                    $set('status', -1);
                                     $set('submitted_by', null);
                                     $set('submitted_at', null);
                                 }

@@ -24,14 +24,14 @@ class RequiredDocumentObserver
         // Get all users in those offices
         $usersQuery = User::whereIn('department_code', $complyingOfficeCodes);
 
-        // If confidential, only send to super_admin and department_head
+         // If confidential, only send to users with permission to view confidential documents
         if ($requiredDocument->is_confidential) {
             $allowedUserIds = DB::connection('mysql')
-                ->table('model_has_roles')
-                ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
-                ->whereIn('roles.name', ['super_admin', 'department_head'])
-                ->where('model_type', User::class)
-                ->pluck('model_id')
+                ->table('model_has_permissions')
+                ->join('permissions', 'permissions.id', '=', 'model_has_permissions.permission_id')
+                ->where('permissions.name', 'ViewConfidential:RequiredDocument')
+                ->where('model_has_permissions.model_type', User::class)
+                ->pluck('model_has_permissions.model_id')
                 ->toArray();
             $usersQuery->whereIn('recid', $allowedUserIds);
         }

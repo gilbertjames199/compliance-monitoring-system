@@ -20,34 +20,7 @@ class ComplyingOfficesTable
     {
         // dd(auth()->user()->department_code);
         return $table
-                // ->modifyQueryUsing(function (Builder $query) {
-
-                //     // dd(auth()->user()->department_code);
-
-                //     // Filter to only show records that match the user's department_code
-                //     $user = auth()->user();
-
-                //     if (! $user) {
-                //         return;
-                //     }
-
-                //     // Role-based access control
-                //     if ($user->hasRoleSafe('superadmin')) {
-                //         // Superadmin sees all - no filters
-                //     } 
-                //     elseif ($user->hasRoleSafe('department_head')) {
-                //         // Department head sees all within their department
-                //         $query->where('complying_offices.department_code', $user->department_code);
-                //     } 
-                //     elseif ($user->hasRoleSafe('AO', 'admin')) {
-                //         // AO/Admin sees non-confidential within their department
-                //         $query
-                //             ->where('complying_offices.department_code', $user->department_code)
-                //             ->join('required_documents', 'required_documents.id', '=', 'complying_offices.required_document_id')
-                //             ->where('required_documents.is_confidential', false)
-                //             ->select('complying_offices.*');
-                //     }  
-                // })
+               
                 ->modifyQueryUsing(function (Builder $query) {
                     $user = auth()->user();
 
@@ -68,7 +41,8 @@ class ComplyingOfficesTable
                     /**
                      * EXTRA RULES PER ROLE
                      */
-                    if ($user->hasRoleSafe('AO', 'admin')) {
+                    // if ($user->hasRoleSafe('AO', 'admin')) {
+                    if (! $user->can('ViewConfidential:RequiredDocument')) {
                         // AO/Admin cannot see confidential requirements
                         $query
                             ->join(
@@ -97,7 +71,19 @@ class ComplyingOfficesTable
                     TextColumn::make('requiredDocument.requirement')
                         ->label('Requirement')
                         ->searchable()
-                        ->sortable(),
+                        ->sortable()
+                        ->limit(100)
+                        ->wrap()
+                        ->tooltip(function (TextColumn $column): ?string {
+                            $state = $column->getState();
+
+                            if (strlen($state) <= $column->getCharacterLimit()) {
+                                return null;
+                            }
+
+                            // Only render the tooltip if the column contents exceeds the length limit.
+                            return $state;
+                        }),
                     TextColumn::make('requiredDocument.agency_name')
                         ->label('Requiring Agency')
                         ->sortable()

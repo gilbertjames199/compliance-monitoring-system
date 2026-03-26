@@ -1,6 +1,7 @@
 <?php
 
 use App\Filament\Resources\ComplyingOffices\ComplyingOfficeResource;
+use App\Filament\Resources\RequiredDocuments\RequiredDocumentResource;
 
 return [
 
@@ -132,7 +133,12 @@ return [
             'forceDeleteAny',
             'restoreAny',
             'reorder',
-            'addAttachments'
+            'addAttachments',
+            'viewAllOffices',
+            'viewConfidential',
+            'updateComplianceStatus', // ✅ for AO
+            'updateDepartmentComplianceStatus', // ✅ for department_head
+            'updateOwnOfficeComplianceStatus',  // ✅ for super_admin
         ],
     ],
 
@@ -174,7 +180,14 @@ return [
                 'delete',
             ],
             ComplyingOfficeResource::class => [
-                'addAttachments'
+                'addAttachments',
+                'updateComplianceStatus',
+                'updateDepartmentComplianceStatus', // ✅
+                'updateOwnOfficeComplianceStatus',  // ✅
+            ],
+            RequiredDocumentResource::class => [
+                'viewAllOffices', 
+                'viewConfidential',
             ],
         ],
         'exclude' => [

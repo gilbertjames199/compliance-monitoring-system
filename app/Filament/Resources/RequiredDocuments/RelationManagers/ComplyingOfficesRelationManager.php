@@ -204,7 +204,7 @@ class ComplyingOfficesRelationManager extends RelationManager
 
                 
                 Textarea::make('admin_remarks')
-                    ->label('Remarks')
+                    ->label('Remarks/Comments/Instructions')
                     ->nullable()
                     ->rows(2)
                     ->required()
@@ -411,7 +411,8 @@ class ComplyingOfficesRelationManager extends RelationManager
                                 }
 
                                  // If confidential, skip AO/Admin only
-                                if ($requirement->is_confidential && $user->hasRoleSafe('AO', 'admin')) {
+                                // if ($requirement->is_confidential && $user->hasRoleSafe('AO', 'admin')) {
+                                if ($requirement->is_confidential && !$user->can('ViewConfidential:RequiredDocument')) {
                                     continue;
                                 }
                                 Mail::to($user->email)

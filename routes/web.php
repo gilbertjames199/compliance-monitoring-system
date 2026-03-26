@@ -27,7 +27,10 @@ Route::get('email-test', function() {
         $users = User::with('roles')
                 ->whereIn('department_code', $doc->pluck('department_code')->toArray())
                 ->when($document->is_confidential, function ($query) {
-                    $query->role(['super_admin', 'department_head']);
+                    // Only users with ViewConfidential:RequiredDocument permission
+                    return $query->whereHas('permissions', function ($q) {
+                        $q->where('name', 'ViewConfidential:RequiredDocument');
+                    });
                 })
                 ->get();
         
@@ -35,6 +38,7 @@ Route::get('email-test', function() {
             Mail::to($user->email)->send(new DueDateReminderMail($document));
         }
     }
+    return 'Emails sent!';
 });
 
 

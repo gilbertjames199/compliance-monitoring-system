@@ -19,25 +19,43 @@ class ComplianceStatusPieChart extends ChartWidget
         $complyingQuery      = ComplyingOffice::query();
         $requiredDocsQuery   = RequiredDocument::query();
 
-        if ($user->hasRoleSafe('super_admin')) {
-            // sees all - no filters
-        } elseif ($user->hasRoleSafe('department_head')) {
+        // if ($user->hasRoleSafe('super_admin')) {
+        //     // sees all - no filters
+        // } elseif ($user->hasRoleSafe('department_head')) {
+        //     $complyingQuery->where('department_code', $user->department_code);
+        //     $requiredDocsQuery->whereHas('complyingOffices', fn ($q) =>
+        //         $q->where('department_code', $user->department_code)
+        //     );
+        // } elseif ($user->hasRoleSafe('AO', 'admin')) {
+        //     $complyingQuery->where('department_code', $user->department_code)
+        //                 ->whereHas('requiredDocument', fn ($q) =>
+        //                     $q->where('is_confidential', 0)
+        //                 );
+        //     $requiredDocsQuery->where('is_confidential', 0)
+        //                     ->whereHas('complyingOffices', fn ($q) =>
+        //                         $q->where('department_code', $user->department_code)
+        //                     );
+        // } else {
+        //     $complyingQuery->whereRaw('1 = 0');
+        //     $requiredDocsQuery->whereRaw('1 = 0');
+        // }
+
+        // 🔒 OFFICE SCOPE: only assigned to this user/department (except super_admin)
+        if (! $user->hasRoleSafe('super_admin')) {
             $complyingQuery->where('department_code', $user->department_code);
+
             $requiredDocsQuery->whereHas('complyingOffices', fn ($q) =>
                 $q->where('department_code', $user->department_code)
             );
-        } elseif ($user->hasRoleSafe('AO', 'admin')) {
-            $complyingQuery->where('department_code', $user->department_code)
-                        ->whereHas('requiredDocument', fn ($q) =>
-                            $q->where('is_confidential', 0)
-                        );
-            $requiredDocsQuery->where('is_confidential', 0)
-                            ->whereHas('complyingOffices', fn ($q) =>
-                                $q->where('department_code', $user->department_code)
-                            );
-        } else {
-            $complyingQuery->whereRaw('1 = 0');
-            $requiredDocsQuery->whereRaw('1 = 0');
+        }
+
+        // 🔒 CONFIDENTIAL CONTROL
+        if (! $user->can('ViewConfidential:RequiredDocument')) {
+            $complyingQuery->whereHas('requiredDocument', fn ($q) =>
+                $q->where('is_confidential', false)
+            );
+
+            $requiredDocsQuery->where('is_confidential', false);
         }
 
         // Case 1: ComplyingOffice exists but status is explicitly -1
@@ -46,7 +64,8 @@ class ComplianceStatusPieChart extends ChartWidget
         // Case 2: RequiredDocument has NO ComplyingOffice record at all
         $noRecordNotComplied = (clone $requiredDocsQuery)
             ->whereDoesntHave('complyingOffices', function ($q) use ($user) {
-                if (!$user->hasRoleSafe('super_admin')) {
+                //if (!$user->hasRoleSafe('super_admin')) {
+                if (! $user->can('ViewAllOffices:RequiredDocument')) {
                     $q->where('department_code', $user->department_code);
                 }
             })->count();

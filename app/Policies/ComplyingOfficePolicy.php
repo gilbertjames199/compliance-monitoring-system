@@ -17,26 +17,9 @@ class ComplyingOfficePolicy
         return $authUser->can('ViewAny:ComplyingOffice');
     }
 
-    // public function view(AuthUser $authUser, ComplyingOffice $complyingOffice): bool
-    // {
-    //     return $authUser->can('View:ComplyingOffice');
-    // }
     public function view(AuthUser $authUser, ComplyingOffice $complyingOffice): bool
     {
-        // Must have base permission first
-        if (!$authUser->can('View:ComplyingOffice')) {
-            return false;
-        }
-
-        $requiredDocument = $complyingOffice->requiredDocument;
-
-        // If NOT confidential → allow
-        if (!$requiredDocument->is_confidential) {
-            return true;
-        }
-
-        // If confidential → only super_admin & department_head
-        return $authUser->hasRoleSafe('super_admin', 'department_head');
+        return $authUser->can('View:ComplyingOffice');
     }
 
     public function create(AuthUser $authUser): bool
@@ -44,24 +27,9 @@ class ComplyingOfficePolicy
         return $authUser->can('Create:ComplyingOffice');
     }
 
-    // public function update(AuthUser $authUser, ComplyingOffice $complyingOffice): bool
-    // {
-    //     return $authUser->can('Update:ComplyingOffice');
-    // }
     public function update(AuthUser $authUser, ComplyingOffice $complyingOffice): bool
     {
-        // Must have base permission
-        if (!$authUser->can('Update:ComplyingOffice')) {
-            return false;
-        }
-
-        $requiredDocument = $complyingOffice->requiredDocument;
-
-        if (!$requiredDocument->is_confidential) {
-            return true;
-        }
-
-        return $authUser->hasRoleSafe('super_admin', 'department_head');
+        return $authUser->can('Update:ComplyingOffice');
     }
 
     public function delete(AuthUser $authUser, ComplyingOffice $complyingOffice): bool
@@ -102,6 +70,21 @@ class ComplyingOfficePolicy
     public function addAttachments(AuthUser $authUser): bool
     {
         return $authUser->can('AddAttachments:ComplyingOffice');
+    }
+
+    public function updateComplianceStatus(AuthUser $authUser): bool
+    {
+        return $authUser->can('UpdateComplianceStatus:ComplyingOffice');
+    }
+
+    public function updateDepartmentComplianceStatus(AuthUser $authUser): bool
+    {
+        return $authUser->can('UpdateDepartmentComplianceStatus:ComplyingOffice');
+    }
+
+    public function updateOwnOfficeComplianceStatus(AuthUser $authUser): bool
+    {
+        return $authUser->can('UpdateOwnOfficeComplianceStatus:ComplyingOffice');
     }
 
 }

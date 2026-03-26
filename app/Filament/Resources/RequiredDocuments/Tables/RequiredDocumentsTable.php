@@ -2,13 +2,9 @@
 
 namespace App\Filament\Resources\RequiredDocuments\Tables;
 
-use App\Mail\RequirementDeadlineMail;
-use App\Models\ComplyingOffice;
 use App\Models\DocumentCategory;
 use App\Models\Office;
 use App\Models\RequiredDocument;
-use App\Models\User;
-use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
@@ -19,21 +15,18 @@ use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
-use Filament\Forms\Components\ToggleButtons;
 use Filament\Notifications\Notification;
-use Filament\Resources\Resource;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
-use Filament\Schemas\Components\View;
 use Filament\Tables\Columns\IconColumn;
-use Filament\Tables\Columns\Layout\View as LayoutView;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Grouping\Group;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\Blade;
-use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
+
 
 class RequiredDocumentsTable 
 {
@@ -41,40 +34,84 @@ class RequiredDocumentsTable
 
     public static function configure(Table $table): Table
     {
-        // dd(auth()->user());
+        $user = auth()->user();
+        $officeName = null;
+        
+        // Get the user's office name for potential pre-selection
+        if ($user && $user->department_code) {
+            $officeName = Office::on('mysql2')
+                ->where('department_code', $user->department_code)
+                ->value('office');
+        }
             
         return $table
-             ->modifyQueryUsing(function (Builder $query) {
+            ->modifyQueryUsing(function (Builder $query) use ($user, $officeName) {
 
-                $user = auth()->user();
                 if (! $user) {
                     return;
                 }
 
-                // Superadmin sees everything
+                // ✅ 1. Super Admin → see everything
                 if ($user->hasRoleSafe('super_admin')) {
                     return;
                 }
 
-                if ($user->department_code == 25 && $user->hasRoleSafe('department_head')) {
+                // if ($user->department_code == 25 && $user->hasRoleSafe('department_head')) {
+                //     return;
+                // }
+                 // ✅ 2. Users with permission → see everything
+                if ($user->can('ViewAllOffices:RequiredDocument')) {
                     return;
                 }
 
                 // Only show records where the requiring agency matches the user's office name
                 // $query->where('agency_name', $user->office->office);
-
+                // ✅ 3. Others → ONLY see their own requiring agency
                 $officeName = Office::on('mysql2') // if cross-database
                     ->where('department_code', $user->department_code)
                     ->value('office'); // just get the office name as string
 
-                $query->where('agency_name', $officeName);
+                // $query->where('agency_name', $officeName);
 
-                // Optionally hide confidential requirements from AO & Admin
-                if ($user->hasRoleSafe('AO', 'admin')) {
+                // // Optionally hide confidential requirements from AO & Admin
+                // // if ($user->hasRoleSafe('AO', 'admin')) {
+                // //     $query->where('is_confidential', false);
+                // // }
+                // // Only show own department if the user cannot view all offices
+                // if (! $user->can('ViewAllOffices:RequiredDocument')) {
+                //     $query->whereHas('complyingOffices', fn ($q) => 
+                //         $q->where('department_code', $user->department_code)
+                //     );
+                // }
+                // ✅ ONLY filter by requiring agency
+                $query->where('agency_name', $officeName);
+                
+                // ✅ 4. Apply confidentiality restriction if the user cannot view confidential
+                // Only show non-confidential if the user cannot view confidential documents
+                if (! $user->can('ViewConfidential:RequiredDocument')) {
                     $query->where('is_confidential', false);
                 }
+                
             })
-            ->defaultGroup('agency_name')
+            // ->defaultGroup('agency_name')
+            // 🔹 Add grouping by requiring agency (optional but helpful)
+            ->groups([
+                Group::make('agency_name')
+                    ->label('Requiring Agency')
+                    ->collapsible(),
+                Group::make('category.category')
+                    ->label('Category')
+                    ->collapsible()
+                    ->titlePrefixedWithLabel(false),
+            ])
+            
+            // 🔹 Optionally set default group for users with permission
+            ->defaultGroup(function () use ($user) {
+                if ($user && $user->can('ViewAllOffices:RequiredDocument')) {
+                    return 'agency_name';
+                }
+                return null;
+            })
             ->columns([
                 TextColumn::make('requirement')
                     ->searchable()
@@ -163,6 +200,36 @@ class RequiredDocumentsTable
             ])
             ->defaultSort('created_at', 'desc')
             ->filters([
+                
+                // 🔹 Requiring Agency Filter - with multiple selection support
+                SelectFilter::make('agency_name')
+                    ->label('Requiring Agency')
+                    ->visible(fn () => auth()->user()?->can('ViewAllOffices:RequiredDocument')) // ✅ control visibility
+                    ->options(function () {
+                        return RequiredDocument::query()
+                            ->distinct()
+                            ->orderBy('agency_name')
+                            ->pluck('agency_name', 'agency_name')
+                            ->toArray();
+                    })
+                    ->multiple() // ✅ Allow multiple selection
+                    ->searchable()
+                    ->preload()
+                    ->default(function () use ($user, $officeName) {
+                        // Pre-select the user's agency if they have ViewAllOffices permission
+                        if ($user && $user->can('ViewAllOffices:RequiredDocument') && $officeName) {
+                            return [$officeName]; // Return as array for multiple selection
+                        }
+                        return null;
+                    }),
+                
+                SelectFilter::make('category')
+                    ->label('Category')
+                    ->relationship('category', 'category')
+                    ->multiple() // ✅ Allow multiple selection
+                    ->searchable()
+                    ->preload(),
+
                 Filter::make('is_confidential')
                     ->label('Confidential')
                     ->query(function (Builder $query, array $data) {
@@ -201,27 +268,9 @@ class RequiredDocumentsTable
                             ->placeholder('Select Year'),
                     ]),
 
-                Filter::make('category')
-                    ->label('Category')
-                    ->query(function (Builder $query, array $data) {
-                        if (!empty($data['category'])) {
-                            // Use whereHas to filter by related category
-                            $query->whereHas('category', function (Builder $q) use ($data) {
-                                $q->where('id', $data['category']);
-                            });
-                        }
-                    })
-                    ->form([
-                        Select::make('category')
-                            ->label('Category')
-                            ->options(
-                                DocumentCategory::query()
-                                    ->orderBy('category')
-                                    ->pluck('category', 'id')
-                                    ->toArray()
-                            )
-                            ->placeholder('Select Category'),
-                    ]),
+                
+
+                
 
             ])
 
@@ -235,29 +284,48 @@ class RequiredDocumentsTable
                     ]))
                     ->slideOver(),
                 EditAction::make(),
+                // DeleteAction::make()
+                //     ->visible(function ($record) {
+                //         $user = auth()->user();
 
-                
+                //         if ($user->hasRoleSafe('super_admin')) {
+                //             return true;
+                //         }
+
+                //         if ($user->hasRoleSafe('department_head')) {
+                //             $officeName = Office::on('mysql2')
+                //                 ->where('department_code', $user->department_code)
+                //                 ->value('office');
+
+                //             $hasCompliance = $record->complyingOffices()
+                //                 ->whereIn('status', [0, 1])
+                //                 ->exists();
+
+                //             return $record->agency_name === $officeName && !$hasCompliance;
+                //         }
+
+                //         return false;
+                //     }),
                 DeleteAction::make()
                     ->visible(function ($record) {
                         $user = auth()->user();
 
+                        // 1️⃣ Super Admin can delete all
                         if ($user->hasRoleSafe('super_admin')) {
                             return true;
                         }
 
-                        if ($user->hasRoleSafe('department_head')) {
-                            $officeName = Office::on('mysql2')
-                                ->where('department_code', $user->department_code)
-                                ->value('office');
+                        // 2️⃣ Requiring agency can delete their own requirement
+                        $agencyDepartmentCode = \App\Models\Office::where('office', $record->agency_name)
+                            ->value('department_code');
 
-                            $hasCompliance = $record->complyingOffices()
-                                ->whereIn('status', [0, 1])
-                                ->exists();
+                        $isRequiringAgency = $user->department_code === $agencyDepartmentCode;
 
-                            return $record->agency_name === $officeName && !$hasCompliance;
-                        }
+                        $hasSubmittedCompliance = $record->complyingOffices()
+                            ->whereIn('status', [0, 1])
+                            ->exists();
 
-                        return false;
+                        return $isRequiringAgency && !$hasSubmittedCompliance;
                     }),
 
                 Action::make('manage_compliance')
@@ -293,230 +361,230 @@ class RequiredDocumentsTable
                                 1  => 'border-l-4 border-success-500',
                                 default => 'border-l-4 border-gray-300',
                             };
+    
+                            $fields[] = 
+                                Section::make($office->office_name)
+                                    ->description('Submitted documents and validation status')
+                                    ->collapsible()
+                                    // ✅ Auto-collapse if already validated
+                                    ->collapsed($office->validation_status === 'validated')
+                                    ->extraAttributes(['class' => "pl-4 {$borderClass}" ])
+                                    ->schema([
+                                        Grid::make(14)
+                                            ->schema([
+                                                // 🔹 Office Name (read-only)
+                                                TextInput::make("office_{$office->id}_name")
+                                                    ->label('Office Name')
+                                                    ->default($office->office_name)
+                                                    ->disabled()
+                                                    ->columnSpan(3)
+                                                    ->hidden(),
 
-                            $fields[] = Section::make($office->office_name)
-                                ->description('Submitted documents and validation status')
-                                ->collapsible()
-                                // ✅ Auto-collapse if already validated
-                                ->collapsed($office->validation_status === 'validated')
-                                ->extraAttributes(['class' => "pl-4 {$borderClass}" ])
-                                ->schema([
-                                    Grid::make(14)->schema([
-                                    // 🔹 Office Name (read-only)
-                                    TextInput::make("office_{$office->id}_name")
-                                        ->label('Office Name')
-                                        ->default($office->office_name)
-                                        ->disabled()
-                                        ->columnSpan(3)
-                                        ->hidden(),
+                                                // 🔹 Status (read-only)
+                                                Select::make("office_{$office->id}_status")
+                                                    ->label('Compliance Status')
+                                                    ->options([
+                                                        -1 => 'Not Complied',
+                                                        0  => 'Partially Complied',
+                                                        1  => 'Complied',
+                                                    ])
+                                                    ->default($office->status)
+                                                    ->disabled()
+                                                    ->native(false)
+                                                    ->reactive()
+                                                    ->columnSpan(2),
 
-                                    // 🔹 Status (read-only)
-                                    Select::make("office_{$office->id}_status")
-                                        ->label('Compliance Status')
-                                        ->options([
-                                            -1 => 'Not Complied',
-                                            0  => 'Partially Complied',
-                                            1  => 'Complied',
-                                        ])
-                                        ->default($office->status)
-                                        ->disabled()
-                                        ->native(false)
-                                        ->reactive()
-                                        ->columnSpan(2),
+                                                // 🔹 File Upload / Attachments (read-only)
+                                                Placeholder::make("office_{$office->id}_attachments")
+                                                    ->label('Submitted Attachments')
+                                                    ->content(function () use ($office) {
+                                                        if (!$office->attachments) {
+                                                            return 'No files submitted.';
+                                                        }
 
-                                    // 🔹 File Upload / Attachments (read-only)
-                                    Placeholder::make("office_{$office->id}_attachments")
-                                        ->label('Submitted Attachments')
-                                        ->content(function () use ($office) {
-                                            if (!$office->attachments) {
-                                                return 'No files submitted.';
-                                            }
+                                                        $attachments = is_array($office->attachments)
+                                                            ? $office->attachments
+                                                            : json_decode($office->attachments, true);
 
-                                            $attachments = is_array($office->attachments)
-                                                ? $office->attachments
-                                                : json_decode($office->attachments, true);
+                                                        return collect($attachments)
+                                                            ->map(fn ($file) =>
+                                                                "<a href='".Storage::disk('public')->url($file)."' 
+                                                                    target='_blank' 
+                                                                    style='color: #2563eb; text-decoration: underline;'
+                                                                    onmouseover='this.style.color=\"#1d4ed8\"' 
+                                                                    onmouseout='this.style.color=\"#2563eb\"'>"
+                                                                .basename($file)."</a>"
+                                                            )
+                                                            ->implode('<br>');
+                                                    })
+                                                    ->html()
+                                                    ->columnSpan(3),
 
-                                            return collect($attachments)
-                                                ->map(fn ($file) =>
-                                                    "<a href='".Storage::disk('public')->url($file)."' 
-                                                        target='_blank' 
-                                                        style='color: #2563eb; text-decoration: underline;'
-                                                        onmouseover='this.style.color=\"#1d4ed8\"' 
-                                                        onmouseout='this.style.color=\"#2563eb\"'>"
-                                                    .basename($file)."</a>"
-                                                )
-                                                ->implode('<br>');
-                                        })
-                                        ->html()
-                                        ->columnSpan(3),
+                                                // 🔹 Validation Status (editable)
+                                                Select::make("office_{$office->id}_validation_status")
+                                                    ->label('Validation Status')
+                                                    // ->inline()
+                                                    ->options([
+                                                        'pending_review' => 'Pending Review',
+                                                        'returned'       => 'Returned',
+                                                        'validated'      => 'Validated',
+                                                    ])
+                                                    // ->colors([
+                                                    //     'pending_review' => 'warning',
+                                                    //     'returned'       => 'danger',
+                                                    //     'validated'      => 'success',
+                                                    // ])
+                                                    ->default($office->validation_status ?? 'pending_review')
+                                                    ->required()
+                                                    ->reactive()
+                                                    ->dehydrated()
+                                                    ->disabled(function ($get, $record) use ($office) {
+                                                            $user = auth()->user();
 
+                                                            // Superadmin can always edit (but still requires complied status)
+                                                            $isComplied = $get("office_{$office->id}_status") == 1;
 
+                                                            if ($user->hasRoleSafe('super_admin')) {
+                                                                return !$isComplied;
+                                                            }
 
-                                    // 🔹 Validation Status (editable)
-                                    Select::make("office_{$office->id}_validation_status")
-                                        ->label('Validation Status')
-                                        // ->inline()
-                                        ->options([
-                                            'pending_review' => 'Pending Review',
-                                            'returned'       => 'Returned',
-                                            'validated'      => 'Validated',
-                                        ])
-                                        // ->colors([
-                                        //     'pending_review' => 'warning',
-                                        //     'returned'       => 'danger',
-                                        //     'validated'      => 'success',
-                                        // ])
-                                        ->default($office->validation_status ?? 'pending_review')
-                                        ->required()
-                                        ->reactive()
-                                        ->dehydrated()
-                                        ->disabled(function ($get, $record) use ($office) {
-                                                $user = auth()->user();
+                                                            if (!$isComplied) {
+                                                                return true;
+                                                            }
 
-                                                // Superadmin can always edit (but still requires complied status)
-                                                $isComplied = $get("office_{$office->id}_status") == 1;
+                                                            // Match user's department_code with the agency's department_code
+                                                            $agencyDepartmentCode = \App\Models\Office::where('office', $record?->agency_name)
+                                                                ->value('department_code');
 
-                                                if ($user->hasRoleSafe('super_admin')) {
-                                                    return !$isComplied;
-                                                }
+                                                            $isRequiringAgency = $user->department_code === $agencyDepartmentCode;
 
-                                                if (!$isComplied) {
-                                                    return true;
-                                                }
+                                                            return !$isRequiringAgency;
+                                                        })
+                                                        ->helperText(function ($get, $record) use ($office) {
+                                                            $user = auth()->user();
+                                                            $isComplied = $get("office_{$office->id}_status") == 1;
 
-                                                // Match user's department_code with the agency's department_code
-                                                $agencyDepartmentCode = \App\Models\Office::where('office', $record?->agency_name)
-                                                    ->value('department_code');
+                                                            if ($user->hasRoleSafe('super_admin')) {
+                                                                return $isComplied ? 'Review and validate the submitted documents.' : 'Validation is only available when the compliance status is "Complied".';
+                                                            }
 
-                                                $isRequiringAgency = $user->department_code === $agencyDepartmentCode;
+                                                            $agencyDepartmentCode = \App\Models\Office::where('office', $record?->agency_name)
+                                                                ->value('department_code');
 
-                                                return !$isRequiringAgency;
-                                            })
-                                            ->helperText(function ($get, $record) use ($office) {
-                                                $user = auth()->user();
-                                                $isComplied = $get("office_{$office->id}_status") == 1;
+                                                            $isRequiringAgency = $user->department_code === $agencyDepartmentCode;
 
-                                                if ($user->hasRoleSafe('super_admin')) {
-                                                    return $isComplied ? 'Review and validate the submitted documents.' : 'Validation is only available when the compliance status is "Complied".';
-                                                }
+                                                            if (!$isRequiringAgency) {
+                                                                return 'Only the requiring agency (' . ($record?->agency_name ?? 'N/A') . ') can validate submissions.';
+                                                            }
 
-                                                $agencyDepartmentCode = \App\Models\Office::where('office', $record?->agency_name)
-                                                    ->value('department_code');
+                                                            if (!$isComplied) {
+                                                                return 'Validation is only available when the compliance status is "Complied".';
+                                                            }
 
-                                                $isRequiringAgency = $user->department_code === $agencyDepartmentCode;
+                                                            return 'Review and validate the submitted documents.';
+                                                        })
+                                                    ->afterStateUpdated(function ($state, $set) use ($office) {
+                                                    if (in_array($state, ['validated', 'returned'])) {
+                                                        $set("office_{$office->id}_validated_by", auth()->user()->name);
+                                                        $set("office_{$office->id}_validated_at", now());
+                                                    } else {
+                                                        $set("office_{$office->id}_validated_by", null);
+                                                        $set("office_{$office->id}_validated_at", null);
+                                                    }
+                                                    })
+                                                    ->columnSpan(2),
+                                                
+                                                // 🔹 Admin Remarks (YOUR LOGIC – intact)
+                                                Textarea::make("office_{$office->id}_admin_remarks")
+                                                    ->label('Remarks')
+                                                    ->rows(2)
+                                                    ->default($office->admin_remarks) // ✅ LOAD EXISTING
+                                                    ->reactive()
+                                                    ->nullable()
+                                                    ->columnSpan(3)
+                                                    // ✅ REQUIRED when Returned or Validated
+                                                    ->required(fn ($get) =>
+                                                        in_array(
+                                                            $get("office_{$office->id}_validation_status"),
+                                                            ['returned', 'validated']
+                                                        )
+                                                    )
+                                                    ->dehydrated(true)
+                                                    ->disabled(function ($record) use ($office) {
+                                                        if (!$record) {
+                                                            return true;
+                                                        }
 
-                                                if (!$isRequiringAgency) {
-                                                    return 'Only the requiring agency (' . ($record?->agency_name ?? 'N/A') . ') can validate submissions.';
-                                                }
+                                                        $user = auth()->user();
+                                                        $isComplied = (int) $office->status === 1;
 
-                                                if (!$isComplied) {
-                                                    return 'Validation is only available when the compliance status is "Complied".';
-                                                }
+                                                        // Superadmin can always edit (but still requires complied status)
+                                                        if ($user->hasRoleSafe('super_admin')) {
+                                                            return !$isComplied;
+                                                        }
 
-                                                return 'Review and validate the submitted documents.';
-                                            })
-                                        ->afterStateUpdated(function ($state, $set) use ($office) {
-                                        if (in_array($state, ['validated', 'returned'])) {
-                                            $set("office_{$office->id}_validated_by", auth()->user()->name);
-                                            $set("office_{$office->id}_validated_at", now());
-                                        } else {
-                                            $set("office_{$office->id}_validated_by", null);
-                                            $set("office_{$office->id}_validated_at", null);
-                                        }
-                                        })
-                                        ->columnSpan(2),
-                                    
-                                    // 🔹 Admin Remarks (YOUR LOGIC – intact)
-                                    Textarea::make("office_{$office->id}_admin_remarks")
-                                        ->label('Remarks')
-                                        ->rows(2)
-                                        ->default($office->admin_remarks) // ✅ LOAD EXISTING
-                                        ->reactive()
-                                        ->nullable()
-                                        ->columnSpan(3)
-                                        // ✅ REQUIRED when Returned or Validated
-                                        ->required(fn ($get) =>
-                                            in_array(
-                                                $get("office_{$office->id}_validation_status"),
-                                                ['returned', 'validated']
-                                            )
-                                        )
-                                        ->dehydrated(true)
-                                        ->disabled(function ($record) use ($office) {
-                                            if (!$record) {
-                                                return true;
-                                            }
+                                                        $agencyDepartmentCode = \App\Models\Office::where('office', $record->agency_name)
+                                                            ->value('department_code');
 
-                                            $user = auth()->user();
-                                            $isComplied = (int) $office->status === 1;
+                                                        $isRequiringAgency = $user->department_code === $agencyDepartmentCode;
 
-                                            // Superadmin can always edit (but still requires complied status)
-                                            if ($user->hasRoleSafe('super_admin')) {
-                                                return !$isComplied;
-                                            }
+                                                        return !($isRequiringAgency && $isComplied);
+                                                    })
+                                                    ->helperText(function ($record) use ($office) {
+                                                        if (!$record) {
+                                                            return '';
+                                                        }
 
-                                            $agencyDepartmentCode = \App\Models\Office::where('office', $record->agency_name)
-                                                ->value('department_code');
+                                                        $user = auth()->user();
+                                                        $isComplied = (int) $office->status === 1;
 
-                                            $isRequiringAgency = $user->department_code === $agencyDepartmentCode;
+                                                        if ($user->hasRoleSafe('super_admin')) {
+                                                            return $isComplied ? 'Add validation remarks for this submission.' : 'Remarks can only be added when the status is "Complied".';
+                                                        }
 
-                                            return !($isRequiringAgency && $isComplied);
-                                        })
-                                        ->helperText(function ($record) use ($office) {
-                                            if (!$record) {
-                                                return '';
-                                            }
+                                                        $agencyDepartmentCode = \App\Models\Office::where('office', $record->agency_name)
+                                                            ->value('department_code');
 
-                                            $user = auth()->user();
-                                            $isComplied = (int) $office->status === 1;
+                                                        $isRequiringAgency = $user->department_code === $agencyDepartmentCode;
 
-                                            if ($user->hasRoleSafe('super_admin')) {
-                                                return $isComplied ? 'Add validation remarks for this submission.' : 'Remarks can only be added when the status is "Complied".';
-                                            }
+                                                        if (!$isRequiringAgency) {
+                                                            return 'Only the requiring agency can add remarks.';
+                                                        }
 
-                                            $agencyDepartmentCode = \App\Models\Office::where('office', $record->agency_name)
-                                                ->value('department_code');
+                                                        if (!$isComplied) {
+                                                            return 'Remarks can only be added when the status is "Complied".';
+                                                        }
 
-                                            $isRequiringAgency = $user->department_code === $agencyDepartmentCode;
-
-                                            if (!$isRequiringAgency) {
-                                                return 'Only the requiring agency can add remarks.';
-                                            }
-
-                                            if (!$isComplied) {
-                                                return 'Remarks can only be added when the status is "Complied".';
-                                            }
-
-                                            return 'Add validation remarks for this submission.';
-                                        }),
-
-
-                                    TextInput::make("office_{$office->id}_validated_by")
-                                        ->label(fn ($get) => match ($get("office_{$office->id}_validation_status")) {
-                                            'validated' => 'Validated By',
-                                            'returned'  => 'Returned By',
-                                            default     => '',
-                                        })
-                                        ->default($office->validated_by)
-                                        ->disabled()
-                                        ->dehydrated()
-                                        ->columnSpan(2),
+                                                        return 'Add validation remarks for this submission.';
+                                                    }),
 
 
-                                    DateTimePicker::make("office_{$office->id}_validated_at")
-                                        ->label(fn ($get) => match ($get("office_{$office->id}_validation_status")) {
-                                            'validated' => 'Validated At',
-                                            'returned'  => 'Returned At',
-                                            default     => '',
-                                        })
-                                        ->default($office->validated_at)
-                                        ->disabled()
-                                        ->dehydrated()
-                                        ->displayFormat('m/d/Y h:i A')
-                                        ->seconds(false)
-                                        ->columnSpan(2),
-                                ]),
-                            ]);
+                                                TextInput::make("office_{$office->id}_validated_by")
+                                                    ->label(fn ($get) => match ($get("office_{$office->id}_validation_status")) {
+                                                        'validated' => 'Validated By',
+                                                        'returned'  => 'Returned By',
+                                                        default     => '',
+                                                    })
+                                                    ->default($office->validated_by)
+                                                    ->disabled()
+                                                    ->dehydrated()
+                                                    ->columnSpan(2),
+
+
+                                                DateTimePicker::make("office_{$office->id}_validated_at")
+                                                    ->label(fn ($get) => match ($get("office_{$office->id}_validation_status")) {
+                                                        'validated' => 'Validated At',
+                                                        'returned'  => 'Returned At',
+                                                        default     => '',
+                                                    })
+                                                    ->default($office->validated_at)
+                                                    ->disabled()
+                                                    ->dehydrated()
+                                                    ->displayFormat('m/d/Y h:i A')
+                                                    ->seconds(false)
+                                                    ->columnSpan(2),
+                                            ]),
+                                ]);
                         }
 
                         return $fields;
@@ -559,72 +627,140 @@ class RequiredDocumentsTable
                 }),
             ])
             ->toolbarActions([
+                // BulkActionGroup::make([
+                //     DeleteBulkAction::make()
+                //         ->visible(function () {
+                //             $user = auth()->user();
+                //             return $user->hasRoleSafe('super_admin') || $user->hasRoleSafe('department_head');
+                //         })
+                //         ->before(function (DeleteBulkAction $action, $records) {
+                //             $user = auth()->user();
+
+                //             // Super admin can always delete
+                //             if ($user->hasRoleSafe('super_admin')) {
+                //                 return;
+                //             }
+
+                //             if ($user->hasRoleSafe('department_head')) {
+                //                 $officeName = Office::on('mysql2')
+                //                     ->where('department_code', $user->department_code)
+                //                     ->value('office');
+
+                //                 $hasRestricted = $records->contains(function ($record) use ($officeName) {
+                //                     // Block if not their agency
+                //                     if ($record->agency_name !== $officeName) {
+                //                         return true;
+                //                     }
+
+                //                     // Block if any complying office has already submitted
+                //                     return $record->complyingOffices()
+                //                         ->whereIn('status', [0, 1])
+                //                         ->exists();
+                //                 });
+
+                //                 if ($hasRestricted) {
+                //                     Notification::make()
+                //                         ->title('Deletion Not Allowed')
+                //                         ->body('One or more selected requirements cannot be deleted because offices have already submitted compliance.')
+                //                         ->danger()
+                //                         ->persistent()
+                //                         ->send();
+
+                //                     $action->cancel();
+                //                 }
+                //             }
+                //         })
+            
+                // ]),
                 BulkActionGroup::make([
                     DeleteBulkAction::make()
                         ->visible(function () {
                             $user = auth()->user();
-                            return $user->hasRoleSafe('super_admin') || $user->hasRoleSafe('department_head');
+
+                            if ($user->hasRoleSafe('super_admin')) {
+                                return true;
+                            }
+
+                            $userOfficeName = \App\Models\Office::on('mysql2')
+                                ->where('department_code', $user->department_code)
+                                ->value('office');
+
+                            return RequiredDocument::where('agency_name', $userOfficeName)->exists();
                         })
-                        ->before(function (DeleteBulkAction $action, $records) {
+                        ->action(function (DeleteBulkAction $action, $records) {
                             $user = auth()->user();
 
-                            // Super admin can always delete
-                            if ($user->hasRoleSafe('super_admin')) {
-                                return;
-                            }
+                            $blockedWrongAgency    = collect();
+                            $blockedHasCompliance  = collect();
+                            $allowed               = collect();
 
-                            if ($user->hasRoleSafe('department_head')) {
-                                $officeName = Office::on('mysql2')
-                                    ->where('department_code', $user->department_code)
-                                    ->value('office');
+                            foreach ($records as $record) {
 
-                                $hasRestricted = $records->contains(function ($record) use ($officeName) {
-                                    // Block if not their agency
-                                    if ($record->agency_name !== $officeName) {
-                                        return true;
-                                    }
-
-                                    // Block if any complying office has already submitted
-                                    return $record->complyingOffices()
-                                        ->whereIn('status', [0, 1])
-                                        ->exists();
-                                });
-
-                                if ($hasRestricted) {
-                                    Notification::make()
-                                        ->title('Deletion Not Allowed')
-                                        ->body('One or more selected requirements cannot be deleted because offices have already submitted compliance.')
-                                        ->danger()
-                                        ->persistent()
-                                        ->send();
-
-                                    $action->cancel();
+                                // Super admin — always allowed
+                                if ($user->hasRoleSafe('super_admin')) {
+                                    $allowed->push($record);
+                                    continue;
                                 }
+
+                                $agencyDepartmentCode = \App\Models\Office::where('office', $record->agency_name)
+                                    ->value('department_code');
+
+                                $isRequiringAgency = $user->department_code === $agencyDepartmentCode;
+
+                                if (! $isRequiringAgency) {
+                                    $blockedWrongAgency->push($record);
+                                    continue;
+                                }
+
+                                $hasCompliance = $record->complyingOffices()
+                                    ->whereIn('status', [0, 1])
+                                    ->exists();
+
+                                if ($hasCompliance) {
+                                    $blockedHasCompliance->push($record);
+                                    continue;
+                                }
+
+                                $allowed->push($record);
                             }
-                        })
-                        // ->authorize(function ($records) {
-                        //     $user = auth()->user();
 
-                        //     if ($user->hasRoleSafe('super_admin')) {
-                        //         return true;
-                        //     }
+                            // ✅ Delete only the allowed records
+                            $allowed->each(fn ($record) => $record->delete());
 
-                        //     if ($user->hasRoleSafe('department_head')) {
-                        //         $officeName = Office::on('mysql2')
-                        //             ->where('department_code', $user->department_code)
-                        //             ->value('office');
+                            // ✅ Notify success if any were deleted
+                            if ($allowed->isNotEmpty()) {
+                                Notification::make()
+                                    ->title("{$allowed->count()} requirement(s) deleted successfully.")
+                                    ->success()
+                                    ->send();
+                            }
 
-                        //         return $records->every(function ($record) use ($officeName) {
-                        //             $hasCompliance = $record->complyingOffices()
-                        //                 ->whereIn('status', [0, 1])
-                        //                 ->exists();
+                            // ⚠️ Notify wrong agency
+                            if ($blockedWrongAgency->isNotEmpty()) {
+                                Notification::make()
+                                    ->title('Deletion Not Allowed — Wrong Agency')
+                                    ->body(
+                                        $blockedWrongAgency->count() . ' requirement(s) were skipped because they do not belong to your agency/office: ' .
+                                        $blockedWrongAgency->pluck('requirement')->implode(', ')
+                                    )
+                                    ->warning()
+                                    ->persistent()
+                                    ->send();
+                            }
 
-                        //             return $record->agency_name === $officeName && !$hasCompliance;
-                        //         });
-                        //     }
-
-                        //     return false;
-                        // }),
+                            // ⚠️ Notify compliance already submitted
+                            if ($blockedHasCompliance->isNotEmpty()) {
+                                Notification::make()
+                                    ->title('Deletion Not Allowed — Compliance Already Submitted')
+                                    ->body(
+                                        $blockedHasCompliance->count() . ' requirement(s) were skipped because complying offices have already submitted compliance: ' .
+                                        $blockedHasCompliance->pluck('requirement')->implode(', ')
+                                    )
+                                    ->danger()
+                                    ->persistent()
+                                    ->send();
+                            }
+                        }),
                 ]),
             ]);
     }

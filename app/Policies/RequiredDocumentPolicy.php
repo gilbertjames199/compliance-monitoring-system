@@ -67,4 +67,14 @@ class RequiredDocumentPolicy
         return $authUser->can('Reorder:RequiredDocument');
     }
 
+    public function viewAllOffices(AuthUser $authUser): bool
+    {
+        return $authUser->can('ViewAllOffices:RequiredDocument');
+    }
+
+    public function viewConfidential(AuthUser $authUser): bool
+    {
+        return $authUser->can('ViewConfidential:RequiredDocument');
+    }
+
 }

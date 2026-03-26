@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\ComplyingOffices\Pages;
 
 use App\Filament\Resources\ComplyingOffices\ComplyingOfficeResource;
-use Filament\Actions\DeleteAction;
 use Filament\Resources\Pages\EditRecord;
 
 class EditComplyingOffice extends EditRecord
@@ -42,7 +41,7 @@ class EditComplyingOffice extends EditRecord
         
         } else {
             // ✅ Files exist → set compliance based on role
-            if ($user->hasRoleSafe('department_head') || $user->hasRoleSafe('super_admin')) {
+            if ($user->can('UpdateDepartmentComplianceStatus:ComplyingOffice') || $user->can('updateOwnOfficeComplianceStatus:ComplyingOffice')) {
                 $data['status'] = 1; // Complied
             } else {
                 $data['status'] = 0; // Partially complied
@@ -63,6 +62,7 @@ class EditComplyingOffice extends EditRecord
     {
         // Force Livewire to rehydrate form state
         $this->fillForm();
+        $this->dispatch('refresh-form');
     }
 
 

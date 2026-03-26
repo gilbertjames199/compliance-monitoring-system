@@ -11,6 +11,7 @@ use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Notifications\Notification;
 use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
@@ -46,13 +47,31 @@ class RequiredDocumentForm
                             ->afterStateUpdated(function (Set $set) {
                                 $set('due_date', null); // Optional: clear due_date when date_from changes
                             })
-                            ->disabled(function ($record) {
-                                if (self::isNotRequiringAgency($record)) return true;
+                            // ->disabled(function ($record) {
+                            //     if (self::isNotRequiringAgency($record)) return true;
 
-                                // Disable if any complying office has status 0 (Partially Complied) or 1 (Complied)
+                            //     // Disable if any complying office has status 0 (Partially Complied) or 1 (Complied)
+                            //     return $record?->complyingOffices()
+                            //                 ->whereIn('status', [0, 1])
+                            //                 ->exists();
+                            // })
+                            ->disabled(function ($record) {
+                                $user = auth()->user();
+
+                                // Allow super_admin to always edit
+                                if ($user?->hasRole('super_admin')) {
+                                    return false;
+                                }
+
+                                // Disable if not requiring agency
+                                if (self::isNotRequiringAgency($record)) {
+                                    return true;
+                                }
+
+                                // Disable if any complying office has status 0 or 1
                                 return $record?->complyingOffices()
-                                            ->whereIn('status', [0, 1])
-                                            ->exists();
+                                    ->whereIn('status', [0, 1])
+                                    ->exists();
                             })
                             ->helperText(function ($record) {
                                 if (!$record) return '';
@@ -86,12 +105,22 @@ class RequiredDocumentForm
                             ->afterOrEqual('date_from') // Validation rule
                             ->minDate(fn (Get $get) => $get('date_from'))
                             ->disabled(function ($record) {
-                                if (self::isNotRequiringAgency($record)) return true;
+                                $user = auth()->user();
 
-                                // Disable if any complying office has status 0 (Partially Complied) or 1 (Complied)
+                                // Allow super_admin to always edit
+                                if ($user?->hasRole('super_admin')) {
+                                    return false;
+                                }
+
+                                // Disable if not requiring agency
+                                if (self::isNotRequiringAgency($record)) {
+                                    return true;
+                                }
+
+                                // Disable if any complying office has status 0 or 1
                                 return $record?->complyingOffices()
-                                            ->whereIn('status', [0, 1])
-                                            ->exists();
+                                    ->whereIn('status', [0, 1])
+                                    ->exists();
                             })
                             ->helperText(function ($record) {
                                 if (!$record) return '';
@@ -119,11 +148,6 @@ class RequiredDocumentForm
                         Select::make('category')
                             ->label('Category')
                             ->required()
-                            // ->options(
-                            //     DocumentCategory::orderBy('category')
-                            //         ->pluck('category', 'id')
-                            //         ->toArray()
-                            // )
                             ->options(function () {
                                 $user = auth()->user();
 
@@ -311,7 +335,65 @@ class RequiredDocumentForm
                                             );
                                         }
                                     })
+                                    // ->dehydrateStateUsing(function ($state, $record) {
+                                    //     $user = auth()->user();
 
+                                    //     // ✅ admin can remove anything
+                                    //     if ($user?->hasRole('super_admin')) {
+                                    //         return $state;
+                                    //     }
+
+                                    //     if (!$record?->exists) return $state;
+
+                                    //     $locked = $record->complyingOffices()
+                                    //         ->whereIn('status', [0, 1])
+                                    //         ->pluck('department_code')
+                                    //         ->toArray();
+
+                                    //     // 🔒 Force locked offices to stay
+                                    //     return array_unique(array_merge($state ?? [], $locked));
+                                    // })
+                                    ->dehydrateStateUsing(function ($state, $record) {
+                                        static $notified = false;
+
+                                        $user = auth()->user();
+
+                                        // ✅ super_admin bypass
+                                        if ($user?->hasRole('super_admin')) {
+                                            return $state;
+                                        }
+
+                                        if (!$record?->exists) return $state;
+
+                                        $lockedOffices = $record->complyingOffices()
+                                            ->whereIn('status', [0, 1])
+                                            ->get();
+
+                                        $lockedCodes = $lockedOffices->pluck('department_code')->toArray();
+
+                                        $removedLocked = array_diff($lockedCodes, $state ?? []);
+
+                                        // 🚫 Prevent multiple notifications
+                                        if (!empty($removedLocked) && !$notified) {
+
+                                            $names = $lockedOffices
+                                                ->whereIn('department_code', $removedLocked)
+                                                ->map(function ($office) {
+                                                    return $office->office?->office ?? $office->department_code;
+                                                })
+                                                ->toArray();
+
+                                            Notification::make()
+                                                ->title('Cannot remove some offices')
+                                                ->body('Already complied: ' . implode(', ', $names))
+                                                ->danger()
+                                                ->send();
+
+                                            $notified = true; // ✅ only once
+                                        }
+
+                                        return array_unique(array_merge($state ?? [], $lockedCodes));
+                                    })
                                     ->helperText('Select one or more offices that must comply with this requirement.')
                                     ->suffixActions([
                                         Action::make('selectAll')
@@ -333,7 +415,7 @@ class RequiredDocumentForm
                                         ]),
                                     
 
-                                ])->columnSpanFull(),
+                         ])->columnSpanFull(),
 
             ]);
     }

@@ -60,22 +60,31 @@ class CreateRequiredDocument extends CreateRecord
         $users = User::whereIn('department_code', $selectedOffices)->get();
         
         // Get modal notification users (only super_admin & department_head for confidential, everyone for non-confidential)
-        $modalUsers = User::whereIn('department_code', $selectedOffices);
+        // $modalUsers = User::whereIn('department_code', $selectedOffices);
         
-        if ($this->record->is_confidential) {
-            // Only super_admin and department_head for confidential
-            $allowedUserIds = DB::connection('mysql')
-                ->table('model_has_roles')
-                ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
-                ->whereIn('roles.name', ['super_admin', 'department_head'])
-                ->where('model_type', User::class)
-                ->pluck('model_id')
-                ->toArray();
-            $modalUsers->whereIn('recid', $allowedUserIds);
-        }
+        // if ($this->record->is_confidential) {
+        //     // Only super_admin and department_head for confidential
+        //     $allowedUserIds = DB::connection('mysql')
+        //         ->table('model_has_roles')
+        //         ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
+        //         ->whereIn('roles.name', ['super_admin', 'department_head'])
+        //         ->where('model_type', User::class)
+        //         ->pluck('model_id')
+        //         ->toArray();
+        //     $modalUsers->whereIn('recid', $allowedUserIds);
+        // }
+        $modalUsers = User::whereIn('department_code', $selectedOffices)
+            ->get()
+            ->filter(function($user) {
+                // Only show confidential if user has permission
+                if ($this->record->is_confidential) {
+                    return $user->can('ViewConfidential:RequiredDocument');
+                }
+                return true;
+            });
         // For non-confidential, all users get modal notifications (including AO & admin)
         
-        $modalUsers = $modalUsers->get();
+        // $modalUsers = $modalUsers->get();
         $requirementTitle = $this->record->requirement;
         $requiringAgency = $this->record->agency_name;
         $deadline = $this->record->due_date;
@@ -85,7 +94,8 @@ class CreateRequiredDocument extends CreateRecord
             $actions = [];
             
             // Generate View action dynamically
-            if (!$this->record->is_confidential || $user->hasRoleSafe('super_admin', 'department_head')) {
+            //if (!$this->record->is_confidential || $user->hasRoleSafe('super_admin', 'department_head')) {
+            if (!$this->record->is_confidential || $user->can('ViewConfidential:RequiredDocument')) {
                 $complyingOffice = $complyingOfficeRecords[$user->department_code] ?? null;
                 if ($complyingOffice) {
                     $actions[] = Action::make('View')
@@ -93,7 +103,8 @@ class CreateRequiredDocument extends CreateRecord
                 }
             }
             
-            $canView = !$this->record->is_confidential || $user->hasRoleSafe('super_admin', 'department_head');
+            // $canView = !$this->record->is_confidential || $user->hasRoleSafe('super_admin', 'department_head');
+            $canView = !$this->record->is_confidential || $user->can('ViewConfidential:RequiredDocument');
 
             $body = $canView
                 ? "{$requiringAgency} assigned a new requirement: {$requirementTitle}. Deadline: {$deadline->format('F j, Y')}."

@@ -110,25 +110,9 @@ class RequiredDocumentResource extends Resource
         }
     }
 
-     
-
     public static function getModel(): string
     {
         return \App\Models\RequiredDocument::class;
     }
 
-
-    // public static function table(Table $table): Table
-    // {
-    //     return $table
-    //         ->columns([
-    //             Tables\Columns\TextColumn::make('requirement')->sortable()->searchable(),
-    //             Tables\Columns\TextColumn::make('year'),
-    //         ])
-    //         ->actions([
-    //             Tables\Actions\EditAction::make(),
-    //         ]);
-    // }
-
-    
 }
