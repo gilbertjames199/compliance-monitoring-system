@@ -16,6 +16,20 @@ class ComplianceStatusPieChart extends ChartWidget
     {
         $user = Auth::user();
 
+        // ❗ Show nothing if user has no role
+        if (! $user || $user->roles->isEmpty()) {
+            return [
+                'datasets' => [
+                    [
+                        'label' => 'Document Compliance',
+                        'data'  => [],
+                        'backgroundColor' => [],
+                    ],
+                ],
+                'labels' => [],
+            ];
+        }
+
         $complyingQuery      = ComplyingOffice::query();
         $requiredDocsQuery   = RequiredDocument::query();
 

@@ -15,6 +15,20 @@ class ValidationStatusChart extends ChartWidget
     {
         $user = Auth::user();
 
+         // ❗ Show nothing if user has no role
+        if (! $user || $user->roles->isEmpty()) {
+            return [
+                'labels' => [],
+                'datasets' => [
+                    [
+                        'label' => 'Validation Status',
+                        'data' => [],
+                        'backgroundColor' => [],
+                    ],
+                ],
+            ];
+        }
+        
         $query = ComplyingOffice::query();
 
         // if ($user->hasRoleSafe('super_admin')) {

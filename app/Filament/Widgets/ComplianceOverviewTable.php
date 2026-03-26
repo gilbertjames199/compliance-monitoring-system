@@ -68,6 +68,14 @@ class ComplianceOverviewTable extends TableWidget
                 $user = auth()->user();
 
                 if (! $user) {
+                // Not logged in → show nothing
+                    $query->whereRaw('1 = 0');
+                    return;
+                }
+
+                // ❗ If user has NO roles → show nothing
+                if ($user->roles->isEmpty()) {
+                    $query->whereRaw('1 = 0');
                     return;
                 }
 

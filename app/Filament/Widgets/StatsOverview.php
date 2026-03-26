@@ -16,6 +16,30 @@ class StatsOverview extends BaseWidget
     {
         $user = Auth::user();
 
+        // ❗ If user has NO roles → show stats with zeros
+        if (! $user || ! $user->roles || $user->roles->isEmpty()) {
+            $statuses = [
+                'Not Complied'     => ['status' => '-1', 'color' => 'danger',  'icon' => 'heroicon-m-x-circle'],
+                'Partially Complied' => ['status' => '0',  'color' => 'warning', 'icon' => 'heroicon-m-exclamation-circle'],
+                'Complied'         => ['status' => '1',  'color' => 'success', 'icon' => 'heroicon-m-check-circle'],
+            ];
+
+            $stats = [
+                Stat::make('Total Required Documents', 0)
+                    ->description('All documents that need compliance based on your role and department')
+                    ->descriptionIcon('heroicon-m-document-text')
+                    ->color('primary'),
+            ];
+
+            foreach ($statuses as $label => $options) {
+                $stats[] = Stat::make("{$label} Documents", 0)
+                    ->description("Total required documents that are {$label}")
+                    ->descriptionIcon($options['icon'])
+                    ->color($options['color']);
+            }
+
+            return $stats;
+        }
         // Base query for RequiredDocument
         $requiredDocsQuery = RequiredDocument::query();
 
