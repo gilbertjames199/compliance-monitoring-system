@@ -110,30 +110,38 @@ class CreateRequiredDocument extends CreateRecord
                 ? "{$requiringAgency} assigned a new requirement: {$requirementTitle}. Deadline: {$deadline->format('F j, Y')}."
                 : "{$requiringAgency} assigned a new confidential requirement. Deadline: {$deadline->format('F j, Y')}.";
 
+            // Get the latest notification ID before sending
+            $lastId = \Illuminate\Support\Facades\DB::connection('mysql')
+                ->table('notifications')
+                ->where('notifiable_type', User::class)
+                ->where('notifiable_id', $user->getKey())
+                ->max('id') ?? '0';
+
             Notification::make()
                 ->title('New Requirement Assigned')
                 ->icon('heroicon-o-document-text')
                 ->body($body)
                 ->actions($actions)
                 ->sendToDatabase($user);
-                
-                // Fetch and manually merge required_document_id into data
-                $dbNotification = \Illuminate\Notifications\DatabaseNotification::on('mysql')
-                    ->where('notifiable_type', User::class)
-                    ->where('notifiable_id', $user->getKey())
-                    ->whereNull('read_at')
-                    ->orderByDesc('created_at')
-                    ->first();
 
-                if ($dbNotification) {
-                    $currentData = $dbNotification->data; // already cast to array by Laravel
-                    $currentData['required_document_id'] = $this->record->id;
+            // Now grab only the notification that was just inserted (ID greater than lastId)
+            $dbNotification = \Illuminate\Support\Facades\DB::connection('mysql')
+                ->table('notifications')
+                ->where('notifiable_type', User::class)
+                ->where('notifiable_id', $user->getKey())
+                ->where('id', '>', $lastId)
+                ->orderByDesc('created_at')
+                ->first();
 
-                    \Illuminate\Support\Facades\DB::connection('mysql')
-                        ->table('notifications')
-                        ->where('id', $dbNotification->id)
-                        ->update(['data' => json_encode($currentData)]);
-                }
+            if ($dbNotification) {
+                $currentData = json_decode($dbNotification->data, true);
+                $currentData['required_document_id'] = $this->record->id;
+
+                \Illuminate\Support\Facades\DB::connection('mysql')
+                    ->table('notifications')
+                    ->where('id', $dbNotification->id)
+                    ->update(['data' => json_encode($currentData)]);
+            }
         }
     }
 
