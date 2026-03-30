@@ -79,6 +79,12 @@ class RequiredDocument extends Model
             SendRequirementNotification::dispatch($requiredDocument->id)->delay(now()->addMinutes(5));
         });
 
+         static::deleting(function (RequiredDocument $document) {
+        \Illuminate\Notifications\DatabaseNotification::query()
+            ->where('data->required_document_id', $document->id)
+            ->delete();
+        });
+
         // Note: We CANNOT send email notifications here because 
         // complyingOffices are created AFTER this model is saved
         // The email notifications should be sent in the Resource's afterCreate() method

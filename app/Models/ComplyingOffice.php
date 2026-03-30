@@ -92,6 +92,16 @@ class ComplyingOffice extends Model
                             ->markAsRead(),
                     ])
                     ->sendToDatabase($recipient);
+
+                // Tag the notification with required_document_id immediately after sending.
+                // Filament's sendToDatabase() is synchronous, so the record is already
+                // in the DB. This tag allows bulk cleanup when the RequiredDocument is deleted.
+                $latestNotification = $recipient->notifications()->latest()->first();
+                if ($latestNotification) {
+                    $data = $latestNotification->data;
+                    $data['required_document_id'] = $requiredDocument->id;
+                    $latestNotification->update(['data' => $data]);
+                }
             });
         });
 
