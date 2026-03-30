@@ -93,16 +93,19 @@ class ComplyingOffice extends Model
                     ])
                     ->sendToDatabase($recipient);
 
-                // Tag the notification with required_document_id immediately after sending.
-                // Filament's sendToDatabase() is synchronous, so the record is already
-                // in the DB. This tag allows bulk cleanup when the RequiredDocument is deleted.
-                $latestNotification = $recipient->notifications()->latest()->first();
-                if ($latestNotification) {
-                    $data = $latestNotification->data;
-                    $data['required_document_id'] = $requiredDocument->id;
-                    $latestNotification->update(['data' => $data]);
-                }
-            });
+                // Atomically tag the just-sent notification using JSON_SET
+                // Avoids race conditions from fetch-then-update
+                \Illuminate\Notifications\DatabaseNotification::query()
+                    ->where('notifiable_type', \App\Models\User::class)
+                    ->where('notifiable_id', $recipient->getKey())
+                    ->orderByDesc('created_at')
+                    ->limit(1)
+                    ->update([
+                        'data' => \Illuminate\Support\Facades\DB::raw(
+                            "JSON_SET(data, '$.required_document_id', {$requiredDocument->id})"
+                        )
+                    ]);
+        });
         });
 
         // CRITICAL: Capture snapshot BEFORE deletion

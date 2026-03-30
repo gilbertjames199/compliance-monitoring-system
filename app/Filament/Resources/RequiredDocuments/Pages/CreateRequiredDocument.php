@@ -118,15 +118,17 @@ class CreateRequiredDocument extends CreateRecord
                 ->actions($actions)
                 ->sendToDatabase($user);
 
-            // Tag the notification with required_document_id immediately after sending.
-            // Filament's sendToDatabase() is synchronous, so the record is already
-            // in the DB. This tag allows bulk cleanup when the RequiredDocument is deleted.
-            $latestNotification = $user->notifications()->latest()->first();
-            if ($latestNotification) {
-                $data = $latestNotification->data;
-                $data['required_document_id'] = $this->record->id;
-                $latestNotification->update(['data' => $data]);
-            }
+            
+            \Illuminate\Notifications\DatabaseNotification::query()
+                ->where('notifiable_type', \App\Models\User::class)
+                ->where('notifiable_id', $user->getKey())
+                ->orderByDesc('created_at')
+                ->limit(1)
+                ->update([
+                    'data' => \Illuminate\Support\Facades\DB::raw(
+                        "JSON_SET(data, '$.required_document_id', {$this->record->id})"
+                    )
+                ]);
         }
     }
 
