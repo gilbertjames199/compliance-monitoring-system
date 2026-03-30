@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Models\Office;
 use App\Models\RequiredDocument;
+use App\Traits\HasAuditLog;
 use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Model;
@@ -12,6 +13,8 @@ use Illuminate\Support\Facades\DB;
 
 class ComplyingOffice extends Model
 {
+    use HasAuditLog;
+    
     protected $connection = 'mysql';
     protected $guarded = [];
 
@@ -19,13 +22,26 @@ class ComplyingOffice extends Model
         'attachments' => 'array',
     ];
 
+    // Add this to store snapshot data before deletion
+    protected $snapshotData = [];
+
+    public function setSnapshotData(array $data): void
+    {
+        $this->snapshotData = $data;
+    }
+
+    public function getSnapshotData(): array
+    {
+        return $this->snapshotData;
+    }
+
     protected static function booted(): void
     {
         static::updating(function ($model) {
-            $statusChanged = $model->isDirty('status') && in_array($model->status, [0, 1]);
-            $attachmentsChanged = $model->isDirty('attachments');
+            // Only notify when status explicitly changes TO "Complied" (1)
+            $statusChanged = $model->isDirty('status') && (int) $model->status === 1;
 
-            if (!$statusChanged && !$attachmentsChanged) {
+            if (!$statusChanged) {
                 return;
             }
 
@@ -52,36 +68,77 @@ class ComplyingOffice extends Model
                 ->where('department_code', $model->department_code)
                 ->value('office') ?? 'An office';
 
-            $statusLabel = match((int) $model->status) {
-                0  => 'Partially Complied',
-                1  => 'Complied',
-                default => 'Updated',
-            };
-
-            $agencyUserIds->each(function ($userId) use ($requiredDocument, $complyingOfficeName, $statusLabel, $model) {
+            $agencyUserIds->each(function ($userId) use ($requiredDocument, $complyingOfficeName) {
                 $recipient = User::find($userId);
 
                 if (!$recipient) {
                     return;
                 }
 
+                // Only notify users who are authorized to update RequiredDocuments
+                if (!$recipient->can('Update:RequiredDocument')) {
+                    return;
+                }
+
                 Notification::make()
                     ->title('Compliance Submission Update')
-                    ->body("{$complyingOfficeName} marked their compliance as {$statusLabel} for: {$requiredDocument->requirement}")
+                    ->body("{$complyingOfficeName} marked their compliance as Complied for: {$requiredDocument->requirement}")
                     ->icon('heroicon-o-document-check')
                     ->iconColor('success')
                     ->actions([
                         Action::make('view')
                             ->label('View Submission')
-                            //->url(route('filament.admin.resources.required-documents.edit', ['record' => $requiredDocument->id]))
-                            ->url(url("/required-documents/{$requiredDocument->id}/edit"))
+                            ->url(url("/admin/required-documents/{$requiredDocument->id}/edit"))
                             ->markAsRead(),
                     ])
                     ->sendToDatabase($recipient);
             });
         });
+
+        // CRITICAL: Capture snapshot BEFORE deletion
+        static::deleting(function ($model) {
+            // Load all necessary relationships while they're still available
+            $model->loadMissing(['requiredDocument', 'office']);
+           
+            // Get FMS office name as a clean string
+            $fmsOfficeName = 'Unknown FMS Office';
+            if ($model->requiredDocument && $model->requiredDocument->agency_name) {
+                $officeModel = Office::on('mysql2')
+                    ->where('office', $model->requiredDocument->agency_name)
+                    ->first();
+               
+                if ($officeModel) {
+                    $fmsOfficeName = is_string($officeModel->office)
+                        ? $officeModel->office
+                        : (string) $officeModel->office;
+                }
+            }
+           
+            // Get the complying office name as string
+            $complyingOfficeName = 'Unknown Office';
+            if ($model->office) {
+                $complyingOfficeName = is_string($model->office->office)
+                    ? $model->office->office
+                    : (string) $model->office->office;
+            }
+           
+            // CRITICAL: Capture requirement_id BEFORE it's lost
+            $requirementId = $model->requirement_id ?? $model->required_document_id;
+           
+            $model->setSnapshotData([
+                'status'                => $model->status,
+                'validation_status'     => $model->validation_status,
+                'fms_office_name'       => $fmsOfficeName,
+                'agency_name'           => $model->requiredDocument?->agency_name ?? 'N/A',
+                'requirement_name'      => $model->requiredDocument?->requirement ?? 'Deleted Requirement',
+                'complying_office_name' => $complyingOfficeName,
+                'admin_remarks'         => $model->admin_remarks,
+                'required_document_id'  => $requirementId,
+                'requirement_id'        => $requirementId,
+            ]);
+        });
     }
-    
+
     public function getRequirementTitleAttribute(): string
     {
         return $this->requiredDocument?->requirement ?? (string) $this->required_document_id;
@@ -101,5 +158,4 @@ class ComplyingOffice extends Model
     {
         return $this->belongsTo(User::class);
     }
-
 }

@@ -322,8 +322,10 @@ class ComplyingOfficeForm
                                 'image/png',
                                 'application/msword',
                                 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                                'application/vnd.ms-excel',                                          // .xls
+                                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
                             ])
-                            ->helperText('Accepted file types: PDF, JPEG, PNG, DOC, DOCX. Maximum file size: 10MB.')
+                            ->helperText('Accepted file types: PDF, JPEG, PNG, DOC, DOCX, XLS, XLSX. Maximum file size: 10MB. Maximum 3 files.')
                             ->rules([
                                     fn () => function (string $attribute, $value, $fail) {
                                         $originalName = strtolower($value->getClientOriginalName());
@@ -340,7 +342,7 @@ class ComplyingOfficeForm
                                         }
                                     },
                                 ])
-                            ->afterStateUpdated(function ($state, $set) {
+                            ->afterStateUpdated(function ($state, $set, $get, $record) {
                                 $user = auth()->user();
                                 if (!empty($state)) {
                                     // ✅ Files exist → update status automatically
@@ -352,7 +354,12 @@ class ComplyingOfficeForm
                                     }
                                     $set('submitted_by', $user->name);
                                     $set('submitted_at', now());
-                                
+                                    
+                                    // ✅ Notify requiring agency
+                                    if ($record && $record->requiringAgency) {
+                                        $record->requiringAgency->notify(new \App\Notifications\DocumentSubmitted($record));
+                                    }
+        
                                 } else {
                                     //$data['status'] = -1;
                                     $set('status', -1);

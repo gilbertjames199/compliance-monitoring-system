@@ -2,30 +2,31 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Auth\CustomLogin;
+use App\Models\Office;
+use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
+use Filament\Actions\Action;
+use Filament\FontProviders\LocalFontProvider;
+use Filament\Http\Middleware\Authenticate;
+use Filament\Http\Middleware\AuthenticateSession;
+use Filament\Http\Middleware\DisableBladeIconComponents;
+use Filament\Http\Middleware\DispatchServingFilamentEvent;
+use Filament\Navigation\MenuItem;
+use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
-use Filament\Pages\Dashboard;
-use Filament\Navigation\MenuItem;
-use App\Filament\Auth\CustomLogin;
 use Filament\Support\Colors\Color;
 use Filament\View\PanelsRenderHook;
 use Filament\Widgets\AccountWidget;
 use Filament\Widgets\FilamentInfoWidget;
-use Filament\Http\Middleware\Authenticate;
-use Filament\FontProviders\LocalFontProvider;
-use Illuminate\Session\Middleware\StartSession;
-use Illuminate\Cookie\Middleware\EncryptCookies;
-use Filament\Http\Middleware\AuthenticateSession;
-use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
-use Filament\Actions\Action;
-use Illuminate\Routing\Middleware\SubstituteBindings;
-use Illuminate\View\Middleware\ShareErrorsFromSession;
-use Filament\Http\Middleware\DisableBladeIconComponents;
-use Filament\Http\Middleware\DispatchServingFilamentEvent;
 use Illuminate\Contracts\Support\Htmlable;
-use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
+use Illuminate\Cookie\Middleware\EncryptCookies;
+use Illuminate\Foundation\Http\Middleware\VerifyCsrfToken;
+use Illuminate\Routing\Middleware\SubstituteBindings;
+use Illuminate\Session\Middleware\StartSession;
 use Illuminate\Support\HtmlString;
+use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 class AdminPanelProvider extends PanelProvider
 {
@@ -88,7 +89,14 @@ class AdminPanelProvider extends PanelProvider
                 'profile' => 
                 fn (Action $action) => $action->label(fn(): Htmlable => new HtmlString('
                     <div>' . auth()->user()->name . '</div>
-                    <div style="font-size: 0.875rem; color: gray;">' . auth()->user()->getRoleNames()->first() . '</div>
+                    <div style="font-size: 0.875rem; color: gray;">' .
+                        (
+                            ($office = Office::where('department_code', auth()->user()->department_code)->first())
+                                ? ($office->short_name ?? '-')
+                                : '-'
+                        ). '
+                    </div>  
+
                 '))
                 ->disabled(),
                 // Action::make()

@@ -2,7 +2,9 @@
 
 namespace App\Providers;
 
+use App\Models\ComplyingOffice;
 use App\Models\RequiredDocument;
+use App\Observers\ComplyingOfficeObserver;
 use App\Observers\RequiredDocumentObserver;
 use Illuminate\Support\ServiceProvider;
 
@@ -21,6 +23,8 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-         RequiredDocument::observe(RequiredDocumentObserver::class);
+        RequiredDocument::observe(RequiredDocumentObserver::class);
+        ComplyingOffice::observe(ComplyingOfficeObserver::class);
+
     }
 }

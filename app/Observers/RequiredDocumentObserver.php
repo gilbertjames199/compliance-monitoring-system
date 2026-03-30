@@ -5,10 +5,18 @@ namespace App\Observers;
 use App\Models\RequiredDocument;
 use App\Models\User;
 use App\Notifications\RequiredDocumentCreatedNotification;
+use App\Services\AuditLogger;
 use Illuminate\Support\Facades\DB;
 
 class RequiredDocumentObserver
 {
+    private array $watchedFields = [
+        'requirement', 'due_date', 'date_from',
+        'agency_name', 'agency_type', 'category',
+        'is_recurring', 'recurrence_type', 'recurrence_interval',
+        'is_confidential',
+    ];
+
     /**
      * Handle the RequiredDocument "created" event.
      */
@@ -42,6 +50,8 @@ class RequiredDocumentObserver
         foreach ($users as $user) {
             $user->notify(new RequiredDocumentCreatedNotification($requiredDocument));
         }
+
+        AuditLogger::logDocument('required document created', $requiredDocument);
     }
 
     /**
@@ -49,7 +59,29 @@ class RequiredDocumentObserver
      */
     public function updated(RequiredDocument $requiredDocument): void
     {
-        //
+        if ($requiredDocument->wasRecentlyCreated) {
+            return;
+        }
+
+        // Only log if watched fields actually changed
+        $changedWatched = array_intersect(
+            array_keys($requiredDocument->getDirty()),
+            $this->watchedFields
+        );
+
+        if (empty($changedWatched)) {
+            return;
+        }
+
+        $old = [];
+        $new = [];
+        foreach ($changedWatched as $field) {
+            $old[$field] = $requiredDocument->getOriginal($field);
+            $new[$field] = $requiredDocument->$field;
+        }
+
+        AuditLogger::logDocument('required document updated', $requiredDocument, $old, $new
+        );
     }
 
     /**
@@ -57,7 +89,7 @@ class RequiredDocumentObserver
      */
     public function deleted(RequiredDocument $requiredDocument): void
     {
-        //
+        AuditLogger::logDocument('required document deleted', $requiredDocument);
     }
 
     /**
@@ -76,3 +108,4 @@ class RequiredDocumentObserver
         //
     }
 }
+

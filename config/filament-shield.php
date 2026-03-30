@@ -279,6 +279,7 @@ return [
     'models' => [
         'only' => [
             App\Models\RequiredDocument::class,
+            App\Models\ComplyingOffice::class,
             // Add other real models here:
             // App\Models\User::class,
             // App\Models\ComplyingOffice::class,

@@ -43,23 +43,6 @@ class StatsOverview extends BaseWidget
         // Base query for RequiredDocument
         $requiredDocsQuery = RequiredDocument::query();
 
-        // // Apply filters based on role
-        // if ($user->hasRoleSafe('super_admin')) {
-        //     // Superadmin sees all
-        // } 
-        // elseif ($user->hasRoleSafe('department_head')) {
-        //     $requiredDocsQuery->whereHas('complyingOffices', fn ($q) => 
-        //         $q->where('department_code', $user->department_code)
-        //     );
-        // } 
-        // elseif ($user->hasRoleSafe('AO', 'admin')) {
-        //     $requiredDocsQuery->whereHas('complyingOffices', fn ($q) => 
-        //         $q->where('department_code', $user->department_code)
-        //     )->where('is_confidential', 0);
-        // } 
-        // else {
-        //     $requiredDocsQuery->whereRaw('1 = 0');
-        // }
         // 🔒 OFFICE SCOPE
         if (! $user->hasRoleSafe('super_admin')) {
             $requiredDocsQuery->whereHas('complyingOffices', fn ($q) =>

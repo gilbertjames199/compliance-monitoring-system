@@ -494,6 +494,34 @@ class RequiredDocumentForm
     }
 
 
+    public static function afterSave($record, array $data): void
+    {
+        $selected = $data['_selected_offices'] ?? [];
+
+        $existing = $record->complyingOffices()
+            ->pluck('department_code')
+            ->toArray();
+
+        // New offices to add — observer will log "added office" for each
+        $toAdd = array_diff($selected, $existing);
+        foreach ($toAdd as $deptCode) {
+            \App\Models\ComplyingOffice::create([
+                'department_code'      => $deptCode,
+                'required_document_id' => $record->id,
+                'status'               => -1,
+                'due_date'             => $record->due_date,
+            ]);
+        }
+
+        // Removed offices — observer will log "deleted" for each
+        $toRemove = array_diff($existing, $selected);
+        foreach ($toRemove as $deptCode) {
+            $record->complyingOffices()
+                ->where('department_code', $deptCode)
+                ->first()
+                ?->delete();
+        }
+    }
 
    
 

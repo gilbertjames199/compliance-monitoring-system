@@ -33,27 +33,6 @@ class ComplianceStatusPieChart extends ChartWidget
         $complyingQuery      = ComplyingOffice::query();
         $requiredDocsQuery   = RequiredDocument::query();
 
-        // if ($user->hasRoleSafe('super_admin')) {
-        //     // sees all - no filters
-        // } elseif ($user->hasRoleSafe('department_head')) {
-        //     $complyingQuery->where('department_code', $user->department_code);
-        //     $requiredDocsQuery->whereHas('complyingOffices', fn ($q) =>
-        //         $q->where('department_code', $user->department_code)
-        //     );
-        // } elseif ($user->hasRoleSafe('AO', 'admin')) {
-        //     $complyingQuery->where('department_code', $user->department_code)
-        //                 ->whereHas('requiredDocument', fn ($q) =>
-        //                     $q->where('is_confidential', 0)
-        //                 );
-        //     $requiredDocsQuery->where('is_confidential', 0)
-        //                     ->whereHas('complyingOffices', fn ($q) =>
-        //                         $q->where('department_code', $user->department_code)
-        //                     );
-        // } else {
-        //     $complyingQuery->whereRaw('1 = 0');
-        //     $requiredDocsQuery->whereRaw('1 = 0');
-        // }
-
         // 🔒 OFFICE SCOPE: only assigned to this user/department (except super_admin)
         if (! $user->hasRoleSafe('super_admin')) {
             $complyingQuery->where('department_code', $user->department_code);

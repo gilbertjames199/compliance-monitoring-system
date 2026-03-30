@@ -2,35 +2,36 @@
 
 namespace App\Filament\Resources\RequiredDocuments\RelationManagers;
 
-use Dom\Text;
-use Carbon\Carbon;
-use App\Models\User;
-use App\Models\Office;
-use Filament\Tables\Table;
-use Filament\Actions\Action;
-use Filament\Schemas\Schema;
+use App\Mail\RequirementDeadlineMail;
 use App\Models\ComplyingOffice;
-use Illuminate\Validation\Rule;
-use Filament\Actions\EditAction;
+use App\Models\Office;
+use App\Models\User;
+use Carbon\Carbon;
+use Dom\Text;
+use Filament\Actions\Action;
+use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
-use Filament\Tables\Filters\Filter;
-use Illuminate\Support\Facades\Mail;
-use App\Mail\RequirementDeadlineMail;
-use Filament\Actions\BulkActionGroup;
-use Filament\Forms\Components\Select;
 use Filament\Actions\DeleteBulkAction;
-use Filament\Forms\Components\Textarea;
-use Filament\Tables\Columns\TextColumn;
-use Illuminate\Support\Facades\Storage;
-use Filament\Forms\Components\TextInput;
-use Filament\Tables\Enums\FiltersLayout;
-use Filament\Tables\Filters\SelectFilter;
-use Illuminate\Database\Eloquent\Builder;
-use Filament\Forms\Components\Placeholder;
-use Filament\Forms\Components\ToggleButtons;
+use Filament\Actions\EditAction;
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\ToggleButtons;
+use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
+use Filament\Schemas\Schema;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Enums\FiltersLayout;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 
 class ComplyingOfficesRelationManager extends RelationManager
 {
@@ -427,26 +428,80 @@ class ComplyingOfficesRelationManager extends RelationManager
                 EditAction::make(),
                 // DissociateAction::make(),
                 DeleteAction::make()
-                    ->visible(function () {
+                    ->visible(function ($record) {
                         $user = auth()->user();
-                        $requiredDocument = $this->getOwnerRecord();
-                        $userOfficeName = optional($user->office)->office;
-                        
-                        // Only show create button if user is from the requiring agency
-                        return $userOfficeName === $requiredDocument->agency_name;
+
+                        // Super Admin can delete all
+                        if ($user->hasRoleSafe('super_admin')) {
+                            return true;
+                        }
+
+                        // Only show delete if this office has NOT submitted (status -1 or null)
+                        return !in_array((string) $record->status, ['0', '1']);
                     }),
+
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
                     // DissociateBulkAction::make(),
                     DeleteBulkAction::make()
-                     ->visible(function () {
+                        ->visible(function () {
                             $user = auth()->user();
+
+                            if ($user->hasRoleSafe('super_admin')) {
+                                return true;
+                            }
+
                             $requiredDocument = $this->getOwnerRecord();
-                            $userOfficeName = optional($user->office)->office;
-                            
-                            // Only show create button if user is from the requiring agency
-                            return $userOfficeName === $requiredDocument->agency_name;
+
+                            $agencyDepartmentCode = \App\Models\Office::where('office', $requiredDocument->agency_name)
+                                ->value('department_code');
+
+                            return $user->department_code === $agencyDepartmentCode;
+                        })
+                        ->action(function (DeleteBulkAction $action, $records) {
+                            $user = auth()->user();
+
+                            $blockedHasCompliance = collect();
+                            $allowed              = collect();
+
+                            foreach ($records as $record) {
+                                // Block if this office has already submitted (status 0 or 1)
+                                if (!$user->hasRoleSafe('super_admin') && in_array((string) $record->status, ['0', '1'])) {
+                                    $blockedHasCompliance->push($record);
+                                    continue;
+                                }
+
+                                $allowed->push($record);
+                            }
+
+                            // Delete only allowed records
+                            $allowed->each(fn ($record) => $record->delete());
+
+                            // Notify success
+                            if ($allowed->isNotEmpty()) {
+                                Notification::make()
+                                    ->title("{$allowed->count()} office(s) removed successfully.")
+                                    ->success()
+                                    ->send();
+                            }
+
+                            // Notify blocked
+                            if ($blockedHasCompliance->isNotEmpty()) {
+                                $names = $blockedHasCompliance
+                                    ->map(fn ($r) => $r->office?->office ?? $r->department_code)
+                                    ->implode(', ');
+
+                                Notification::make()
+                                    ->title('Deletion Not Allowed — Compliance Already Submitted')
+                                    ->body(
+                                        $blockedHasCompliance->count() . ' office(s) were skipped because they have already submitted compliance: ' . $names
+                                    )
+                                    ->danger()
+                                    ->persistent()
+                                    ->send();
+                            }
+
                         }),
                 ]),
             ]);

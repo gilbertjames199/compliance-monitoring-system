@@ -28,41 +28,6 @@ class ComplianceOverviewTable extends TableWidget
         return $table
         
             ->query(fn (): Builder => ComplyingOffice::query())
-            // ->modifyQueryUsing(function (Builder $query) {
-
-            //         // dd(auth()->user()->department_code);
-
-            //         // Filter to only show records that match the user's department_code
-            //         $user = auth()->user();
-
-            //         if (! $user) {
-            //             return;
-            //         }
-
-            //         // Filter by status first
-            //         $query->whereIn('status', [-1, 0]);
-
-            //         // Role-based access control
-            //         if ($user->hasRoleSafe('super_admin')) {
-            //             // Superadmin sees all - no filters
-            //         } 
-            //         elseif ($user->hasRoleSafe('department_head')) {
-            //             // Department head sees all within their department
-            //             $query->where('complying_offices.department_code', $user->department_code);
-            //         } 
-            //         elseif ($user->hasRoleSafe('AO', 'admin')) {
-            //             // AO/Admin sees non-confidential within their department
-            //             $query
-            //                 ->where('complying_offices.department_code', $user->department_code)
-            //                 ->join('required_documents', 'required_documents.id', '=', 'complying_offices.required_document_id')
-            //                 ->where('required_documents.is_confidential', false)
-            //                 ->select('complying_offices.*');
-            //         }
-            //         else {
-            //             // No role — restrict everything
-            //             $query->whereRaw('1 = 0');
-            //         }
-            //     })
             ->modifyQueryUsing(function (Builder $query) {
 
                 $user = auth()->user();
