@@ -81,7 +81,7 @@ class RequiredDocument extends Model
 
         static::deleting(function (RequiredDocument $document) {
             \Illuminate\Notifications\DatabaseNotification::query()
-                ->where('data->required_document_id', $document->id)
+                ->whereJsonContains('data->required_document_id', $document->id)
                 ->delete();
         });
         // Note: We CANNOT send email notifications here because 

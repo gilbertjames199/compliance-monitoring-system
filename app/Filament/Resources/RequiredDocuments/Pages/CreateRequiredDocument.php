@@ -115,12 +115,18 @@ class CreateRequiredDocument extends CreateRecord
                 ->icon('heroicon-o-document-text')
                 ->body($body)
                 ->actions($actions)
-                ->database([
-                    'required_document_id' => $this->record->id,
-                ])
                 ->sendToDatabase($user);
 
-           
+            // Patch required_document_id into the data column immediately after
+            \Illuminate\Notifications\DatabaseNotification::query()
+                ->where('notifiable_type', User::class)
+                ->where('notifiable_id', $user->getKey())
+                ->whereNull('read_at')
+                ->orderByDesc('created_at')
+                ->first()
+                ?->update([
+                    'data->required_document_id' => $this->record->id
+                ]);
         }
     }
 
