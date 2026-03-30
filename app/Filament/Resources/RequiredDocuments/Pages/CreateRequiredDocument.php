@@ -115,31 +115,12 @@ class CreateRequiredDocument extends CreateRecord
                 ->icon('heroicon-o-document-text')
                 ->body($body)
                 ->actions($actions)
+                ->database([
+                    'required_document_id' => $this->record->id,
+                ])
                 ->sendToDatabase($user);
 
-            // Get the notification we just created
-            // We can't directly get it from sendToDatabase, so we need to find it
-            $dbNotification = \Illuminate\Notifications\DatabaseNotification::query()
-                ->where('notifiable_type', \App\Models\User::class)
-                ->where('notifiable_id', $user->getKey())
-                ->where('data->title', 'New Requirement Assigned')
-                ->where('created_at', '>=', now()->subSeconds(5)) // Get recent notifications
-                ->orderByDesc('created_at')
-                ->first();
-            
-            if ($dbNotification) {
-                $dbNotification->update([
-                    'data' => array_merge($dbNotification->data, [
-                        'required_document_id' => $this->record->id
-                    ])
-                ]);
-            } else {
-                // Log or handle the rare case where notification wasn't found
-                \Illuminate\Support\Facades\Log::warning('Notification not found for user', [
-                    'user_id' => $user->getKey(),
-                    'required_document_id' => $this->record->id
-                ]);
-            }
+           
         }
     }
 

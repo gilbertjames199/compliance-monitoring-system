@@ -79,33 +79,11 @@ class RequiredDocument extends Model
             SendRequirementNotification::dispatch($requiredDocument->id)->delay(now()->addMinutes(5));
         });
 
-         static::deleting(function (RequiredDocument $document) {
-        // Delete notifications where required_document_id matches
-        \Illuminate\Notifications\DatabaseNotification::query()
-            ->where('type', '!=', 'Filament\Notifications\DatabaseNotification') // Only our custom notifications
-            ->whereRaw(
-                "JSON_EXTRACT(data, '$.required_document_id') = ?",
-                [(string) $document->id]
-            )
-            ->orWhereRaw(
-                "JSON_EXTRACT(data, '$.required_document_id') = ?",
-                [(int) $document->id]
-            )
-            ->delete();
-            
-        // Alternative approach: loop through and delete (more reliable)
-        // $notifications = \Illuminate\Notifications\DatabaseNotification::query()
-        //     ->get()
-        //     ->filter(function ($notification) use ($document) {
-        //         $data = $notification->data;
-        //         return isset($data['required_document_id']) && 
-        //                (string) $data['required_document_id'] === (string) $document->id;
-        //     });
-        //     
-        // foreach ($notifications as $notification) {
-        //     $notification->delete();
-        // }
-    });
+        static::deleting(function (RequiredDocument $document) {
+            \Illuminate\Notifications\DatabaseNotification::query()
+                ->where('data->required_document_id', $document->id)
+                ->delete();
+        });
         // Note: We CANNOT send email notifications here because 
         // complyingOffices are created AFTER this model is saved
         // The email notifications should be sent in the Resource's afterCreate() method
