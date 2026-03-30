@@ -79,12 +79,13 @@ class RequiredDocument extends Model
             SendRequirementNotification::dispatch($requiredDocument->id)->delay(now()->addMinutes(5));
         });
 
-       static::deleting(function (RequiredDocument $document) {
-            \Illuminate\Notifications\DatabaseNotification::on('mysql')
-                ->where(function ($query) use ($document) {
-                    $query->whereJsonContains('data->required_document_id', (int) $document->id)
-                        ->orWhereJsonContains('data->required_document_id', (string) $document->id);
-                })
+        static::deleting(function (RequiredDocument $document) {
+            \Illuminate\Support\Facades\DB::connection('mysql')
+                ->table('notifications')
+                ->whereRaw(
+                    "JSON_UNQUOTE(JSON_EXTRACT(data, '$.required_document_id')) = ?",
+                    [(string) $document->id]
+                )
                 ->delete();
         });
         // Note: We CANNOT send email notifications here because 

@@ -116,17 +116,24 @@ class CreateRequiredDocument extends CreateRecord
                 ->body($body)
                 ->actions($actions)
                 ->sendToDatabase($user);
+                
+                // Fetch and manually merge required_document_id into data
+                $dbNotification = \Illuminate\Notifications\DatabaseNotification::on('mysql')
+                    ->where('notifiable_type', User::class)
+                    ->where('notifiable_id', $user->getKey())
+                    ->whereNull('read_at')
+                    ->orderByDesc('created_at')
+                    ->first();
 
-            // Patch required_document_id into the data column immediately after
-            \Illuminate\Notifications\DatabaseNotification::query()
-                ->where('notifiable_type', User::class)
-                ->where('notifiable_id', $user->getKey())
-                ->whereNull('read_at')
-                ->orderByDesc('created_at')
-                ->first()
-                ?->update([
-                    'data->required_document_id' => $this->record->id
-                ]);
+                if ($dbNotification) {
+                    $currentData = $dbNotification->data; // already cast to array by Laravel
+                    $currentData['required_document_id'] = $this->record->id;
+
+                    \Illuminate\Support\Facades\DB::connection('mysql')
+                        ->table('notifications')
+                        ->where('id', $dbNotification->id)
+                        ->update(['data' => json_encode($currentData)]);
+                }
         }
     }
 
