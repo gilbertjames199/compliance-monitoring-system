@@ -106,9 +106,18 @@ class ComplianceTrackingPrintController extends Controller
                 'fms.offices.office as office_name',
                 DB::raw('DATE_FORMAT(complying_offices.submitted_at, "%Y-%m-%d") as submitted_at'),
                 'complying_offices.submitted_by',
+                // DB::raw('
+                //     CASE
+                //         WHEN complying_offices.submitted_at IS NULL THEN "not_submitted"
+                //         WHEN DATE(complying_offices.submitted_at) <= DATE(required_documents.due_date) THEN "submitted_on_time"
+                //         WHEN DATE(complying_offices.submitted_at) > DATE(required_documents.due_date) THEN "submitted_late"
+                //         ELSE "not_submitted"
+                //     END as status
+                // '),
                 DB::raw('
                     CASE
                         WHEN complying_offices.submitted_at IS NULL THEN "not_submitted"
+                        WHEN complying_offices.status = "0" THEN "partially_complied"
                         WHEN DATE(complying_offices.submitted_at) <= DATE(required_documents.due_date) THEN "submitted_on_time"
                         WHEN DATE(complying_offices.submitted_at) > DATE(required_documents.due_date) THEN "submitted_late"
                         ELSE "not_submitted"
