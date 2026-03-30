@@ -80,30 +80,32 @@ class ComplyingOffice extends Model
                     return;
                 }
 
-                Notification::make()
-                    ->title('Compliance Submission Update')
-                    ->body("{$complyingOfficeName} marked their compliance as Complied for: {$requiredDocument->requirement}")
-                    ->icon('heroicon-o-document-check')
-                    ->iconColor('success')
-                    ->actions([
-                        Action::make('view')
-                            ->label('View Submission')
-                            ->url(url("/admin/required-documents/{$requiredDocument->id}/edit"))
-                            ->markAsRead(),
-                    ])
-                    ->sendToDatabase($recipient);
+                $notificationData = array_merge(
+                    Notification::make()
+                        ->title('Compliance Submission Update')
+                        ->body("{$complyingOfficeName} marked their compliance as Complied for: {$requiredDocument->requirement}")
+                        ->icon('heroicon-o-document-check')
+                        ->iconColor('success')
+                        ->actions([
+                            Action::make('view')
+                                ->label('View Submission')
+                                ->url(url("/admin/required-documents/{$requiredDocument->id}/edit"))
+                                ->markAsRead(),
+                        ])
+                        ->getDatabaseMessage(),
+                    ['required_document_id' => $requiredDocument->id]
+                );
 
-                // Atomically tag the just-sent notification using JSON_SET
-                // Avoids race conditions from fetch-then-update
-                \Illuminate\Notifications\DatabaseNotification::query()
-                    ->where('notifiable_type', \App\Models\User::class)
-                    ->where('notifiable_id', $recipient->getKey())
-                    ->orderByDesc('created_at')
-                    ->limit(1)
-                    ->update([
-                        'data' => \Illuminate\Support\Facades\DB::raw(
-                            "JSON_SET(data, '$.required_document_id', {$requiredDocument->id})"
-                        )
+                DB::connection('mysql')
+                    ->table('notifications')
+                    ->insert([
+                        'id'              => (string) \Illuminate\Support\Str::uuid(),
+                        'type'            => Notification::class,
+                        'notifiable_type' => User::class,
+                        'notifiable_id'   => $recipient->getKey(),
+                        'data'            => json_encode($notificationData),
+                        'created_at'      => now(),
+                        'updated_at'      => now(),
                     ]);
         });
         });
