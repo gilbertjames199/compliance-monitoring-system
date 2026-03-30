@@ -92,56 +92,42 @@ class CreateRequiredDocument extends CreateRecord
         // Send modal notifications only to allowed users
         foreach ($modalUsers as $user) {
             $actions = [];
-            
-            // Generate View action dynamically
-            //if (!$this->record->is_confidential || $user->hasRoleSafe('super_admin', 'department_head')) {
+
             if (!$this->record->is_confidential || $user->can('ViewConfidential:RequiredDocument')) {
                 $complyingOffice = $complyingOfficeRecords[$user->department_code] ?? null;
                 if ($complyingOffice) {
                     $actions[] = Action::make('View')
-                        ->url(\App\Filament\Resources\ComplyingOffices\ComplyingOfficeResource::getUrl('edit',['record' => $complyingOffice]));
+                        ->url(\App\Filament\Resources\ComplyingOffices\ComplyingOfficeResource::getUrl('edit', ['record' => $complyingOffice]));
                 }
             }
-            
-            // $canView = !$this->record->is_confidential || $user->hasRoleSafe('super_admin', 'department_head');
+
             $canView = !$this->record->is_confidential || $user->can('ViewConfidential:RequiredDocument');
 
             $body = $canView
                 ? "{$requiringAgency} assigned a new requirement: {$requirementTitle}. Deadline: {$deadline->format('F j, Y')}."
                 : "{$requiringAgency} assigned a new confidential requirement. Deadline: {$deadline->format('F j, Y')}.";
 
-            // Get the latest notification ID before sending
-            $lastId = \Illuminate\Support\Facades\DB::connection('mysql')
+            $notificationData = array_merge(
+                Notification::make()
+                    ->title('New Requirement Assigned')
+                    ->icon('heroicon-o-document-text')
+                    ->body($body)
+                    ->actions($actions)
+                    ->getDatabaseMessage(),
+                ['required_document_id' => $this->record->id]
+            );
+
+            DB::connection('mysql')
                 ->table('notifications')
-                ->where('notifiable_type', User::class)
-                ->where('notifiable_id', $user->getKey())
-                ->max('id') ?? '0';
-
-            Notification::make()
-                ->title('New Requirement Assigned')
-                ->icon('heroicon-o-document-text')
-                ->body($body)
-                ->actions($actions)
-                ->sendToDatabase($user);
-
-            // Now grab only the notification that was just inserted (ID greater than lastId)
-            $dbNotification = \Illuminate\Support\Facades\DB::connection('mysql')
-                ->table('notifications')
-                ->where('notifiable_type', User::class)
-                ->where('notifiable_id', $user->getKey())
-                ->where('id', '>', $lastId)
-                ->orderByDesc('created_at')
-                ->first();
-
-            if ($dbNotification) {
-                $currentData = json_decode($dbNotification->data, true);
-                $currentData['required_document_id'] = $this->record->id;
-
-                \Illuminate\Support\Facades\DB::connection('mysql')
-                    ->table('notifications')
-                    ->where('id', $dbNotification->id)
-                    ->update(['data' => json_encode($currentData)]);
-            }
+                ->insert([
+                    'id'              => (string) \Illuminate\Support\Str::uuid(),
+                    'type'            => Notification::class,
+                    'notifiable_type' => User::class,
+                    'notifiable_id'   => $user->getKey(),
+                    'data'            => json_encode($notificationData),
+                    'created_at'      => now(),
+                    'updated_at'      => now(),
+                ]);
         }
     }
 
