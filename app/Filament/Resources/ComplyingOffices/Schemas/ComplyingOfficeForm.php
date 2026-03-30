@@ -312,7 +312,7 @@ class ComplyingOfficeForm
                             ->imageEditor()
                             ->imagePreviewHeight(200)
                             ->required()
-                            ->maxFiles(3)
+                            // ->maxFiles(3)
                             ->maxSize(10240) // 10MB
                             // ->panelLayout('grid')
                             ->reactive()
