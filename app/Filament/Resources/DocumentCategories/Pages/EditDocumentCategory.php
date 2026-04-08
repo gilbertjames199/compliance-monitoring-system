@@ -34,13 +34,7 @@ class EditDocumentCategory extends EditRecord
         $data['created_by'] = auth()->id();
         // dd($data);
         $state = $this->form->getState();
-        // if (!empty($state['requiredDocuments'][0])) {
-
-        //     dd($state['requiredDocuments']); // ✅ works!
-        // } else {
-        //     dd('empty dataset mutateFormDataBeforeSave');
-        // }
-        // dd(isset($data['requiredDocuments']) , is_array($data['requiredDocuments']) , count($data['requiredDocuments']));
+       
         if (! empty($data['requiredDocuments'])) {
             // dd("not empty");
             foreach ($data['requiredDocuments'] as $i => $doc) {

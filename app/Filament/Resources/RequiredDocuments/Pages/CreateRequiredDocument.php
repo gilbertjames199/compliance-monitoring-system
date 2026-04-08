@@ -19,17 +19,6 @@ class CreateRequiredDocument extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        // dd($data);
-        // $selectedOffices = $data['_selected_offices'] ?? [];
-        // $status = $data['_status'] ?? -1;
-
-        // foreach ($selectedOffices as $deptCode) {
-        //     ComplyingOffice::create([
-        //         'department_code' => $deptCode,
-        //         'required_document_id'  => $record->id,
-        //         'status'          => $status,
-        //     ]);
-        // }
         return RequiredDocumentForm::mutateFormDataBeforeCreate($data);
     }
 
@@ -59,20 +48,6 @@ class CreateRequiredDocument extends CreateRecord
         // Get all users in the selected offices
         $users = User::whereIn('department_code', $selectedOffices)->get();
         
-        // Get modal notification users (only super_admin & department_head for confidential, everyone for non-confidential)
-        // $modalUsers = User::whereIn('department_code', $selectedOffices);
-        
-        // if ($this->record->is_confidential) {
-        //     // Only super_admin and department_head for confidential
-        //     $allowedUserIds = DB::connection('mysql')
-        //         ->table('model_has_roles')
-        //         ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
-        //         ->whereIn('roles.name', ['super_admin', 'department_head'])
-        //         ->where('model_type', User::class)
-        //         ->pluck('model_id')
-        //         ->toArray();
-        //     $modalUsers->whereIn('recid', $allowedUserIds);
-        // }
         $modalUsers = User::whereIn('department_code', $selectedOffices)
             ->get()
             ->filter(function($user) {

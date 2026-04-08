@@ -1,93 +1,95 @@
-{{-- <p>Good day,</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Compliance Monitoring System</title>
+</head>
 
-<p>
-This is a reminder that the requirement
-<strong>{{ $document->requirement }}</strong>
-from
-<strong>{{ $requirement->agency_name }}</strong>
-is due on
-<strong>{{ \Carbon\Carbon::parse($document->due_date)->format('F d, Y') }}</strong>.
-</p>
+<body style="margin:0; padding:0; background-color:#f5f3d9; font-family: Arial, sans-serif;">
 
-<p>Please ensure compliance before the deadline.</p>
+<table width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#f5f3d9; padding:20px 0;">
+<tr>
+<td align="center">
 
-<p>
-Regards,<br>
-<strong>Compliance Monitoring System</strong>
-</p> --}}
+    <!-- MAIN CONTAINER -->
+    <table width="600" cellpadding="0" cellspacing="0" border="0" style="background:#ffffff; border-radius:10px; overflow:hidden;">
 
-<div class="max-w-xl mx-auto bg-white border rounded-lg shadow-sm overflow-hidden font-sans">
+        <!-- HEADER -->
+        <tr>
+            <td style="background: linear-gradient(135deg, #a86b00, #f2b705); padding:20px; text-align:center; color:#ffffff;">
+                <div style="font-size:18px; font-weight:bold; letter-spacing:1px;">
+                    COMPLIANCE MONITORING SYSTEM
+                </div>
+                <div style="font-size:12px; margin-top:5px;">
+                    Provincial Government of Davao de Oro
+                </div>
+            </td>
+        </tr>
 
-    <!-- Header -->
-    <div class="bg-blue-600 text-white px-6 py-4">
-        <h2 class="text-lg font-semibold">
-            Compliance Reminder
-        </h2>
-    </div>
+        <!-- BODY -->
+        <tr>
+            <td style="padding:30px;">
 
-    <!-- Body -->
-    <div class="p-6 text-gray-700">
+                <h2 style="margin:0 0 10px; color:#a86b00;">Compliance Deadline Reminder</h2>
 
-        <p class="mb-4">
-            Good day,
-        </p>
-
-        <p class="mb-4">
-            This is a reminder that the following requirement is approaching its deadline:
-        </p>
-
-        <!-- Requirement Card -->
-        <div class="bg-gray-50 border-l-4 border-blue-600 rounded-md p-4 mb-5">
-
-            <div class="mb-3">
-                <p class="text-sm text-gray-500">
-                    Requirement
+                <p style="font-size:14px; color:#555; line-height:1.6;">
+                    Good day <strong>{{ $user->name }}</strong> from <strong>{{ $office }}</strong>,<br><br>
+                    This is a reminder regarding an upcoming compliance requirement. Please review the details below and ensure timely submission.
                 </p>
-                <p class="font-semibold text-gray-800">
-                    {{ $document->requirement }}
-                </p>
-            </div>
 
-            <div class="mb-3">
-                <p class="text-sm text-gray-500">
-                    Requiring Agency
-                </p>
-                <p class="font-medium text-gray-800">
-                    {{ $requirement->agency_name }}
-                </p>
-            </div>
+                <!-- TABLE -->
+                <table width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-top:20px; border-collapse:collapse;">
+                    
+                    <tr>
+                        <td style="padding:10px; background:#f4f4f4; font-weight:bold; font-size:13px;">Requirement</td>
+                        <td style="padding:10px; font-size:13px;">{{ $requirement->requirement }}</td>
+                    </tr>
 
-            <div>
-                <p class="text-sm text-gray-500">
-                    Due Date
-                </p>
-                <p class="font-semibold text-red-600">
-                    {{ \Carbon\Carbon::parse($document->due_date)->format('F d, Y') }}
-                </p>
-            </div>
+                    <tr>
+                        <td style="padding:10px; background:#f9f9f9; font-weight:bold; font-size:13px;">Requiring Agency</td>
+                        <td style="padding:10px; font-size:13px;">{{ $requirement->agency_name }}</td>
+                    </tr>
 
-        </div>
+                    <tr>
+                        <td style="padding:10px; background:#f4f4f4; font-weight:bold; font-size:13px;">Start Date</td>
+                        <td style="padding:10px; font-size:13px;">
+                            {{ \Carbon\Carbon::parse($requirement->start_date)->format('F d, Y') }}
+                        </td>
+                    </tr>
 
-        <p class="mb-4">
-            Please ensure compliance before the deadline to avoid delays or issues.
-        </p>
+                    <tr>
+                        <td style="padding:10px; background:#f9f9f9; font-weight:bold; font-size:13px;">Deadline</td>
+                        <td style="padding:10px; font-size:13px; color:#d35400; font-weight:bold;">
+                            {{ \Carbon\Carbon::parse($requirement->due_date)->format('F d, Y') }}
+                        </td>
+                    </tr>
 
-        <p class="mb-6">
-            Thank you.
-        </p>
+                </table>
 
-        <p>
-            Regards,<br>
-            <span class="font-semibold">
-                Compliance Monitoring System
-            </span>
-        </p>
+                <!-- NOTICE -->
+                <div style="margin-top:25px; padding:15px; background:#fff3e0; border-left:4px solid #f2b705; font-size:13px; color:#555;">
+                    Please ensure that all required documents and actions are completed 
+                    <strong>on or before the deadline</strong> to maintain compliance.
+                </div>
 
-    </div>
+            </td>
+        </tr>
 
-    <!-- Footer -->
-    <div class="bg-gray-100 text-gray-500 text-sm px-6 py-3">
-        This is an automated message. Please do not reply.
-    </div>
+        <!-- FOOTER -->
+        <tr>
+            <td style="background:#f0f0f0; padding:15px; text-align:center; font-size:12px; color:#777;">
+                <strong style="color:#a86b00;">Compliance Monitoring System</strong><br>
+                Provincial Government of Davao de Oro<br><br>
+                This is an automated email. Please do not reply.
+            </td>
+        </tr>
 
-</div>
+    </table>
+
+</td>
+</tr>
+</table>
+
+</body>
+</html>

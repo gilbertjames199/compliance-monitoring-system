@@ -73,16 +73,6 @@ class RequiredDocumentsTable
 
                 // $query->where('agency_name', $officeName);
 
-                // // Optionally hide confidential requirements from AO & Admin
-                // // if ($user->hasRoleSafe('AO', 'admin')) {
-                // //     $query->where('is_confidential', false);
-                // // }
-                // // Only show own department if the user cannot view all offices
-                // if (! $user->can('ViewAllOffices:RequiredDocument')) {
-                //     $query->whereHas('complyingOffices', fn ($q) => 
-                //         $q->where('department_code', $user->department_code)
-                //     );
-                // }
                 // ✅ ONLY filter by requiring agency
                 $query->where('agency_name', $officeName);
                 
@@ -627,51 +617,6 @@ class RequiredDocumentsTable
                 }),
             ])
             ->toolbarActions([
-                // BulkActionGroup::make([
-                //     DeleteBulkAction::make()
-                //         ->visible(function () {
-                //             $user = auth()->user();
-                //             return $user->hasRoleSafe('super_admin') || $user->hasRoleSafe('department_head');
-                //         })
-                //         ->before(function (DeleteBulkAction $action, $records) {
-                //             $user = auth()->user();
-
-                //             // Super admin can always delete
-                //             if ($user->hasRoleSafe('super_admin')) {
-                //                 return;
-                //             }
-
-                //             if ($user->hasRoleSafe('department_head')) {
-                //                 $officeName = Office::on('mysql2')
-                //                     ->where('department_code', $user->department_code)
-                //                     ->value('office');
-
-                //                 $hasRestricted = $records->contains(function ($record) use ($officeName) {
-                //                     // Block if not their agency
-                //                     if ($record->agency_name !== $officeName) {
-                //                         return true;
-                //                     }
-
-                //                     // Block if any complying office has already submitted
-                //                     return $record->complyingOffices()
-                //                         ->whereIn('status', [0, 1])
-                //                         ->exists();
-                //                 });
-
-                //                 if ($hasRestricted) {
-                //                     Notification::make()
-                //                         ->title('Deletion Not Allowed')
-                //                         ->body('One or more selected requirements cannot be deleted because offices have already submitted compliance.')
-                //                         ->danger()
-                //                         ->persistent()
-                //                         ->send();
-
-                //                     $action->cancel();
-                //                 }
-                //             }
-                //         })
-            
-                // ]),
                 BulkActionGroup::make([
                     DeleteBulkAction::make()
                         ->visible(function () {

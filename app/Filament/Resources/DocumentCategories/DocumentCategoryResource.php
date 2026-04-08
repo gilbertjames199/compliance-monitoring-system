@@ -50,45 +50,6 @@ class DocumentCategoryResource extends Resource
             'edit' => EditDocumentCategory::route('/{record}/edit'),
         ];
     }
-    /*
-    protected static function afterCreate($record, array $data): void
-    {
-        if (!empty($data['complying_offices'])) {
-            foreach ($data['complying_offices'] as $department_code) {
-                ComplyingOffice::create([
-                    'department_code' => $department_code,
-                    'required_document_id' => $record->id,
-                    'status' => -1, // Default: Not Complied
-                ]);
-            }
-        }
-    }
-
-    protected static function afterSave($record, array $data): void
-    {
-        // Optional if you also want to sync when editing
-        $selectedOffices = collect($data['complying_offices'] ?? []);
-        $existing = $record->complyingOffices()->pluck('department_code');
-
-        // Add new ones
-        $toAdd = $selectedOffices->diff($existing);
-        foreach ($toAdd as $department_code) {
-            ComplyingOffice::create([
-                'department_code' => $department_code,
-                'required_document_id' => $record->id,
-                'status' => -1,
-            ]);
-        }
-
-        // Remove unselected ones
-        $toRemove = $existing->diff($selectedOffices);
-        if ($toRemove->isNotEmpty()) {
-            $record->complyingOffices()
-                ->whereIn('department_code', $toRemove)
-                ->delete();
-        }
-    }
-    */
 
     public function saveWithComplyingOffices(array $attributes)
     {
@@ -145,12 +106,6 @@ class DocumentCategoryResource extends Resource
         // Prevent double save
         return [];
     }
-
-    // public function save()
-    // {
-    //     $data = $this->form->getState();
-    //     dd($data); // 👈 Debug before saving manually
-    // }
 
 
     protected function getCreatedNotification(): ?Notification

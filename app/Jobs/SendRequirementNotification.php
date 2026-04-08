@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Mail\DueDateReminderMail;
 use App\Mail\RequirementDeadlineMail;
+use App\Models\AuditLog;
 use App\Models\ComplyingOffice;
 use App\Models\RequiredDocument;
 use App\Models\User;
@@ -15,6 +16,7 @@ use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Cache;
 
 class SendRequirementNotification implements ShouldQueue
 {
@@ -22,17 +24,11 @@ class SendRequirementNotification implements ShouldQueue
 
     public $requirementId;
 
-    /**
-     * Create a new job instance.
-     */
     public function __construct($requirementId = null)
     {
         $this->requirementId = $requirementId;
     }
 
-    /**
-     * Execute the job.
-     */
     public function handle(): void
     {
         if ($this->requirementId === null) {
@@ -41,62 +37,158 @@ class SendRequirementNotification implements ShouldQueue
         }
 
         $record = RequiredDocument::find($this->requirementId);
-
         if (!$record) return;
+
+        // ✅ PASTE LOG HERE - Right after checking documents exist
+            Log::info("Auto notification triggered (single)", [
+            'trigger' => 'scheduled_job_handle',
+            'requirement_id' => $record->id,
+            'requirement_name' => $record->requirement,
+            'due_date' => $record->due_date,
+            'timestamp' => now()
+        ]);
 
         $complyingOffices = ComplyingOffice::where('required_document_id', $record->id)->get();
 
-        foreach ($complyingOffices as $office) {
+        $departmentCodes = $complyingOffices->pluck('department_code')->unique();
 
-            $usersQuery = User::where('department_code', $office->department_code);
+        $usersWithRoles = DB::connection('mysql')
+            ->table('model_has_roles')
+            ->where('model_type', User::class)
+            ->pluck('model_id')
+            ->toArray();
 
-            // If confidential, only send to user who can ViewConfidential:RequiredDocument 
-            if ($record->is_confidential) {
-                $allowedUserIds = DB::connection('mysql')
-                    ->table('model_has_permissions')
-                    ->join('permissions', 'permissions.id', '=', 'model_has_permissions.permission_id')
-                    ->where('permissions.name', 'ViewConfidential:RequiredDocument')
-                    ->where('model_has_permissions.model_type', User::class)
-                    ->pluck('model_has_permissions.model_id')
-                    ->toArray();
-                $usersQuery->whereIn('recid', $allowedUserIds);
-            }
+        $usersQuery = User::whereIn('department_code', $departmentCodes)
+            ->whereIn('recid', $usersWithRoles);
 
-            $users = $usersQuery->get();
+        if ($record->is_confidential) {
+            $allowedUserIds = DB::connection('mysql')
+                ->table('model_has_permissions')
+                ->join('permissions', 'permissions.id', '=', 'model_has_permissions.permission_id')
+                ->where('permissions.name', 'ViewConfidential:RequiredDocument')
+                ->where('model_has_permissions.model_type', User::class)
+                ->pluck('model_has_permissions.model_id')
+                ->toArray();
 
-            foreach ($users as $user) {
-                try {
-                    Mail::to($user->email)->queue(new RequirementDeadlineMail($record));
-                    Log::info("Email queued for user {$user->id} - Requirement: {$record->id}");
-                } catch (\Exception $e) {
-                    Log::error("Failed to queue email for user {$user->id}", ['error' => $e->getMessage()]);
+            $usersQuery->whereIn('recid', $allowedUserIds);
+        }
+
+        $users = $usersQuery->distinct()->get();
+
+        // ✅ Resolve complying office info per user's department
+        $officeMap = \App\Models\Office::whereIn('department_code', $departmentCodes)
+            ->pluck('office', 'department_code');
+
+        $complyingOfficeMap = $complyingOffices->keyBy('department_code');
+
+        foreach ($users as $user) {
+            try {
+                if (empty($user->email)) {
+                    Log::warning("User {$user->id} has no email, skipped");
+                    continue;
                 }
+
+                // ✅ Check for duplicate notification within last 24 hours
+                $duplicateKey = "requirement_notification_{$record->id}_user_{$user->recid}";
+                
+                if (Cache::has($duplicateKey)) {
+                    Log::info("Skipping - already notified recently", [
+                        'user' => $user->id,
+                        'requirement' => $record->id,
+                        'email' => $user->email
+                    ]);
+                    continue;
+                }
+
+                // ✅ Check database for existing notification today
+                $alreadyNotified = AuditLog::where('requirement_id', $record->id)
+                    ->where('user_id', $user->recid)
+                    ->where('event', 'requirement notification sent')
+                    ->whereDate('action_at', today())
+                    ->exists();
+
+                if ($alreadyNotified) {
+                    Log::info("Skipping - already notified today (database check)", [
+                        'user' => $user->id,
+                        'requirement' => $record->id
+                    ]);
+                    continue;
+                }
+
+                Mail::to($user->email)->queue(
+                    new RequirementDeadlineMail($record, $user)
+                );
+
+                Log::info("Email queued for user {$user->id}");
+
+                // ✅ Audit log per user notified
+                $complyingOffice = $complyingOfficeMap[$user->department_code] ?? null;
+
+                AuditLog::create([
+                    'event'                  => 'requirement notification sent',
+                    'user_id'                => $user->recid,
+                    'acted_by'               => null, // system-triggered
+                    'action_at'              => now(),
+                    'requirement_id'         => $record->id,
+                    'requirement_name'       => $record->requirement,
+                    'complying_office_id'    => $complyingOffice?->id,
+                    'office_name'            => $officeMap[$user->department_code] ?? $user->department_code,
+                    'requiring_agency_name'  => $record->agency_name,
+                    'remarks'                => "Notification email sent to {$user->email}",
+                ]);
+
+                // ✅ Set cache to prevent duplicate for 24 hours
+                Cache::put($duplicateKey, true, now()->addDay());
+
+            } catch (\Exception $e) {
+                Log::error("Failed for user {$user->id}", [
+                    'error' => $e->getMessage()
+                ]);
             }
         }
     }
 
     protected function multiSend(): void
     {
-        // Get documents due 2 days from now that haven't had reminder sent yet
         $documents = RequiredDocument::whereDate('due_date', now()->addDays(2))
             ->whereNull('reminder_sent_at')
             ->with('complyingOffices')
             ->get();
 
         if ($documents->isEmpty()) {
-            Log::info('No documents with due date in 2 days pending reminders');
+            Log::info('No documents pending reminders');
             return;
         }
 
+        // ✅ PASTE LOG HERE - Right after checking documents exist
+        Log::info("Auto notification triggered (bulk)", [
+            'trigger' => 'scheduled_job_multisend',
+            'document_count' => $documents->count(),
+            'due_date_range' => now()->addDays(2)->format('Y-m-d'),
+            'timestamp' => now()
+        ]);
+
         foreach ($documents as $document) {
-            $departmentCodes = $document->complyingOffices->pluck('department_code')->unique();
-            
-            // Get users in departments and avoid duplicates
-            $usersQuery = User::whereIn('department_code', $departmentCodes)->distinct();
-            
-            // If confidential, only send to users with permission to view confidential documents
+
+            $departmentCodes = $document->complyingOffices
+                ->pluck('department_code')
+                ->unique();
+
+            $officeNames = \App\Models\Office::whereIn('department_code', $departmentCodes)
+                ->pluck('office', 'department_code');
+
+            $complyingOfficeMap = $document->complyingOffices->keyBy('department_code');
+
+            $usersWithRoles = DB::connection('mysql')
+                ->table('model_has_roles')
+                ->where('model_type', User::class)
+                ->pluck('model_id')
+                ->toArray();
+
+            $usersQuery = User::whereIn('department_code', $departmentCodes)
+                ->whereIn('recid', $usersWithRoles);
+
             if ($document->is_confidential) {
-                // Get users who have the 'ViewConfidential:RequiredDocument' permission
                 $allowedUserIds = DB::connection('mysql')
                     ->table('model_has_permissions')
                     ->join('permissions', 'permissions.id', '=', 'model_has_permissions.permission_id')
@@ -104,23 +196,84 @@ class SendRequirementNotification implements ShouldQueue
                     ->where('model_has_permissions.model_type', User::class)
                     ->pluck('model_has_permissions.model_id')
                     ->toArray();
+
                 $usersQuery->whereIn('recid', $allowedUserIds);
             }
-            
-            $users = $usersQuery->get();
-            
+
+            $users = $usersQuery->distinct()->get();
+
             $emailCount = 0;
+
             foreach ($users as $user) {
                 try {
-                    Mail::to($user->email)->queue(new DueDateReminderMail($document));
-                    Log::info("Reminder email queued for user {$user->id} - Document: {$document->id}");
+                    if (empty($user->email)) {
+                        Log::warning("User {$user->id} has no email, skipped");
+                        continue;
+                    }
+
+                    // ✅ Check for duplicate reminder within last 24 hours
+                    $duplicateKey = "due_date_reminder_{$document->id}_user_{$user->recid}";
+                    
+                    if (Cache::has($duplicateKey)) {
+                        Log::info("Skipping - already reminded recently", [
+                            'user' => $user->id,
+                            'requirement' => $document->id,
+                            'email' => $user->email
+                        ]);
+                        continue;
+                    }
+
+                    // ✅ Check database for existing reminder today
+                    $alreadyNotified = AuditLog::where('requirement_id', $document->id)
+                        ->where('user_id', $user->recid)
+                        ->where('event', 'due date reminder sent')
+                        ->whereDate('action_at', today())
+                        ->exists();
+
+                    if ($alreadyNotified) {
+                        Log::info("Skipping - already reminded today (database check)", [
+                            'user' => $user->id,
+                            'requirement' => $document->id
+                        ]);
+                        continue;
+                    }
+
+                    $officeName = $officeNames[$user->department_code] ?? $user->department_code;
+                    $complyingOffice = $complyingOfficeMap[$user->department_code] ?? null;
+
+                    Mail::to($user->email)->queue(
+                        new DueDateReminderMail($document, $user, $officeName)
+                    );
+
+                    Log::info("Reminder queued for {$user->id}");
                     $emailCount++;
+
+                    // ✅ Audit log per user reminded
+                    AuditLog::create([
+                        'event'                  => 'due date reminder sent',
+                        'user_id'                => $user->recid,
+                        'acted_by'               => null, // system-triggered
+                        'action_at'              => now(),
+                        'requirement_id'         => $document->id,
+                        'requirement_name'       => $document->requirement,
+                        'complying_office_id'    => $complyingOffice?->id,
+                        'office_name'            => $officeName,
+                        'requiring_agency_name'  => $document->agency_name,
+                        'remarks'                => "Due date reminder sent to {$user->email}. Due on {$document->due_date->format('M d, Y')}.",
+                    ]);
+
+                    // ✅ Set cache to prevent duplicate for 24 hours
+                    Cache::put($duplicateKey, true, now()->addDay());
+
                 } catch (\Exception $e) {
-                    Log::error("Failed to queue reminder email for user {$user->id}", ['error' => $e->getMessage()]);
+                    Log::error("Failed for {$user->id}", [
+                        'error' => $e->getMessage(),
+                        'trace' => $e->getTraceAsString(),
+                        'email' => $user->email,
+                    ]);
                 }
             }
-            
-            // Mark reminder as sent to prevent duplicate emails
+
             if ($emailCount > 0) {
                 $document->update(['reminder_sent_at' => now()]);
             }

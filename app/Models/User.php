@@ -92,30 +92,6 @@ class User extends Authenticatable implements FilamentUser
 
 
 
-    // protected $guarded = ['id'];
-    // /**
-    //  * The attributes that should be hidden for serialization.
-    //  *
-    //  * @var list<string>
-    //  */
-    // protected $hidden = [
-    //     'password',
-    //     'remember_token',
-    // ];
-
-    // /**
-    //  * Get the attributes that should be cast.
-    //  *
-    //  * @return array<string, string>
-    //  */
-    // protected function casts(): array
-    // {
-    //     return [
-    //         'email_verified_at' => 'datetime',
-    //         'password' => 'hashed',
-    //     ];
-    // }
-
     public function office()
     {
         return $this->belongsTo(Office::class, 'department_code', 'department_code');
@@ -168,7 +144,7 @@ class User extends Authenticatable implements FilamentUser
 
     public function hasRoleSafe(string ...$roles): bool
     {
-        $roleIds = \DB::connection('mysql')
+        $roleIds = DB::connection('mysql')
             ->table('model_has_roles')
             ->where('model_id', $this->recid)
             ->where('model_type', static::class)
@@ -177,7 +153,7 @@ class User extends Authenticatable implements FilamentUser
 
     if (empty($roleIds)) return false;
 
-    return \DB::connection('mysql')
+    return DB::connection('mysql')
         ->table('roles')
         ->whereIn('id', $roleIds)
         ->whereIn('name', $roles)
