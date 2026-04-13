@@ -2,9 +2,6 @@
 
 namespace App\Console;
 
-use App\Models\RequiredDocument;
-use App\Notifications\RequirementDue;
-use App\Jobs\SendRequirementNotification;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Console\Kernel as ConsoleKernel;
 
@@ -15,9 +12,7 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule)
     {
-        // Check every day for documents due in 2 days
-        // and send emails to complying office users
-        $schedule->job(new SendRequirementNotification())->daily();
+        
     }
 
     /**
