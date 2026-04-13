@@ -5,18 +5,9 @@ namespace App\Services;
 use App\Models\AuditLog;
 use App\Models\ComplyingOffice;
 use App\Models\Office;
-use Carbon\Carbon;
 
 class AuditLogger
 {
-    /**
-     * Get current time in Asia/Manila timezone
-     */
-    private static function getCurrentTime(): Carbon
-    {
-        return Carbon::now('Asia/Manila');
-    }
-
     /**
      * Log an audit event for a complying office.
      */
@@ -61,17 +52,12 @@ class AuditLogger
             $requirementId = $office->requirement_id ?? $office->required_document_id;
         }
 
-        // For 'added office' events, try to use the model's created_at timestamp
-        $actionTime = self::getCurrentTime();
-        if ($event === 'added office' && $office->created_at) {
-            $actionTime = Carbon::parse($office->created_at)->setTimezone('Asia/Manila');
-        }
-
         // Prepare data for audit log
         $data = [
             'event'                 => $event,
             'user_id'               => $actor['user_id'],
             'acted_by'              => $actor['acted_by'],
+            'action_at'             => now(),
             'requirement_id'        => $requirementId,
             'complying_office_id'   => $office->id,
             'requiring_agency_name' => $agencyName,
@@ -82,8 +68,8 @@ class AuditLogger
             'remarks'               => $remarks,
             'office_name'           => $officeName,
             'requirement_name'      => $requirementName,
-            'created_at'            => $actionTime,
-            'updated_at'            => $actionTime,
+            'created_at'            => now(),
+            'updated_at'            => now(),
         ];
        
         // Create the audit log
@@ -103,6 +89,7 @@ class AuditLogger
             'event'                 => $event,
             'user_id'               => $actor['user_id'],
             'acted_by'              => $actor['acted_by'],
+            'action_at'             => now(),
             'requirement_id'        => $document->id,
             'complying_office_id'   => null,
             'requiring_agency_name' => $document->agency_name ?? 'N/A',
@@ -113,8 +100,8 @@ class AuditLogger
             'remarks'               => $remarks,
             'office_name'           => $document->agency_name ?? 'N/A',
             'requirement_name'      => $document->requirement ?? 'Unknown Requirement',
-            'created_at'            => self::getCurrentTime(),
-            'updated_at'            => self::getCurrentTime(),
+            'created_at'            => now(),
+            'updated_at'            => now(),
         ]);
     }  
    
