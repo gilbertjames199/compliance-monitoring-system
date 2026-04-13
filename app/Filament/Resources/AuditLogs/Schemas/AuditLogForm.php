@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\AuditLogs\Schemas;
 
+use Carbon\Carbon;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -30,9 +31,22 @@ class AuditLogForm
                     })
                     ->disabled(),
 
-                DateTimePicker::make('action_at')
+                
+                // DateTimePicker::make('action_at')
+                //     ->label('Action At')
+                //     ->displayFormat('M d, Y h:i A')
+                //     ->timezone('Asia/Manila')
+                //     ->disabled(),
+
+                TextInput::make('action_at')
                     ->label('Action At')
-                    ->default(fn ($record) => $record->action_at?->format('M d, Y h:i A') ?? '-')
+                    ->formatStateUsing(fn ($state) =>
+                        $state
+                            ? Carbon::parse($state)
+                                ->timezone('Asia/Manila')
+                                ->format('M d, Y h:i A')
+                            : '-'
+                    )
                     ->disabled(),
 
 

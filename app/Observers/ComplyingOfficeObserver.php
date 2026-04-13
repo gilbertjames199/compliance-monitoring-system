@@ -151,35 +151,7 @@ class ComplyingOfficeObserver
         // optional
     }
 
-    // private function resolveEvent(array $old, array $new, ComplyingOffice $office): ?string
-    // {
-    //     $newStatus = (string) ($new['status'] ?? '');
-    //     $validationChanging = $old['validation_status'] !== $new['validation_status'];
-
-    //     // Priority 1: Resubmission after return
-    //     // was_returned=true + submitting + NOT an admin returned/validated action
-    //     if (
-    //         $office->was_returned &&
-    //         in_array($newStatus, ['0', '1']) &&
-    //         !in_array($new['validation_status'], ['returned', 'validated'])
-    //     ) {
-    //         return 'resubmitted - ' . $this->statusLabel($newStatus);
-    //     }
-
-    //     // Priority 2: Admin validation actions
-    //     if ($validationChanging) {
-    //         if ($new['validation_status'] === 'validated') return 'validated';
-    //         if ($new['validation_status'] === 'returned')  return 'returned';
-    //         return null;
-    //     }
-
-    //     // Priority 3: Normal submission
-    //     if (in_array($newStatus, ['0', '1']) && $new['validation_status'] !== 'validated') {
-    //         return 'submitted - ' . $this->statusLabel($newStatus);
-    //     }
-
-    //     return null;
-    // }
+   
     private function resolveEvent(array $old, array $new, ComplyingOffice $office): ?string
     {
         $oldStatus = (string) ($old['status'] ?? '');
