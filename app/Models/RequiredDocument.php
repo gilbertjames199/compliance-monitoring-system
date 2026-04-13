@@ -37,37 +37,6 @@ class RequiredDocument extends Model
         return $this->belongsTo(Office::class, 'requiring_agency_id');
     }
 
-    // public function
-
-    // app/Models/RequiredDocument.php
-
-    // protected static function booted()
-    // {
-    //     static::created(function ($requiredDocument) {
-    //         foreach ($requiredDocument->complyingOffices as $office) {
-    //             $query = \App\Models\User::where('department_code', $office->department_code);
-                
-    //             // If confidential, only notify super_admin and dept head
-
-    //             if ($requiredDocument->is_confidential) {
-    //                 $query->whereIn('role', ['super_admin', 'department_head']);
-    //             }
-                
-    //             $users = $query->get();
-                
-    //             foreach ($users as $user) {
-    //                 \Illuminate\Support\Facades\Mail::to($user->email)
-    //                     ->queue(new \App\Mail\RequirementDeadlineMail($requiredDocument));
-    //             }
-    //         }
-
-    //         static::created(function ($requirement) {
-    //             // Dispatch the job to run 5 minutes later
-    //             SendRequirementNotification::dispatch($requirement->id)->delay(now()->addMinutes(5));
-    //         });
-    //     });
-    // }
-
     protected static function booted()
     {
         static::creating(function ($model) {

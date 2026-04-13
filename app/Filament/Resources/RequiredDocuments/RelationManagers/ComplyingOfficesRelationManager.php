@@ -2,13 +2,12 @@
 
 namespace App\Filament\Resources\RequiredDocuments\RelationManagers;
 
-use App\Mail\RequirementDeadlineMail;
+use App\Mail\DueDateReminderMail;
 use App\Models\AuditLog;
 use App\Models\ComplyingOffice;
 use App\Models\Office;
 use App\Models\User;
 use Carbon\Carbon;
-use Dom\Text;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
@@ -25,11 +24,8 @@ use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Enums\FiltersLayout;
-use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Storage;
@@ -457,8 +453,9 @@ class ComplyingOfficesRelationManager extends RelationManager
                                     continue;
                                 }
 
+                               $officeName = $officeMap[$targetUser->department_code] ?? $targetUser->department_code;
                                 Mail::to($targetUser->email)
-                                    ->send(new RequirementDeadlineMail($requirement, $targetUser));
+                                    ->send(new DueDateReminderMail($requirement, $targetUser, $officeName));
 
                                 // ✅ Audit log per user notified (same pattern as your job)
                                 AuditLog::create([

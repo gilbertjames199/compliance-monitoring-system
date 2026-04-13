@@ -35,7 +35,7 @@ Route::get('email-test', function() {
                 ->get();
         
         foreach ($users as $user) {
-            Mail::to($user->email)->send(new DueDateReminderMail($document));
+            Mail::to($user->email)->send(new DueDateReminderMail($document, $user, $doc));
         }
     }
     return 'Emails sent!';

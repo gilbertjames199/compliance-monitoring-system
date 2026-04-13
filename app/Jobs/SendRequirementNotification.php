@@ -3,7 +3,6 @@
 namespace App\Jobs;
 
 use App\Mail\DueDateReminderMail;
-use App\Mail\RequirementDeadlineMail;
 use App\Models\AuditLog;
 use App\Models\ComplyingOffice;
 use App\Models\RequiredDocument;
@@ -115,8 +114,9 @@ class SendRequirementNotification implements ShouldQueue
                     continue;
                 }
 
+                $officeName = $officeMap[$user->department_code] ?? $user->department_code;
                 Mail::to($user->email)->queue(
-                    new RequirementDeadlineMail($record, $user)
+                    new DueDateReminderMail($record, $user, $officeName)
                 );
 
                 Log::info("Email queued for user {$user->id}");
