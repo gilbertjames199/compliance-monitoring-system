@@ -53,7 +53,7 @@ class RequiredDocumentObserver
 
         foreach ($users as $user) {
             try {
-                // Duplicate prevention (same as your job)
+                // Duplicate checks FIRST
                 $duplicateKey = "requirement_created_notification_{$requiredDocument->id}_user_{$user->recid}";
                 if (Cache::has($duplicateKey)) {
                     Log::info("Skipping duplicate notification for user {$user->id}");
@@ -62,7 +62,7 @@ class RequiredDocumentObserver
 
                 $alreadyNotified = AuditLog::where('requirement_id', $requiredDocument->id)
                     ->where('user_id', $user->recid)
-                    ->where('event', 'requirement notification sent')
+                    ->where('event', 'due date reminder sent') // ← CHANGED HERE
                     ->whereDate('action_at', today())
                     ->exists();
 
@@ -74,11 +74,11 @@ class RequiredDocumentObserver
                 // Send the notification
                 $user->notify(new RequiredDocumentCreatedNotification($requiredDocument));
 
-                // Audit log – only on success
+                // Audit log – using due date reminder sent
                 $officeName = $officeMap[$user->department_code] ?? $user->department_code;
 
                 AuditLog::create([
-                    'event'                  => 'requirement notification sent',
+                    'event'                  => 'due date reminder sent', // ← CHANGED HERE
                     'user_id'                => $user->recid,
                     'acted_by'               => $actorName,
                     'action_at'              => now(),
@@ -97,7 +97,6 @@ class RequiredDocumentObserver
                     'error' => $e->getMessage(),
                     'requirement_id' => $requiredDocument->id,
                 ]);
-                // No audit log on failure
             }
         }
 
