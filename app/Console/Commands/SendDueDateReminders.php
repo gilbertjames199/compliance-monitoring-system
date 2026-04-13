@@ -2,53 +2,59 @@
 
 namespace App\Console\Commands;
 
+use App\Mail\DueDateReminderMail;
+use App\Models\Office;
+use App\Models\RequiredDocument;
 use App\Models\User;
 use Illuminate\Console\Command;
-use App\Models\RequiredDocument;
-use App\Mail\DueDateReminderMail;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 
 class SendDueDateReminders extends Command
 {
-    /**
-     * The name and signature of the console command.
-     *
-     * @var string
-     */
-    // protected $signature = 'app:send-due-date-reminders';
     protected $signature = 'reminders:due-documents';
-
-
-    /**
-     * The console command description.
-     *
-     * @var string
-     */
-    // protected $description = 'Command description';
     protected $description = 'Send email reminders for documents due in 2 days';
 
-    /**
-     * Execute the console command.
-     */
     public function handle()
     {
-        $dueDate = now()->addDays(2)->toDateString();
+        while (true) {
+            $documents = RequiredDocument::where('due_date', now()->addDays(2)->toDateString())->get();
 
-        $documents = RequiredDocument::where('due_date', now()->addDays(2)->toDateString())->get();
+            foreach ($documents as $document) {
+                $doc = $document->complyingOffices;
+                $users = User::whereIn('department_code', $doc->pluck('department_code'))->get();
 
-        foreach ($documents as $document) {
+                foreach ($users as $user) {
+                    // Prevent duplicate emails
+                    $cacheKey = "due_reminder_{$document->id}_user_{$user->id}";
+                    if (Cache::has($cacheKey)) {
+                        continue;
+                    }
 
-            $doc = $document->complyingOffices; // Automatically get users in department
-            
-            // dd($document->requirement, $doc->pluck('department_code'));
-            $users = User::whereIn('department_code', $doc->pluck('department_code'))->get();
-            
-            foreach ($users as $user) {
-                // dd($document);
-                Mail::to($user->email)->send(new DueDateReminderMail($document));
+                    $officeName = Office::where('department_code', $user->department_code)
+                        ->value('office') ?? $user->department_code;
+
+                    try {
+                        Mail::to($user->email)->send(
+                            new DueDateReminderMail($document, $user, $officeName)
+                        );
+
+                        // Prevent resending for 24 hours
+                        Cache::put($cacheKey, true, now()->addDay());
+
+                        Log::info("Reminder sent to {$user->email} for document {$document->requirement}");
+                        $this->info("Sent to: {$user->email}");
+
+                    } catch (\Exception $e) {
+                        Log::error("Failed to send reminder to {$user->email}: " . $e->getMessage());
+                        $this->error("Failed: {$user->email}");
+                    }
+                }
             }
-        }
 
-        $this->info('Due date reminders sent successfully.');
+            $this->info('Checked at: ' . now());
+            sleep(3600); // Check every hour
+        }
     }
 }
