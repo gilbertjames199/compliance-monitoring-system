@@ -54,7 +54,7 @@ class SendDueDateReminders extends Command
             }
 
             $this->info('Checked at: ' . now());
-            sleep(3600); // Check every hour
+            sleep(10); // Check every 10 seconds
         }
     }
 }
