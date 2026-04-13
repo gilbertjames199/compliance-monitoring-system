@@ -2,11 +2,15 @@
 
 namespace App\Observers;
 
+use App\Models\AuditLog;
+use App\Models\Office;
 use App\Models\RequiredDocument;
 use App\Models\User;
 use App\Notifications\RequiredDocumentCreatedNotification;
 use App\Services\AuditLogger;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class RequiredDocumentObserver
 {
@@ -22,17 +26,13 @@ class RequiredDocumentObserver
      */
     public function created(RequiredDocument $requiredDocument): void
     {
-        // Get all complying offices for this requirement
         $complyingOfficeCodes = $requiredDocument->complyingOffices()->pluck('department_code');
+        if ($complyingOfficeCodes->isEmpty()) return;
 
-        if ($complyingOfficeCodes->isEmpty()) {
-            return;
-        }
+        // Get eligible users (with roles + confidential check)
+        $usersQuery = User::whereIn('department_code', $complyingOfficeCodes)
+            ->whereHas('roles'); // only users with roles
 
-        // Get all users in those offices
-        $usersQuery = User::whereIn('department_code', $complyingOfficeCodes);
-
-         // If confidential, only send to users with permission to view confidential documents
         if ($requiredDocument->is_confidential) {
             $allowedUserIds = DB::connection('mysql')
                 ->table('model_has_permissions')
@@ -45,12 +45,63 @@ class RequiredDocumentObserver
         }
 
         $users = $usersQuery->get();
+        $actor = auth()->user();
+        $actorName = $actor?->FullName ?? $actor?->name ?? 'System';
 
-        // Send notification to each user
+        $officeMap = Office::whereIn('department_code', $complyingOfficeCodes)
+            ->pluck('office', 'department_code');
+
         foreach ($users as $user) {
-            $user->notify(new RequiredDocumentCreatedNotification($requiredDocument));
+            try {
+                // Duplicate prevention (same as your job)
+                $duplicateKey = "requirement_created_notification_{$requiredDocument->id}_user_{$user->recid}";
+                if (Cache::has($duplicateKey)) {
+                    Log::info("Skipping duplicate notification for user {$user->id}");
+                    continue;
+                }
+
+                $alreadyNotified = AuditLog::where('requirement_id', $requiredDocument->id)
+                    ->where('user_id', $user->recid)
+                    ->where('event', 'requirement notification sent')
+                    ->whereDate('action_at', today())
+                    ->exists();
+
+                if ($alreadyNotified) {
+                    Log::info("Already notified today for user {$user->id}");
+                    continue;
+                }
+
+                // Send the notification
+                $user->notify(new RequiredDocumentCreatedNotification($requiredDocument));
+
+                // Audit log – only on success
+                $officeName = $officeMap[$user->department_code] ?? $user->department_code;
+
+                AuditLog::create([
+                    'event'                  => 'requirement notification sent',
+                    'user_id'                => $user->recid,
+                    'acted_by'               => $actorName,
+                    'action_at'              => now(),
+                    'requirement_id'         => $requiredDocument->id,
+                    'requirement_name'       => $requiredDocument->requirement,
+                    'complying_office_id'    => null,
+                    'office_name'            => $officeName,
+                    'requiring_agency_name'  => $requiredDocument->agency_name,
+                    'remarks'                => "Automatic notification sent on document creation to {$user->email}",
+                ]);
+
+                Cache::put($duplicateKey, true, now()->addDay());
+
+            } catch (\Exception $e) {
+                Log::error("Failed to send creation notification to user {$user->id}", [
+                    'error' => $e->getMessage(),
+                    'requirement_id' => $requiredDocument->id,
+                ]);
+                // No audit log on failure
+            }
         }
 
+        // Optional: log the document creation itself
         AuditLogger::logDocument('required document created', $requiredDocument);
     }
 
