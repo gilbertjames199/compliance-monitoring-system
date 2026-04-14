@@ -61,15 +61,13 @@ class SendRequirementNotification implements ShouldQueue
             ->whereIn('recid', $usersWithRoles);
 
         if ($record->is_confidential) {
-            $allowedUserIds = DB::connection('mysql')
-                ->table('model_has_permissions')
-                ->join('permissions', 'permissions.id', '=', 'model_has_permissions.permission_id')
-                ->where('permissions.name', 'ViewConfidential:RequiredDocument')
-                ->where('model_has_permissions.model_type', User::class)
-                ->pluck('model_has_permissions.model_id')
-                ->toArray();
-
-            $usersQuery->whereIn('recid', $allowedUserIds);
+            $usersQuery->where(function ($q) {
+                $q->whereHas('permissions', function ($q) {
+                    $q->where('name', 'ViewConfidential:RequiredDocument');
+                })->orWhereHas('roles.permissions', function ($q) {
+                    $q->where('name', 'ViewConfidential:RequiredDocument');
+                });
+            });
         }
 
         $users = $usersQuery->distinct()->get();
@@ -189,15 +187,13 @@ class SendRequirementNotification implements ShouldQueue
                 ->whereIn('recid', $usersWithRoles);
 
             if ($document->is_confidential) {
-                $allowedUserIds = DB::connection('mysql')
-                    ->table('model_has_permissions')
-                    ->join('permissions', 'permissions.id', '=', 'model_has_permissions.permission_id')
-                    ->where('permissions.name', 'ViewConfidential:RequiredDocument')
-                    ->where('model_has_permissions.model_type', User::class)
-                    ->pluck('model_has_permissions.model_id')
-                    ->toArray();
-
-                $usersQuery->whereIn('recid', $allowedUserIds);
+                $usersQuery->where(function ($q) {
+                    $q->whereHas('permissions', function ($q) {
+                        $q->where('name', 'ViewConfidential:RequiredDocument');
+                    })->orWhereHas('roles.permissions', function ($q) {
+                        $q->where('name', 'ViewConfidential:RequiredDocument');
+                    });
+                });
             }
 
             $users = $usersQuery->distinct()->get();

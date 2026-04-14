@@ -459,7 +459,7 @@ class ComplyingOfficesRelationManager extends RelationManager
 
                                 // ✅ Audit log per user notified (same pattern as your job)
                                 AuditLog::create([
-                                    'event'                  => 'requirement notification sent',
+                                    'event'                  => 'requirement notification sent 1',
                                     'user_id'                => $targetUser->recid,
                                     'acted_by'               => $user->recid ?? $user->id, // Who clicked the button
                                     'action_at'              => now(),
