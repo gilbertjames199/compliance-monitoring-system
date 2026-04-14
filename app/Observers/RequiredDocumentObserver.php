@@ -34,14 +34,13 @@ class RequiredDocumentObserver
             ->whereHas('roles'); // only users with roles
 
         if ($requiredDocument->is_confidential) {
-            $allowedUserIds = DB::connection('mysql')
-                ->table('model_has_permissions')
-                ->join('permissions', 'permissions.id', '=', 'model_has_permissions.permission_id')
-                ->where('permissions.name', 'ViewConfidential:RequiredDocument')
-                ->where('model_has_permissions.model_type', User::class)
-                ->pluck('model_has_permissions.model_id')
-                ->toArray();
-            $usersQuery->whereIn('recid', $allowedUserIds);
+            $usersQuery->where(function ($q) {
+                $q->whereHas('permissions', function ($q) {
+                    $q->where('name', 'ViewConfidential:RequiredDocument');
+                })->orWhereHas('roles.permissions', function ($q) {
+                    $q->where('name', 'ViewConfidential:RequiredDocument');
+                });
+            });
         }
 
         $users = $usersQuery->get();
@@ -68,6 +67,14 @@ class RequiredDocumentObserver
 
                 if ($alreadyNotified) {
                     Log::info("Already notified today for user {$user->id}");
+                    continue;
+                }
+
+                // Skip invalid emails
+                if (empty($user->email) || !filter_var(trim($user->email), FILTER_VALIDATE_EMAIL)) {
+                    Log::warning("User {$user->id} has invalid or empty email, skipped", [
+                        'email' => $user->email
+                    ]);
                     continue;
                 }
 
