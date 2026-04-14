@@ -14,9 +14,10 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-Schedule::job(new SendRequirementNotification())
-    ->everyMinute()
-    ->withoutOverlapping();
+// Schedule::job(new SendRequirementNotification())
+//     ->everyMinute()
+//     ->withoutOverlapping();
+// Handled by supervisor due-date-reminders
 
 Schedule::call(function () {
     RequiredDocument::where('is_recurring', true)

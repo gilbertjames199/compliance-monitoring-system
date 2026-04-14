@@ -3,6 +3,7 @@
 namespace App\Console\Commands;
 
 use App\Mail\DueDateReminderMail;
+use App\Models\AuditLog;
 use App\Models\Office;
 use App\Models\RequiredDocument;
 use App\Models\User;
@@ -19,54 +20,120 @@ class SendDueDateReminders extends Command
 
     public function handle()
     {
-        $documents = RequiredDocument::where('due_date', now()->addDays(2)->toDateString())->get();
-
-        if ($documents->isEmpty()) {
-            $this->info('No documents due in 2 days.');
-            return;
-        }
-
-        $usersWithRoles = DB::connection('mysql')
-            ->table('model_has_roles')
-            ->where('model_type', User::class)
-            ->pluck('model_id')
-            ->toArray();
-
-        foreach ($documents as $document) {
-            $departmentCodes = $document->complyingOffices->pluck('department_code');
-
-            $users = User::whereIn('department_code', $departmentCodes)
-                ->whereIn('recid', $usersWithRoles)
-                ->whereNotNull('email')
+        while (true) {
+            $documents = RequiredDocument::whereDate('due_date', now()->addDays(2)->toDateString())
+                ->whereNull('reminder_sent_at')
+                ->with('complyingOffices')
                 ->get();
 
-            foreach ($users as $user) {
-                $cacheKey = "due_reminder_{$document->id}_user_{$user->recid}";
-                if (Cache::has($cacheKey)) {
-                    $this->info("Skipped (already notified): {$user->email}");
-                    continue;
-                }
+            if ($documents->isNotEmpty()) {
+                Log::info("Due date reminder check", [
+                    'document_count' => $documents->count(),
+                    'timestamp' => now()
+                ]);
 
-                $officeName = Office::where('department_code', $user->department_code)
-                    ->value('office') ?? $user->department_code;
+                $usersWithRoles = DB::connection('mysql')
+                    ->table('model_has_roles')
+                    ->where('model_type', User::class)
+                    ->pluck('model_id')
+                    ->toArray();
 
-                try {
-                    Mail::to($user->email)->send(
-                        new DueDateReminderMail($document, $user, $officeName)
-                    );
+                foreach ($documents as $document) {
+                    $departmentCodes = $document->complyingOffices
+                        ->where('status', '!=', 1)
+                        ->pluck('department_code')
+                        ->unique();
 
-                    Cache::put($cacheKey, true, now()->addDay());
+                    if ($departmentCodes->isEmpty()) continue;
 
-                    Log::info("Reminder sent to {$user->email} for document {$document->requirement}");
-                    $this->info("Sent to: {$user->email}");
+                    $officeNames = Office::whereIn('department_code', $departmentCodes)
+                        ->pluck('office', 'department_code');
 
-                } catch (\Exception $e) {
-                    Log::error("Failed to send reminder to {$user->email}: " . $e->getMessage());
-                    $this->error("Failed: {$user->email}");
+                    $complyingOfficeMap = $document->complyingOffices->keyBy('department_code');
+
+                    $usersQuery = User::whereIn('department_code', $departmentCodes)
+                        ->whereIn('recid', $usersWithRoles);
+
+                    if ($document->is_confidential) {
+                        $usersQuery->where(function ($q) {
+                            $q->whereHas('permissions', function ($q) {
+                                $q->where('name', 'ViewConfidential:RequiredDocument');
+                            })->orWhereHas('roles.permissions', function ($q) {
+                                $q->where('name', 'ViewConfidential:RequiredDocument');
+                            });
+                        });
+                    }
+
+                    $users = $usersQuery->distinct()->get();
+                    $emailCount = 0;
+
+                    foreach ($users as $user) {
+                        // Skip invalid emails
+                        if (empty($user->email) || !filter_var(trim($user->email), FILTER_VALIDATE_EMAIL)) {
+                            Log::warning("Skipped - invalid email", ['user' => $user->recid, 'email' => $user->email]);
+                            continue;
+                        }
+
+                        // Cache duplicate check
+                        $cacheKey = "due_date_reminder_{$document->id}_user_{$user->recid}";
+                        if (Cache::has($cacheKey)) {
+                            Log::info("Skipped - already reminded recently", ['user' => $user->recid]);
+                            continue;
+                        }
+
+                        // DB duplicate check
+                        $alreadyNotified = AuditLog::where('requirement_id', $document->id)
+                            ->where('user_id', $user->recid)
+                            ->where('event', 'due date reminder sent')
+                            ->whereDate('action_at', today())
+                            ->exists();
+
+                        if ($alreadyNotified) {
+                            Log::info("Skipped - already reminded today", ['user' => $user->recid]);
+                            continue;
+                        }
+
+                        $officeName = $officeNames[$user->department_code] ?? $user->department_code;
+                        $complyingOffice = $complyingOfficeMap[$user->department_code] ?? null;
+
+                        try {
+                            Mail::to($user->email)->send(
+                                new DueDateReminderMail($document, $user, $officeName)
+                            );
+
+                            AuditLog::create([
+                                'event'                 => 'due date reminder sent',
+                                'user_id'               => $user->recid,
+                                'acted_by'              => null,
+                                'action_at'             => now(),
+                                'requirement_id'        => $document->id,
+                                'requirement_name'      => $document->requirement,
+                                'complying_office_id'   => $complyingOffice?->id,
+                                'office_name'           => $officeName,
+                                'requiring_agency_name' => $document->agency_name,
+                                'remarks'               => "Due date reminder sent to {$user->email}. Due on {$document->due_date->format('M d, Y')}.",
+                            ]);
+
+                            Cache::put($cacheKey, true, now()->addDay());
+                            $emailCount++;
+
+                            Log::info("Reminder sent to {$user->email} for {$document->requirement}");
+                            $this->info("Sent to: {$user->email}");
+
+                        } catch (\Exception $e) {
+                            Log::error("Failed to send to {$user->email}", [
+                                'error' => $e->getMessage()
+                            ]);
+                        }
+                    }
+
+                    if ($emailCount > 0) {
+                        $document->update(['reminder_sent_at' => now()]);
+                    }
                 }
             }
-        }
 
-        $this->info('Done at: ' . now());
+            sleep(10); // check every 10 seconds
+        }
     }
 }
