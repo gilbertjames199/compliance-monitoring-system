@@ -80,8 +80,10 @@ class SendRequirementNotification implements ShouldQueue
 
         foreach ($users as $user) {
             try {
-                if (empty($user->email)) {
-                    Log::warning("User {$user->id} has no email, skipped");
+                if (empty($user->email) || !filter_var(trim($user->email), FILTER_VALIDATE_EMAIL)) {
+                    Log::warning("User {$user->id} has invalid or empty email, skipped", [
+                        'email' => $user->email
+                    ]);
                     continue;
                 }
 
@@ -169,6 +171,7 @@ class SendRequirementNotification implements ShouldQueue
         foreach ($documents as $document) {
 
             $departmentCodes = $document->complyingOffices
+                ->where('status', '!=', 1) // skip already complied offices
                 ->pluck('department_code')
                 ->unique();
 
@@ -202,8 +205,10 @@ class SendRequirementNotification implements ShouldQueue
 
             foreach ($users as $user) {
                 try {
-                    if (empty($user->email)) {
-                        Log::warning("User {$user->id} has no email, skipped");
+                    if (empty($user->email) || !filter_var(trim($user->email), FILTER_VALIDATE_EMAIL)) {
+                        Log::warning("User {$user->id} has invalid or empty email, skipped", [
+                            'email' => $user->email
+                        ]);
                         continue;
                     }
 
