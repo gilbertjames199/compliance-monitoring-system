@@ -15,11 +15,13 @@ use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\ToggleButtons;
+use Filament\Forms\Components\ViewField;
 use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
@@ -74,29 +76,43 @@ class ComplyingOfficesRelationManager extends RelationManager
                     ->disabled()
                     ->dehydrated(),
 
-                Placeholder::make('attachments_view')
+                // Placeholder::make('attachments_view')
+                //     ->label('Submitted Attachments')
+                //     ->content(function ($record) {
+                //         if (!$record || empty($record->attachments)) {
+                //             return 'No files submitted.';
+                //         }
+
+                //         $attachments = is_array($record->attachments)
+                //             ? $record->attachments
+                //             : json_decode($record->attachments, true);
+
+                //         return collect($attachments)
+                //             ->map(fn ($file) =>
+                //                 "<a href='".Storage::disk('public')->url($file)."' 
+                //                     target='_blank' 
+                //                     style='color: #2563eb; text-decoration: underline;'> "
+                //                     .basename($file).
+                //                 "</a>"
+                //             )
+                //             ->implode('<br>');
+                //     })
+                //     ->html(),
+                
+                FileUpload::make('attachments')
                     ->label('Submitted Attachments')
-                    ->content(function ($record) {
-                        if (!$record || empty($record->attachments)) {
-                            return 'No files submitted.';
-                        }
+                    ->multiple()
+                    ->disk('public')
+                    ->disabled()
+                    ->dehydrated(false)
+                    ->downloadable()
+                    ->openable()
+                    ->previewable(true)
+                    ->columnSpanFull(),
 
-                        $attachments = is_array($record->attachments)
-                            ? $record->attachments
-                            : json_decode($record->attachments, true);
+          
 
-                        return collect($attachments)
-                            ->map(fn ($file) =>
-                                "<a href='".Storage::disk('public')->url($file)."' 
-                                    target='_blank' 
-                                    style='color: #2563eb; text-decoration: underline;'> "
-                                    .basename($file).
-                                "</a>"
-                            )
-                            ->implode('<br>');
-                    })
-                    ->html(),
-
+    
                 TextInput::make('submitted_by')
                     ->label('Submitted By')
                     ->disabled()
@@ -513,7 +529,9 @@ class ComplyingOfficesRelationManager extends RelationManager
                     ->color('warning')
                     ->icon('heroicon-o-envelope'),
 
-                EditAction::make(),
+                EditAction::make()
+                    ->slideOver()
+                    ->modalWidth('7xl'),
                 // DissociateAction::make(),
                 DeleteAction::make()
                     ->visible(function ($record) {
