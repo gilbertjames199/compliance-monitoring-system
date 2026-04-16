@@ -320,12 +320,11 @@ class ComplyingOfficeForm
                                 'application/pdf',
                                 'image/jpeg',
                                 'image/png',
-                                'application/msword',
                                 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
                                 'application/vnd.ms-excel',                                          // .xls
                                 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
                             ])
-                            ->helperText('Accepted file types: PDF, JPEG, PNG, DOC, DOCX, XLS, XLSX. Maximum file size: 10MB. Maximum 3 files.')
+                            ->helperText('Accepted file types: PDF, JPEG, PNG, XLS, XLSX. Maximum file size: 10MB. ')
                             ->rules([
                                     fn () => function (string $attribute, $value, $fail) {
                                         $originalName = strtolower($value->getClientOriginalName());

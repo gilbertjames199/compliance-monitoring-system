@@ -5,6 +5,7 @@ namespace App\Filament\Resources\RequiredDocuments\Tables;
 use App\Models\DocumentCategory;
 use App\Models\Office;
 use App\Models\RequiredDocument;
+use App\Support\FilamentAttachmentPreview;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
@@ -25,7 +26,6 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Grouping\Group;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Facades\Storage;
 
 
 class RequiredDocumentsTable 
@@ -387,28 +387,11 @@ class RequiredDocumentsTable
                                                 // 🔹 File Upload / Attachments (read-only)
                                                 Placeholder::make("office_{$office->id}_attachments")
                                                     ->label('Submitted Attachments')
-                                                    ->content(function () use ($office) {
-                                                        if (!$office->attachments) {
-                                                            return 'No files submitted.';
-                                                        }
-
-                                                        $attachments = is_array($office->attachments)
-                                                            ? $office->attachments
-                                                            : json_decode($office->attachments, true);
-
-                                                        return collect($attachments)
-                                                            ->map(fn ($file) =>
-                                                                "<a href='".Storage::disk('public')->url($file)."' 
-                                                                    target='_blank' 
-                                                                    style='color: #2563eb; text-decoration: underline;'
-                                                                    onmouseover='this.style.color=\"#1d4ed8\"' 
-                                                                    onmouseout='this.style.color=\"#2563eb\"'>"
-                                                                .basename($file)."</a>"
-                                                            )
-                                                            ->implode('<br>');
-                                                    })
-                                                    ->html()
-                                                    ->columnSpan(3),
+                                                    ->content(fn () => FilamentAttachmentPreview::render(
+                                                        $office->attachments,
+                                                        'required_document_table_office_' . $office->id
+                                                    ))
+                                                    ->columnSpanFull(),
 
                                                 // 🔹 Validation Status (editable)
                                                 Select::make("office_{$office->id}_validation_status")

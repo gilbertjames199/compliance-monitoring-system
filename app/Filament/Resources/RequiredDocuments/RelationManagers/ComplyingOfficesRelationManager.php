@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Models\ComplyingOffice;
 use App\Models\Office;
 use App\Models\User;
+use App\Support\FilamentAttachmentPreview;
 use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
@@ -15,8 +16,6 @@ use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\DateTimePicker;
-use Filament\Forms\Components\FileUpload;
-use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -30,7 +29,6 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class ComplyingOfficesRelationManager extends RelationManager
@@ -62,7 +60,7 @@ class ComplyingOfficesRelationManager extends RelationManager
                     })
                     ->disabled(fn (string $operation): bool => $operation === 'edit')
                     ->helperText('Each office can only be added once per requirement.')
-                    ->columnSpanFull(),
+                    ,
 
 
                 Select::make('status')
@@ -98,21 +96,7 @@ class ComplyingOfficesRelationManager extends RelationManager
                 //             ->implode('<br>');
                 //     })
                 //     ->html(),
-                
-                FileUpload::make('attachments')
-                    ->label('Submitted Attachments')
-                    ->multiple()
-                    ->disk('public')
-                    ->disabled()
-                    ->dehydrated(false)
-                    ->downloadable()
-                    ->openable()
-                    ->previewable(true)
-                    ->columnSpanFull(),
 
-          
-
-    
                 TextInput::make('submitted_by')
                     ->label('Submitted By')
                     ->disabled()
@@ -130,6 +114,21 @@ class ComplyingOfficesRelationManager extends RelationManager
                     ->disabled()
                     ->visible(fn ($get) => !empty($get('submitted_at')))
                     ->columnSpanFull(),
+                
+                ViewField::make('attachments_preview')
+                    ->label('Submitted Attachments')
+                    ->view('filament.forms.components.attachment-preview')
+                    ->viewData(fn ($record) => [
+                        'preview' => FilamentAttachmentPreview::payload(
+                            $record?->attachments,
+                            'relation_manager_' . ($record?->id ?? 'new')
+                        ),
+                    ])
+                    ->dehydrated(false)
+                    ->columnSpanFull(),
+
+    
+                
 
                 ToggleButtons::make('validation_status')
                     ->label('Validation Status')
