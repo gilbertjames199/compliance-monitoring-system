@@ -389,7 +389,9 @@ class RequiredDocumentsTable
                                                     ->label('Submitted Attachments')
                                                     ->content(fn () => FilamentAttachmentPreview::render(
                                                         $office->attachments,
-                                                        'required_document_table_office_' . $office->id
+                                                        'required_document_table_office_' . $office->id,
+                                                        $office->attachment_remarks,
+                                                        $office->attachment_annotations
                                                     ))
                                                     ->columnSpanFull(),
 

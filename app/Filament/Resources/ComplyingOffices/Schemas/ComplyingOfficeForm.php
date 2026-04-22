@@ -2,20 +2,25 @@
 
 namespace App\Filament\Resources\ComplyingOffices\Schemas;
 
-use Carbon\Carbon;
-use App\Models\Office;
-use Illuminate\Support\Str;
-use Filament\Schemas\Schema;
 use App\Models\ComplyingOffice;
+use App\Models\Office;
 use App\Models\RequiredDocument;
+use App\Support\FilamentAttachmentPreview;
+use Carbon\Carbon;
+use Filament\Actions\Action;
+use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Hidden;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
-use Filament\Schemas\Components\Section;
-use Filament\Forms\Components\FileUpload;
-use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\ToggleButtons;
-use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\ViewField;
+use Filament\Schemas\Components\Actions;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Schema;
+use Illuminate\Support\Str;
 
 class ComplyingOfficeForm
 {
@@ -284,6 +289,64 @@ class ComplyingOfficeForm
                             // })
                             ->columnSpanFull(),
 
+                            // MODAL BUTTON - Updated
+                            Actions::make([
+                                Action::make('open_attachment_feedback')
+                                    ->label('View Attachment Feedback')
+                                    ->button()
+                                    ->color('primary')
+                                    ->modalHeading('Attachment Preview, Agency Remarks, and Replies')
+                                    ->modalWidth('8xl')
+                                    ->modalSubmitAction(false)
+                                    ->modalCancelActionLabel('Close')
+                                    ->modalContent(function ($record, $get, $set) {
+                                        $attachments = $get('attachments') ?? $record?->attachments;
+                                        $remarks = $get('attachment_remarks') ?? $record?->attachment_remarks ?? [];
+                                        $drafts = $get('attachment_remark_drafts') ?? [];
+                                        $annotations = $get('attachment_annotations') ?? $record?->attachment_annotations ?? [];
+
+                                        $user = auth()->user();
+                                        $isOwnOffice = $record && $user->department_code === $record->department_code;
+
+                                        $validationStatus = $get('validation_status') ?? $record?->validation_status;
+                                        $isValidated = $validationStatus === 'validated';
+                                        $isComplied = (int) ($record?->status ?? $get('status') ?? -1) === 1;
+
+                                        $editable = !$record
+                                            || ($isOwnOffice && !$isValidated && (!$isComplied || $validationStatus === 'returned'));
+
+                                        return view('filament.forms.components.attachment-preview-modal', [
+                                            'preview' => FilamentAttachmentPreview::payload(
+                                                $attachments,
+                                                'complying_office_form_' . ($record?->id ?? 'new'),
+                                                $remarks,
+                                                $drafts,
+                                                self::resolveAttachmentViewerType($record),
+                                                $annotations
+                                            ),
+                                            'editable' => $editable,
+                                            'annotationEditable' => false,
+                                            'draftsStatePath' => 'data.attachment_remark_drafts',
+                                            'annotationsStatePath' => 'data.attachment_annotations',
+                                            'draftLabel' => 'Your reply',
+                                            'draftPlaceholder' => 'Reply to the requiring agency about this file.',
+                                        ]);
+                                    }),
+                            ])
+                        ->columnSpanFull(),
+
+                        Hidden::make('attachment_remarks')
+                            ->default([])
+                            ->dehydrated(),
+
+                        Hidden::make('attachment_remark_drafts')
+                            ->default([])
+                            ->dehydrated(),
+
+                        Hidden::make('attachment_annotations')
+                            ->default([])
+                            ->dehydrated(),
+
                     ])
                     ->columns(2)
                     ->visible(true)
@@ -320,11 +383,14 @@ class ComplyingOfficeForm
                                 'application/pdf',
                                 'image/jpeg',
                                 'image/png',
+                                'text/csv',
+                                'application/csv',
+                                'text/comma-separated-values',
                                 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
                                 'application/vnd.ms-excel',                                          // .xls
                                 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
                             ])
-                            ->helperText('Accepted file types: PDF, JPEG, PNG, XLS, XLSX. Maximum file size: 10MB. ')
+                            ->helperText('Accepted file types: PDF, JPG, JPEG, PNG, DOCX, XLS, XLSX, CSV. Maximum file size: 10MB.')
                             ->rules([
                                     fn () => function (string $attribute, $value, $fail) {
                                         $originalName = strtolower($value->getClientOriginalName());
@@ -364,6 +430,8 @@ class ComplyingOfficeForm
                                     $set('status', -1);
                                     $set('submitted_by', null);
                                     $set('submitted_at', null);
+                                    $set('attachment_remarks', []);
+                                    $set('attachment_remark_drafts', []);
                                 }
                             })
 
@@ -416,6 +484,54 @@ class ComplyingOfficeForm
 
                             ->columnSpanFull(),
 
+                        // Hidden::make('attachment_remarks')
+                        //     ->default([])
+                        //     ->dehydrated(),
+
+                        // Hidden::make('attachment_remark_drafts')
+                        //     ->default([])
+                        //     ->dehydrated(),
+
+                        // Hidden::make('attachment_annotations')
+                        //     ->default([])
+                        //     ->dehydrated(),
+
+                        // ViewField::make('attachments_preview')
+                        //     ->label('Attachment Preview, Agency Remarks, and Your Replies')
+                        //     ->view('filament.forms.components.attachment-preview')
+                        //     ->viewData(function ($get, $record) {
+                        //         $attachments = $get('attachments') ?? $record?->attachments;
+                        //         $remarks = $get('attachment_remarks') ?? $record?->attachment_remarks ?? [];
+                        //         $drafts = $get('attachment_remark_drafts') ?? [];
+                        //         $annotations = $get('attachment_annotations') ?? $record?->attachment_annotations ?? [];
+                        //         $user = auth()->user();
+                        //         $isOwnOffice = $record && $user->department_code === $record->department_code;
+                        //         $validationStatus = $get('validation_status') ?? $record?->validation_status;
+                        //         $isValidated = $validationStatus === 'validated';
+                        //         $isComplied = (int) ($record?->status ?? $get('status') ?? -1) === 1;
+                        //         $editable = !$record
+                        //             || ($isOwnOffice && !$isValidated && (!$isComplied || $validationStatus === 'returned'));
+
+                        //         return [
+                        //             'preview' => FilamentAttachmentPreview::payload(
+                        //                 $attachments,
+                        //                 'complying_office_form_' . ($record?->id ?? 'new'),
+                        //                 $remarks,
+                        //                 $drafts,
+                        //                 self::resolveAttachmentViewerType($record),
+                        //                 $annotations
+                        //             ),
+                        //             'editable' => $editable,
+                        //             'annotationEditable' => false,
+                        //             'draftsStatePath' => 'data.attachment_remark_drafts',
+                        //             'annotationsStatePath' => 'data.attachment_annotations',
+                        //             'draftLabel' => 'Your reply',
+                        //             'draftPlaceholder' => 'Reply to the requiring agency about this file. Your message will be added to the conversation.',
+                        //         ];
+                        //     })
+                        //     ->visible(fn ($get) => !empty($get('attachments')))
+                        //     ->dehydrated(false)
+                        //     ->columnSpanFull(),
 
                         Textarea::make('submission_notes')
                             ->label('Submission Notes')
@@ -481,5 +597,20 @@ class ComplyingOfficeForm
 
            
             ]);
+    }
+
+    protected static function resolveAttachmentViewerType(?ComplyingOffice $record): ?string
+    {
+        $user = auth()->user();
+
+        if ($user->hasRoleSafe('super_admin')) {
+            return 'super_admin';
+        }
+
+        if ($record && $user->department_code === $record->department_code) {
+            return 'complying_office';
+        }
+
+        return 'user';
     }
 }

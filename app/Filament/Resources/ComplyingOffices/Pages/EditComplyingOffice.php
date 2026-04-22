@@ -3,6 +3,8 @@
 namespace App\Filament\Resources\ComplyingOffices\Pages;
 
 use App\Filament\Resources\ComplyingOffices\ComplyingOfficeResource;
+use App\Models\Office;
+use App\Support\FilamentAttachmentPreview;
 use Filament\Resources\Pages\EditRecord;
 
 class EditComplyingOffice extends EditRecord
@@ -63,6 +65,8 @@ class EditComplyingOffice extends EditRecord
     {
         $user = auth()->user();
         $record = $this->record->refresh(); // ← always read fresh from DB
+        $drafts = $data['attachment_remark_drafts'] ?? [];
+        unset($data['attachment_remark_drafts']);
 
         // ✅ ALWAYS guard against stale-form status downgrade
         if (
@@ -88,6 +92,8 @@ class EditComplyingOffice extends EditRecord
             $data['validation_status'] = 'returned';
             $data['validated_at']      = null;
             $data['validated_by']      = null;
+            $data['attachment_remarks'] = [];
+            $data['attachment_annotations'] = [];
 
         } else {
             $alreadyComplied = $record->status == 1 && $record->validation_status !== 'returned';
@@ -100,6 +106,8 @@ class EditComplyingOffice extends EditRecord
                 $data['validation_status'] = $record->validation_status;
                 $data['validated_by']      = $record->validated_by;
                 $data['validated_at']      = $record->validated_at;
+                $data['attachment_remarks'] = $record->attachment_remarks;
+                $data['attachment_annotations'] = $record->attachment_annotations;
 
             } else {
                 // Fresh submission or re-submission after return
@@ -118,6 +126,16 @@ class EditComplyingOffice extends EditRecord
                 $data['validated_by']      = null;
                 $data['validated_at']      = null;
             }
+
+            $data['attachment_remarks'] = FilamentAttachmentPreview::mergeRemarkThreads(
+                $record->attachment_remarks,
+                $drafts,
+                $user->name,
+                $this->resolveAttachmentCommentAuthorLabel($record),
+                $this->resolveAttachmentCommentAuthorType($record)
+            );
+
+            $data['attachment_annotations'] = $record->attachment_annotations;
         }
 
         return $data;
@@ -128,6 +146,33 @@ class EditComplyingOffice extends EditRecord
         // Force Livewire to rehydrate form state
         $this->fillForm();
         $this->dispatch('refresh-form');
+    }
+
+    protected function resolveAttachmentCommentAuthorLabel($record): string
+    {
+        $user = auth()->user();
+        $shortName = Office::where('department_code', $user->department_code)->value('short_name');
+
+        if (filled($shortName)) {
+            return (string) $shortName;
+        }
+
+        return (string) ($user->department_code ?? 'User');
+    }
+
+    protected function resolveAttachmentCommentAuthorType($record): string
+    {
+        $user = auth()->user();
+
+        if ($user->hasRoleSafe('super_admin')) {
+            return 'super_admin';
+        }
+
+        if ($record && $user->department_code === $record->department_code) {
+            return 'complying_office';
+        }
+
+        return 'user';
     }
 
 

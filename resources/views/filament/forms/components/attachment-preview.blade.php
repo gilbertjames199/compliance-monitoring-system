@@ -1,433 +1,1025 @@
-@php
-    $preview ??= ['uid' => 'attachment_preview_empty', 'count' => 0, 'files' => []];
-    $files = $preview['files'] ?? [];
-    $uid = $preview['uid'] ?? 'attachment_preview_empty';
-    $count = $preview['count'] ?? count($files);
-@endphp
+<div>
+    @php
+        $preview ??= ['uid' => 'attachment_preview_empty', 'count' => 0, 'files' => [], 'threads' => [], 'drafts' => [], 'annotations' => [], 'viewerType' => null];
+        $files = $preview['files'] ?? [];
+        $threads = $preview['threads'] ?? [];
+        $drafts = $preview['drafts'] ?? [];
+        $annotations = $preview['annotations'] ?? [];
+        $viewerType = $preview['viewerType'] ?? null;
+        $uid = $preview['uid'] ?? 'attachment_preview_empty';
+        $count = $preview['count'] ?? count($files);
+        $editable ??= false;
+        $annotationEditable ??= false;
+        $draftsStatePath ??= null;
+        $annotationsStatePath ??= null;
+        $annotationAuthorName ??= null;
+        $annotationAuthorLabel ??= 'Annotation';
+        $annotationAuthorType ??= null;
+        $draftLabel ??= 'Reply';
+        $draftPlaceholder ??= 'Write your reply for this file. It will be added as a new message.';
+    @endphp
 
-@if (blank($files))
-    <p style="font-size:0.875rem;color:#9ca3af;font-style:italic;">No files submitted.</p>
-@else
-    <div
-        id="{{ $uid }}"
-        class="{{ $uid }}"
-        x-data="window.attachmentPreviewComponent()"
-        x-init="init($refs.filesJson.textContent)"
-    >
-        <script type="application/json" x-ref="filesJson">@json($files)</script>
+    @if (blank($files))
+        <p style="font-size:0.875rem;color:#9ca3af;font-style:italic;">No files submitted.</p>
+    @else
+        <div
+            id="{{ $uid }}"
+            class="{{ $uid }}"
+            x-data="window.attachmentPreviewComponent({
+                componentId: @js($uid),
+                editable: @js($editable),
+                annotationEditable: @js($annotationEditable),
+                draftsStatePath: @js($draftsStatePath),
+                annotationsStatePath: @js($annotationsStatePath),
+                viewerType: @js($viewerType),
+                annotationAuthorName: @js($annotationAuthorName),
+                annotationAuthorLabel: @js($annotationAuthorLabel),
+                annotationAuthorType: @js($annotationAuthorType),
+            })"
+            x-init="init($refs.filesJson.textContent, $refs.threadsJson.textContent, $refs.draftsJson.textContent, $refs.annotationsJson.textContent)"
+            @mousemove.window="dragAnnotation($event)"
+            @mouseup.window="stopAnnotationDrag()"
+            @mouseleave.window="stopAnnotationDrag()"
+        >
+            <script type="application/json" x-ref="filesJson">@json($files)</script>
+            <script type="application/json" x-ref="threadsJson">@json($threads)</script>
+            <script type="application/json" x-ref="draftsJson">@json($drafts)</script>
+            <script type="application/json" x-ref="annotationsJson">@json($annotations)</script>
 
-        <div class="{{ $uid }}__header">
-            <div>
-                <p class="{{ $uid }}__eyebrow">Attachments</p>
-                <h4 class="{{ $uid }}__title">Preview submitted files</h4>
+            <div class="{{ $uid }}__header">
+                <div>
+                    <p class="{{ $uid }}__eyebrow">Attachments</p>
+                    <h4 class="{{ $uid }}__title">Preview submitted files</h4>
+                </div>
+                <span class="{{ $uid }}__count">{{ $count }} file(s)</span>
             </div>
-            <span class="{{ $uid }}__count">{{ $count }} file(s)</span>
-        </div>
 
-        <div class="{{ $uid }}__layout">
-            <div class="{{ $uid }}__sidebar">
-                @foreach ($files as $index => $file)
-                    <button
-                        type="button"
-                        class="{{ $uid }}__thumb"
-                        @click="selectFile({{ $index }})"
-                        :class="{ 'is-active': activeIndex === {{ $index }} }"
-                    >
-                        <div class="{{ $uid }}__thumb-preview">
-                            @if (!empty($file['isImage']))
-                                <img src="{{ $file['url'] }}" alt="{{ $file['name'] }}" loading="lazy">
-                            @else
-                                <div class="{{ $uid }}__thumb-fallback">{{ strtoupper($file['ext'] ?? 'FILE') }}</div>
-                            @endif
-                        </div>
-                        <span class="{{ $uid }}__thumb-name" title="{{ $file['name'] }}">{{ $file['name'] }}</span>
-                    </button>
-                @endforeach
-            </div>
+            <div class="{{ $uid }}__layout">
+                <div class="{{ $uid }}__sidebar">
+                    @foreach ($files as $index => $file)
+                        <button
+                            type="button"
+                            class="{{ $uid }}__thumb"
+                            @click="selectFile({{ $index }})"
+                            :class="{ 'is-active': activeIndex === {{ $index }} }"
+                        >
+                            <div class="{{ $uid }}__thumb-preview">
+                                @if (!empty($file['isImage']))
+                                    <img src="{{ $file['url'] }}" alt="{{ $file['name'] }}" loading="lazy">
+                                @else
+                                    <div class="{{ $uid }}__thumb-fallback">{{ strtoupper($file['ext'] ?? 'FILE') }}</div>
+                                @endif
+                            </div>
 
-            <div class="{{ $uid }}__viewer">
-                <div class="{{ $uid }}__viewer-bar">
-                    <div>
-                        <p class="{{ $uid }}__file-label">Current file</p>
-                        <p class="{{ $uid }}__file-name" x-text="activeFile() ? activeFile().name : 'No file selected'"></p>
-                    </div>
+                            <div class="{{ $uid }}__thumb-meta">
+                                <span class="{{ $uid }}__thumb-name" title="{{ $file['name'] }}">{{ $file['name'] }}</span>
 
-                    <div class="{{ $uid }}__actions">
-                        <button type="button" class="{{ $uid }}__action-btn" @click="zoomOut()">-</button>
-                        <span class="{{ $uid }}__zoom-label" x-text="Math.round(zoom * 100) + '%'"></span>
-                        <button type="button" class="{{ $uid }}__action-btn" @click="zoomIn()">+</button>
-                        <button type="button" class="{{ $uid }}__action-btn" @click="rotateLeft()">Rotate Left</button>
-                        <button type="button" class="{{ $uid }}__action-btn" @click="rotateRight()">Rotate Right</button>
-                        <button type="button" class="{{ $uid }}__action-btn" @click="resetView()">Reset</button>
-                        <a :href="activeFile() ? activeFile().url : '#'" target="_blank" rel="noopener noreferrer">Open</a>
-                        <button type="button" class="{{ $uid }}__action-btn" @click="downloadCurrent()">Download</button>
-                    </div>
+                                <template x-if="hasThreadForIndex({{ $index }})">
+                                    <span class="{{ $uid }}__thumb-badge">Has replies</span>
+                                </template>
+                            </div>
+                        </button>
+                    @endforeach
                 </div>
 
-                <div class="{{ $uid }}__preview">
-                    <template x-if="loading">
-                        <div class="{{ $uid }}__status-card">
-                            <p>Loading preview...</p>
+                <div class="{{ $uid }}__viewer">
+                    <div class="{{ $uid }}__viewer-bar">
+                        <div>
+                            <p class="{{ $uid }}__file-label">Current file</p>
+                            <p class="{{ $uid }}__file-name" x-text="activeFile() ? activeFile().name : 'No file selected'"></p>
                         </div>
-                    </template>
 
-                    <template x-if="!loading && previewMode === 'image'">
-                        <div class="{{ $uid }}__stage-wrap">
-                            <div class="{{ $uid }}__stage" :style="previewStyle()" @mousedown="startDrag($event)" @mousemove="drag($event)" @mouseup="stopDrag()" @mouseleave="stopDrag()">
-                                <img class="{{ $uid }}__image" :src="activeFile().url" :alt="activeFile().name">
+                        <div class="{{ $uid }}__actions">
+                            <button type="button" class="{{ $uid }}__action-btn" @click="zoomOut()">-</button>
+                            <span class="{{ $uid }}__zoom-label" x-text="Math.round(zoom * 100) + '%'"></span>
+                            <button type="button" class="{{ $uid }}__action-btn" @click="zoomIn()">+</button>
+                            <button type="button" class="{{ $uid }}__action-btn" @click="rotateLeft()">Rotate Left</button>
+                            <button type="button" class="{{ $uid }}__action-btn" @click="rotateRight()">Rotate Right</button>
+                            <button type="button" class="{{ $uid }}__action-btn" @click="resetView()">Reset</button>
+                            <button type="button" class="{{ $uid }}__action-btn" @click="openCurrent()">Open</button>
+                            <button type="button" class="{{ $uid }}__action-btn" @click="downloadCurrent()">Download</button>
+                        </div>
+                    </div>
+
+                    <div class="{{ $uid }}__preview">
+                        <template x-if="loading">
+                            <div class="{{ $uid }}__status-card">
+                                <p>Loading preview...</p>
                             </div>
-                        </div>
-                    </template>
+                        </template>
 
-                    <template x-if="!loading && previewMode === 'pdf'">
-                        <div class="{{ $uid }}__stage-wrap">
-                            <div class="{{ $uid }}__stage {{ $uid }}__stage--document" :style="previewStyle()" @mousedown="startDrag($event)" @mousemove="drag($event)" @mouseup="stopDrag()" @mouseleave="stopDrag()">
-                                <iframe class="{{ $uid }}__frame" :src="activeFile().url" :title="activeFile().name"></iframe>
+                        <template x-if="!loading && previewMode === 'image'">
+                            <div class="{{ $uid }}__stage-wrap">
+                                <div class="{{ $uid }}__stage" :style="previewStyle()" @mousedown="startDrag($event)" @mousemove="drag($event)" @mouseup="stopDrag()" @mouseleave="stopDrag()">
+                                    <div class="{{ $uid }}__page-shell {{ $uid }}__page-shell--image">
+                                        <img class="{{ $uid }}__image" :src="activeFile().url" :alt="activeFile().name">
+                                        <div
+                                            class="{{ $uid }}__annotation-layer"
+                                            :class="{ 'is-placing': isPlacingAnnotation() }"
+                                            @click="placeAnnotation($event, 1)"
+                                        >
+                                            <template x-for="annotation in annotationsForPage(1)" :key="annotation.id">
+                                                <div
+                                                    class="{{ $uid }}__annotation-pin"
+                                                    :class="{ 'is-own': isOwnAnnotation(annotation), 'is-dragging': isDraggingAnnotation(annotation.id) }"
+                                                    :style="annotationStyle(annotation)"
+                                                    @mousedown.stop="startAnnotationDrag(annotation.id, 1, $event)"
+                                                >
+                                                    <button
+                                                        type="button"
+                                                        class="{{ $uid }}__annotation-delete"
+                                                        x-show="canDeleteAnnotation(annotation)"
+                                                        @click.stop="removeAnnotation(annotation.id)"
+                                                    >
+                                                        x
+                                                    </button>
+                                                    <p class="{{ $uid }}__annotation-text" x-text="annotation.text"></p>
+                                                    <p class="{{ $uid }}__annotation-meta" x-text="formatAnnotationMeta(annotation)"></p>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
-                    </template>
+                        </template>
 
-                    <template x-if="!loading && previewMode === 'html'">
-                        <div class="{{ $uid }}__stage-wrap">
-                            <div class="{{ $uid }}__stage {{ $uid }}__stage--document" :style="previewStyle()" @mousedown="startDrag($event)" @mousemove="drag($event)" @mouseup="stopDrag()" @mouseleave="stopDrag()">
-                                <div class="{{ $uid }}__html-preview" x-html="htmlPreview"></div>
+                        <template x-if="!loading && previewMode === 'pdf'">
+                            <div class="{{ $uid }}__stage-wrap">
+                                <div class="{{ $uid }}__stage {{ $uid }}__stage--document {{ $uid }}__pdf-stack" :style="previewStyle()" @mousedown="startDrag($event)" @mousemove="drag($event)" @mouseup="stopDrag()" @mouseleave="stopDrag()">
+                                    <template x-for="page in pdfPages" :key="page.pageNumber">
+                                        <div class="{{ $uid }}__page-shell" :style="'width:' + page.width + 'px;height:' + page.height + 'px'">
+                                            <canvas
+                                                class="{{ $uid }}__pdf-canvas"
+                                                :id="pdfCanvasId(page.pageNumber)"
+                                                :width="page.width"
+                                                :height="page.height"
+                                            ></canvas>
+
+                                            <div
+                                                class="{{ $uid }}__annotation-layer"
+                                                :style="'width:' + page.width + 'px;height:' + page.height + 'px'"
+                                                :class="{ 'is-placing': isPlacingAnnotation() }"
+                                                @click="placeAnnotation($event, page.pageNumber)"
+                                            >
+                                                <template x-for="annotation in annotationsForPage(page.pageNumber)" :key="annotation.id">
+                                                <div
+                                                    class="{{ $uid }}__annotation-pin"
+                                                    :class="{ 'is-own': isOwnAnnotation(annotation), 'is-dragging': isDraggingAnnotation(annotation.id) }"
+                                                    :style="annotationStyle(annotation, page.pageNumber)"
+                                                    @mousedown.stop="startAnnotationDrag(annotation.id, page.pageNumber, $event)"
+                                                >
+                                                        <button
+                                                            type="button"
+                                                            class="{{ $uid }}__annotation-delete"
+                                                            x-show="canDeleteAnnotation(annotation)"
+                                                            @click.stop="removeAnnotation(annotation.id)"
+                                                        >
+                                                            x
+                                                        </button>
+                                                        <p class="{{ $uid }}__annotation-text" x-text="annotation.text"></p>
+                                                        <p class="{{ $uid }}__annotation-meta" x-text="formatAnnotationMeta(annotation)"></p>
+                                                    </div>
+                                                </template>
+                                            </div>
+                                        </div>
+                                    </template>
+                                </div>
                             </div>
+                        </template>
+
+                        <template x-if="!loading && previewMode === 'pdf-native' && !shouldUseInteractivePdfOnly()">
+                            <div class="{{ $uid }}__stage-wrap">
+                                <div class="{{ $uid }}__stage {{ $uid }}__stage--document" :style="previewStyle()" @mousedown="startDrag($event)" @mousemove="drag($event)" @mouseup="stopDrag()" @mouseleave="stopDrag()">
+                                    <div class="{{ $uid }}__page-shell {{ $uid }}__page-shell--pdf-native">
+                                        <iframe
+                                            class="{{ $uid }}__frame"
+                                            :src="pdfPreviewUrl(activeFile())"
+                                            :title="activeFile() ? activeFile().name : 'PDF preview'"
+                                        ></iframe>
+
+                                        <div
+                                            class="{{ $uid }}__annotation-layer"
+                                            :class="{ 'is-placing': isPlacingAnnotation() }"
+                                            @click="placeAnnotation($event, 1)"
+                                        >
+                                            <template x-for="annotation in annotationsForPage(1)" :key="annotation.id">
+                                                <div
+                                                    class="{{ $uid }}__annotation-pin"
+                                                    :class="{ 'is-own': isOwnAnnotation(annotation), 'is-dragging': isDraggingAnnotation(annotation.id) }"
+                                                    :style="annotationStyle(annotation)"
+                                                    @mousedown.stop="startAnnotationDrag(annotation.id, 1, $event)"
+                                                >
+                                                    <button
+                                                        type="button"
+                                                        class="{{ $uid }}__annotation-delete"
+                                                        x-show="canDeleteAnnotation(annotation)"
+                                                        @click.stop="removeAnnotation(annotation.id)"
+                                                    >
+                                                        x
+                                                    </button>
+                                                    <p class="{{ $uid }}__annotation-text" x-text="annotation.text"></p>
+                                                    <p class="{{ $uid }}__annotation-meta" x-text="formatAnnotationMeta(annotation)"></p>
+                                                </div>
+                                            </template>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+
+                        <template x-if="!loading && previewMode === 'html'">
+                            <div class="{{ $uid }}__stage-wrap">
+                                <div class="{{ $uid }}__stage {{ $uid }}__stage--document" :style="previewStyle()" @mousedown="startDrag($event)" @mousemove="drag($event)" @mouseup="stopDrag()" @mouseleave="stopDrag()">
+                                    <div class="{{ $uid }}__page-shell {{ $uid }}__page-shell--html">
+                                        <div class="{{ $uid }}__html-scroll">
+                                            <div class="{{ $uid }}__html-surface">
+                                                <div class="{{ $uid }}__html-preview" x-html="htmlPreview"></div>
+                                                <div
+                                                    class="{{ $uid }}__annotation-layer"
+                                                    :class="{ 'is-placing': isPlacingAnnotation() }"
+                                                    @click="placeAnnotation($event, 1)"
+                                                >
+                                                    <template x-for="annotation in annotationsForPage(1)" :key="annotation.id">
+                                                        <div
+                                                            class="{{ $uid }}__annotation-pin"
+                                                            :class="{ 'is-own': isOwnAnnotation(annotation), 'is-dragging': isDraggingAnnotation(annotation.id) }"
+                                                            :style="annotationStyle(annotation)"
+                                                            @mousedown.stop="startAnnotationDrag(annotation.id, 1, $event)"
+                                                        >
+                                                            <button
+                                                                type="button"
+                                                                class="{{ $uid }}__annotation-delete"
+                                                                x-show="canDeleteAnnotation(annotation)"
+                                                                @click.stop="removeAnnotation(annotation.id)"
+                                                            >
+                                                                x
+                                                            </button>
+                                                            <p class="{{ $uid }}__annotation-text" x-text="annotation.text"></p>
+                                                            <p class="{{ $uid }}__annotation-meta" x-text="formatAnnotationMeta(annotation)"></p>
+                                                        </div>
+                                                    </template>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </template>
+
+                        <template x-if="!loading && previewMode === 'fallback'">
+                            <div class="{{ $uid }}__fallback">
+                                <div class="{{ $uid }}__fallback-type" x-text="String(activeFile()?.ext || 'file').toUpperCase()"></div>
+                                <p x-text="error || 'Inline preview is available for images, PDFs, DOCX, XLS, XLSX, and CSV.'"></p>
+                                <p x-text="'Use Open or Download to inspect ' + (activeFile()?.name || 'this file') + '.'"></p>
+                            </div>
+                        </template>
+                    </div>
+
+                    <template x-if="supportsAnnotations()">
+                        <div class="{{ $uid }}__annotation-card">
+                            <div class="{{ $uid }}__remark-header">
+                                <div>
+                                    <p class="{{ $uid }}__file-label">On-file annotations</p>
+                                    <p class="{{ $uid }}__remark-title" x-text="annotationSummary()"></p>
+                                </div>
+                                <span class="{{ $uid }}__remark-status" x-text="annotationStatusText()"></span>
+                            </div>
+
+                            <template x-if="annotationEditable">
+                                <div class="{{ $uid }}__annotation-composer">
+                                    <label class="{{ $uid }}__remark-field">
+                                        <span class="{{ $uid }}__remark-label">Annotation text</span>
+                                        <textarea
+                                            rows="3"
+                                            class="{{ $uid }}__remark-input"
+                                            placeholder="Type the remark you want to place on the file, then click Place Remark and click on the page."
+                                            x-model="annotationDraft"
+                                        ></textarea>
+                                    </label>
+
+                                    <div class="{{ $uid }}__annotation-controls">
+                                        <label class="{{ $uid }}__annotation-color-field">
+                                            <span class="{{ $uid }}__remark-label">Color</span>
+                                            <input type="color" class="{{ $uid }}__annotation-color" x-model="annotationColor">
+                                        </label>
+
+                                        <button
+                                            type="button"
+                                            class="{{ $uid }}__action-btn"
+                                            :class="{ 'is-active': annotationMode }"
+                                            @click="toggleAnnotationMode()"
+                                        >
+                                            <span x-text="annotationMode ? 'Click on file to place' : 'Place remark'"></span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
                         </div>
                     </template>
 
-                    <template x-if="!loading && previewMode === 'fallback'">
-                        <div class="{{ $uid }}__fallback">
-                            <div class="{{ $uid }}__fallback-type" x-text="String(activeFile()?.ext || 'file').toUpperCase()"></div>
-                            <p x-text="error || 'Inline preview is available for images, PDFs, DOCX, and XLSX.'"></p>
-                            <p x-text="'Use Open or Download to inspect ' + (activeFile()?.name || 'this file') + '.'"></p>
+                    <div class="{{ $uid }}__remark-card">
+                        <div class="{{ $uid }}__remark-header">
+                            <div>
+                                <p class="{{ $uid }}__file-label">File conversation</p>
+                                <p class="{{ $uid }}__remark-title" x-text="activeFile() ? activeFile().name : 'No file selected'"></p>
+                            </div>
+                            <span class="{{ $uid }}__remark-status" x-text="currentThread().length ? (currentThread().length + ' message(s)') : 'No messages yet'"></span>
                         </div>
-                    </template>
+
+                        <div class="{{ $uid }}__remark-thread">
+                            <template x-if="currentThread().length">
+                                <div class="{{ $uid }}__remark-list">
+                                    <template x-for="(entry, entryIndex) in currentThread()" :key="entryIndex">
+                                        <article
+                                            class="{{ $uid }}__remark-row"
+                                            :class="{ 'is-own': isOwnEntry(entry), 'is-other': !isOwnEntry(entry) }"
+                                        >
+                                            <div
+                                                class="{{ $uid }}__remark-entry"
+                                                :class="{ 'is-own': isOwnEntry(entry), 'is-other': !isOwnEntry(entry) }"
+                                            >
+                                            <p class="{{ $uid }}__remark-entry-meta" x-text="formatEntryMeta(entry) || 'Comment'"></p>
+                                            <p class="{{ $uid }}__remark-entry-body" x-text="entry.message || ''"></p>
+                                            </div>
+                                        </article>
+                                    </template>
+                                </div>
+                            </template>
+
+                            <template x-if="!currentThread().length">
+                                <p class="{{ $uid }}__remark-empty">No comment has been added for this file yet.</p>
+                            </template>
+                        </div>
+
+                        <template x-if="editable">
+                            <label class="{{ $uid }}__remark-field">
+                                <span class="{{ $uid }}__remark-label">{{ $draftLabel }}</span>
+                                <textarea
+                                    rows="4"
+                                    class="{{ $uid }}__remark-input"
+                                    placeholder="{{ $draftPlaceholder }}"
+                                    :value="currentDraft()"
+                                    @input="updateCurrentDraft($event.target.value)"
+                                ></textarea>
+                            </label>
+                        </template>
+                    </div>
                 </div>
             </div>
         </div>
-    </div>
 
-    <style>
-        #{{ $uid }} {
-            border: 1px solid #dbe2ea;
-            border-radius: 16px;
-            background: linear-gradient(180deg, #f8fbff 0%, #eef4fb 100%);
-            overflow: hidden;
-        }
+        <style>
+            #{{ $uid }} {
+                border: 1px solid #dbe2ea;
+                border-radius: 16px;
+                background: linear-gradient(180deg, #f8fbff 0%, #eef4fb 100%);
+                overflow: hidden;
+            }
 
-        #{{ $uid }} .{{ $uid }}__header {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 12px;
-            padding: 16px 18px;
-            border-bottom: 1px solid #dbe2ea;
-            background: rgba(255, 255, 255, 0.88);
-        }
+            #{{ $uid }} .{{ $uid }}__header {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                gap: 12px;
+                padding: 16px 18px;
+                border-bottom: 1px solid #dbe2ea;
+                background: rgba(255, 255, 255, 0.88);
+            }
 
-        #{{ $uid }} .{{ $uid }}__eyebrow,
-        #{{ $uid }} .{{ $uid }}__file-label {
-            margin: 0 0 4px;
-            font-size: 11px;
-            letter-spacing: 0.08em;
-            text-transform: uppercase;
-            color: #64748b;
-            font-weight: 700;
-        }
+            #{{ $uid }} .{{ $uid }}__eyebrow,
+            #{{ $uid }} .{{ $uid }}__file-label {
+                margin: 0 0 4px;
+                font-size: 11px;
+                letter-spacing: 0.08em;
+                text-transform: uppercase;
+                color: #64748b;
+                font-weight: 700;
+            }
 
-        #{{ $uid }} .{{ $uid }}__title,
-        #{{ $uid }} .{{ $uid }}__file-name {
-            margin: 0;
-            font-size: 15px;
-            font-weight: 700;
-            color: #0f172a;
-            word-break: break-word;
-        }
+            #{{ $uid }} .{{ $uid }}__title,
+            #{{ $uid }} .{{ $uid }}__file-name,
+            #{{ $uid }} .{{ $uid }}__remark-title {
+                margin: 0;
+                font-size: 15px;
+                font-weight: 700;
+                color: #0f172a;
+                word-break: break-word;
+            }
 
-        #{{ $uid }} .{{ $uid }}__count,
-        #{{ $uid }} .{{ $uid }}__zoom-label {
-            display: inline-flex;
-            align-items: center;
-            padding: 6px 10px;
-            border-radius: 999px;
-            background: #dbeafe;
-            color: #1d4ed8;
-            font-size: 12px;
-            font-weight: 600;
-            white-space: nowrap;
-        }
+            #{{ $uid }} .{{ $uid }}__count,
+            #{{ $uid }} .{{ $uid }}__zoom-label,
+            #{{ $uid }} .{{ $uid }}__remark-status,
+            #{{ $uid }} .{{ $uid }}__thumb-badge {
+                display: inline-flex;
+                align-items: center;
+                padding: 6px 10px;
+                border-radius: 999px;
+                background: #dbeafe;
+                color: #1d4ed8;
+                font-size: 12px;
+                font-weight: 600;
+                white-space: nowrap;
+            }
 
-        #{{ $uid }} .{{ $uid }}__layout {
-            display: grid;
-            grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
-            min-height: 520px;
-        }
+            #{{ $uid }} .{{ $uid }}__thumb-badge {
+                padding: 4px 8px;
+                font-size: 11px;
+                margin-top: 6px;
+            }
 
-        #{{ $uid }} .{{ $uid }}__sidebar {
-            padding: 14px;
-            border-right: 1px solid #dbe2ea;
-            background: rgba(255, 255, 255, 0.82);
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            max-height: 700px;
-            overflow-y: auto;
-        }
-
-        #{{ $uid }} .{{ $uid }}__thumb {
-            width: 100%;
-            border: 1px solid #dbe2ea;
-            border-radius: 12px;
-            padding: 10px;
-            background: #ffffff;
-            text-align: left;
-            cursor: pointer;
-            transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
-        }
-
-        #{{ $uid }} .{{ $uid }}__thumb:hover,
-        #{{ $uid }} .{{ $uid }}__thumb.is-active {
-            border-color: #60a5fa;
-            box-shadow: 0 10px 24px rgba(37, 99, 235, 0.12);
-            transform: translateY(-1px);
-        }
-
-        #{{ $uid }} .{{ $uid }}__thumb-preview {
-            height: 96px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            overflow: hidden;
-            border-radius: 10px;
-            background: #f8fafc;
-        }
-
-        #{{ $uid }} .{{ $uid }}__thumb-preview img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            display: block;
-        }
-
-        #{{ $uid }} .{{ $uid }}__thumb-fallback {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-width: 64px;
-            min-height: 64px;
-            border-radius: 12px;
-            padding: 12px;
-            background: #eff6ff;
-            color: #1d4ed8;
-            font-size: 14px;
-            font-weight: 700;
-            letter-spacing: 0.06em;
-        }
-
-        #{{ $uid }} .{{ $uid }}__thumb-name {
-            display: block;
-            margin-top: 8px;
-            font-size: 12px;
-            color: #334155;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-
-        #{{ $uid }} .{{ $uid }}__viewer {
-            min-width: 0;
-            display: grid;
-            grid-template-rows: auto minmax(320px, 1fr);
-        }
-
-        #{{ $uid }} .{{ $uid }}__viewer-bar {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 12px;
-            padding: 16px 18px;
-            border-bottom: 1px solid #dbe2ea;
-            background: rgba(255, 255, 255, 0.72);
-        }
-
-        #{{ $uid }} .{{ $uid }}__actions {
-            display: flex;
-            gap: 8px;
-            flex-wrap: wrap;
-            align-items: center;
-            justify-content: flex-end;
-        }
-
-        #{{ $uid }} .{{ $uid }}__actions a,
-        #{{ $uid }} .{{ $uid }}__action-btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            padding: 8px 12px;
-            border-radius: 10px;
-            border: 1px solid #bfdbfe;
-            background: #eff6ff;
-            color: #1d4ed8;
-            text-decoration: none;
-            font-size: 12px;
-            font-weight: 700;
-            cursor: pointer;
-        }
-
-        #{{ $uid }} .{{ $uid }}__preview {
-            min-height: 360px;
-            overflow: auto;
-            padding: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background:
-                radial-gradient(circle at top right, rgba(191, 219, 254, 0.75), transparent 35%),
-                linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
-        }
-
-        #{{ $uid }} .{{ $uid }}__stage-wrap {
-            min-width: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 8px 0 32px;
-        }
-
-        #{{ $uid }} .{{ $uid }}__stage {
-            transition: transform 0.18s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
-
-        #{{ $uid }} .{{ $uid }}__stage--document {
-            width: min(920px, 100%);
-        }
-
-        #{{ $uid }} .{{ $uid }}__frame,
-        #{{ $uid }} .{{ $uid }}__image,
-        #{{ $uid }} .{{ $uid }}__html-preview {
-            border: 0;
-            border-radius: 14px;
-            background: #ffffff;
-            box-shadow: 0 18px 36px rgba(15, 23, 42, 0.12);
-        }
-
-        #{{ $uid }} .{{ $uid }}__frame {
-            width: 100%;
-            min-height: 1080px;
-        }
-
-        #{{ $uid }} .{{ $uid }}__image {
-            width: auto;
-            max-width: min(100%, 960px);
-            max-height: 70vh;
-            object-fit: contain;
-            padding: 16px;
-        }
-
-        #{{ $uid }} .{{ $uid }}__html-preview {
-            width: 100%;
-            min-height: 420px;
-            padding: 28px;
-            overflow: auto;
-        }
-
-        #{{ $uid }} .{{ $uid }}__docx-body {
-            color: #0f172a;
-            line-height: 1.7;
-            font-size: 14px;
-        }
-
-        #{{ $uid }} .{{ $uid }}__docx-body h1,
-        #{{ $uid }} .{{ $uid }}__docx-body h2,
-        #{{ $uid }} .{{ $uid }}__docx-body h3,
-        #{{ $uid }} .{{ $uid }}__sheet h4 {
-            margin: 0 0 12px;
-            color: #0f172a;
-        }
-
-        #{{ $uid }} .{{ $uid }}__sheet + .{{ $uid }}__sheet {
-            margin-top: 24px;
-            border-top: 1px solid #e2e8f0;
-            padding-top: 24px;
-        }
-
-        #{{ $uid }} .{{ $uid }}__sheet-table table {
-            width: 100%;
-            border-collapse: collapse;
-            font-size: 13px;
-        }
-
-        #{{ $uid }} .{{ $uid }}__sheet-table td,
-        #{{ $uid }} .{{ $uid }}__sheet-table th {
-            border: 1px solid #dbe2ea;
-            padding: 8px 10px;
-            vertical-align: top;
-        }
-
-        #{{ $uid }} .{{ $uid }}__sheet-table tr:nth-child(even) {
-            background: #f8fafc;
-        }
-
-        #{{ $uid }} .{{ $uid }}__fallback,
-        #{{ $uid }} .{{ $uid }}__status-card {
-            max-width: 460px;
-            padding: 28px;
-            border: 1px dashed #94a3b8;
-            border-radius: 18px;
-            text-align: center;
-            background: rgba(255, 255, 255, 0.92);
-            color: #334155;
-        }
-
-        #{{ $uid }} .{{ $uid }}__fallback-type {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            width: 68px;
-            height: 68px;
-            margin-bottom: 14px;
-            border-radius: 20px;
-            background: #eff6ff;
-            color: #1d4ed8;
-            font-size: 18px;
-            font-weight: 700;
-            letter-spacing: 0.06em;
-        }
-
-        #{{ $uid }} .{{ $uid }}__fallback p,
-        #{{ $uid }} .{{ $uid }}__status-card p {
-            margin: 0 0 8px;
-            font-size: 13px;
-        }
-
-        @media (max-width: 1100px) {
             #{{ $uid }} .{{ $uid }}__layout {
-                grid-template-columns: 1fr;
+                display: grid;
+                grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
+                min-height: 520px;
             }
 
             #{{ $uid }} .{{ $uid }}__sidebar {
-                border-right: 0;
-                border-bottom: 1px solid #dbe2ea;
-                max-height: 280px;
+                padding: 14px;
+                border-right: 1px solid #dbe2ea;
+                background: rgba(255, 255, 255, 0.82);
+                display: flex;
+                flex-direction: column;
+                gap: 10px;
+                max-height: 700px;
+                overflow-y: auto;
             }
-        }
 
-        @media (max-width: 960px) {
-            #{{ $uid }} .{{ $uid }}__viewer-bar {
+            #{{ $uid }} .{{ $uid }}__thumb {
+                width: 100%;
+                border: 1px solid #dbe2ea;
+                border-radius: 12px;
+                padding: 10px;
+                background: #ffffff;
+                text-align: left;
+                cursor: pointer;
+                transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+            }
+
+            #{{ $uid }} .{{ $uid }}__thumb:hover,
+            #{{ $uid }} .{{ $uid }}__thumb.is-active {
+                border-color: #60a5fa;
+                box-shadow: 0 10px 24px rgba(37, 99, 235, 0.12);
+                transform: translateY(-1px);
+            }
+
+            #{{ $uid }} .{{ $uid }}__thumb-preview {
+                height: 96px;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                overflow: hidden;
+                border-radius: 10px;
+                background: #f8fafc;
+            }
+
+            #{{ $uid }} .{{ $uid }}__thumb-preview img {
+                width: 100%;
+                height: 100%;
+                object-fit: cover;
+                display: block;
+            }
+
+            #{{ $uid }} .{{ $uid }}__thumb-fallback {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                min-width: 64px;
+                min-height: 64px;
+                border-radius: 12px;
+                padding: 12px;
+                background: #eff6ff;
+                color: #1d4ed8;
+                font-size: 14px;
+                font-weight: 700;
+                letter-spacing: 0.06em;
+            }
+
+            #{{ $uid }} .{{ $uid }}__thumb-meta {
+                display: flex;
                 flex-direction: column;
                 align-items: flex-start;
             }
 
+            #{{ $uid }} .{{ $uid }}__thumb-name {
+                display: block;
+                margin-top: 8px;
+                font-size: 12px;
+                color: #334155;
+                width: 100%;
+                white-space: nowrap;
+                overflow: hidden;
+                text-overflow: ellipsis;
+            }
+
+            #{{ $uid }} .{{ $uid }}__viewer {
+                min-width: 0;
+                display: grid;
+                grid-template-rows: auto minmax(320px, 1fr) auto;
+            }
+
+            #{{ $uid }} .{{ $uid }}__viewer-bar,
+            #{{ $uid }} .{{ $uid }}__annotation-card,
+            #{{ $uid }} .{{ $uid }}__remark-card {
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                gap: 12px;
+                padding: 16px 18px;
+                background: rgba(255, 255, 255, 0.72);
+            }
+
+            #{{ $uid }} .{{ $uid }}__viewer-bar {
+                border-bottom: 1px solid #dbe2ea;
+            }
+
+            #{{ $uid }} .{{ $uid }}__remark-card {
+                border-top: 1px solid #dbe2ea;
+                flex-direction: column;
+            }
+
+            #{{ $uid }} .{{ $uid }}__annotation-card {
+                border-top: 1px solid #dbe2ea;
+                flex-direction: column;
+                background: rgba(248, 250, 252, 0.92);
+            }
+
+            #{{ $uid }} .{{ $uid }}__remark-header {
+                width: 100%;
+                display: flex;
+                justify-content: space-between;
+                align-items: flex-start;
+                gap: 12px;
+            }
+
             #{{ $uid }} .{{ $uid }}__actions {
-                justify-content: flex-start;
+                display: flex;
+                gap: 8px;
+                flex-wrap: wrap;
+                align-items: center;
+                justify-content: flex-end;
+            }
+
+            #{{ $uid }} .{{ $uid }}__actions a,
+            #{{ $uid }} .{{ $uid }}__action-btn {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                padding: 8px 12px;
+                border-radius: 10px;
+                border: 1px solid #bfdbfe;
+                background: #eff6ff;
+                color: #1d4ed8;
+                text-decoration: none;
+                font-size: 12px;
+                font-weight: 700;
+                cursor: pointer;
+            }
+
+            #{{ $uid }} .{{ $uid }}__preview {
+                min-height: 360px;
+                max-height: 760px;
+                overflow: auto;
+                padding: 20px;
+                display: flex;
+                align-items: flex-start;
+                justify-content: center;
+                background:
+                    radial-gradient(circle at top right, rgba(191, 219, 254, 0.75), transparent 35%),
+                    linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+            }
+
+            #{{ $uid }} .{{ $uid }}__stage-wrap {
+                min-width: 100%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                padding: 8px 0 32px;
+            }
+
+            #{{ $uid }} .{{ $uid }}__stage {
+                transition: transform 0.18s ease;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            #{{ $uid }} .{{ $uid }}__stage--document {
+                width: 100%;
+                max-width: 1200px;
+            }
+
+            #{{ $uid }} .{{ $uid }}__pdf-stack {
+                flex-direction: column;
+                gap: 24px;
+            }
+
+            #{{ $uid }} .{{ $uid }}__page-shell {
+                position: relative;
+                max-width: 100%;
+                overflow: visible;
+            }
+
+            #{{ $uid }} .{{ $uid }}__page-shell--image {
+                display: inline-flex;
+            }
+
+            #{{ $uid }} .{{ $uid }}__page-shell--html {
+                width: min(920px, 100%);
+            }
+
+            #{{ $uid }} .{{ $uid }}__page-shell--pdf-native {
+                width: 100%;
+                max-width: 1200px;
+                min-height: 980px;
+            }
+
+            #{{ $uid }} .{{ $uid }}__frame,
+            #{{ $uid }} .{{ $uid }}__pdf-canvas,
+            #{{ $uid }} .{{ $uid }}__image,
+            #{{ $uid }} .{{ $uid }}__html-scroll,
+            #{{ $uid }} .{{ $uid }}__html-surface,
+            #{{ $uid }} .{{ $uid }}__html-preview {
+                border: 0;
+                border-radius: 14px;
+                background: #ffffff;
+                box-shadow: 0 18px 36px rgba(15, 23, 42, 0.12);
             }
 
             #{{ $uid }} .{{ $uid }}__frame {
-                min-height: 720px;
+                display: block;
+                width: 100%;
+                min-height: 78vh;
+                height: 980px;
+                position: relative;
+                z-index: 1;
+                pointer-events: auto;
             }
-        }
-    </style>
-@endif
+
+            #{{ $uid }} .{{ $uid }}__page-shell--pdf-native .{{ $uid }}__annotation-layer {
+                z-index: 2;
+            }
+
+            #{{ $uid }} .{{ $uid }}__pdf-canvas {
+                display: block;
+                width: 100%;
+                height: auto;
+            }
+
+            #{{ $uid }} .{{ $uid }}__image {
+                width: auto;
+                max-width: min(100%, 960px);
+                max-height: 70vh;
+                object-fit: contain;
+                padding: 16px;
+            }
+
+            #{{ $uid }} .{{ $uid }}__annotation-layer {
+                position: absolute;
+                inset: 0;
+                border-radius: 14px;
+                pointer-events: none;
+            }
+
+            #{{ $uid }} .{{ $uid }}__annotation-layer.is-placing {
+                cursor: crosshair;
+                pointer-events: auto;
+            }
+
+            #{{ $uid }} .{{ $uid }}__annotation-pin {
+                position: absolute;
+                transform: translate(-10%, -100%);
+                min-width: 180px;
+                max-width: 240px;
+                padding: 12px 14px;
+                border-radius: 14px;
+                background: color-mix(in srgb, var(--annotation-accent, #f97316) 12%, #ffffff);
+                border: 1px solid var(--annotation-accent, #fdba74);
+                color: #7c2d12;
+                box-shadow: 0 16px 32px rgba(124, 45, 18, 0.16);
+                cursor: grab;
+                user-select: none;
+                pointer-events: auto;
+            }
+
+            #{{ $uid }} .{{ $uid }}__annotation-pin.is-own {
+                background: #eff6ff;
+                border-color: #93c5fd;
+                color: #1e3a8a;
+                box-shadow: 0 16px 32px rgba(30, 64, 175, 0.16);
+            }
+
+            #{{ $uid }} .{{ $uid }}__annotation-pin.is-dragging {
+                cursor: grabbing;
+                box-shadow: 0 20px 40px rgba(15, 23, 42, 0.24);
+            }
+
+            #{{ $uid }} .{{ $uid }}__annotation-text,
+            #{{ $uid }} .{{ $uid }}__annotation-meta {
+                margin: 0;
+                white-space: pre-wrap;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+            }
+
+            #{{ $uid }} .{{ $uid }}__annotation-text {
+                font-size: 13px;
+                line-height: 1.5;
+                font-weight: 600;
+            }
+
+            #{{ $uid }} .{{ $uid }}__annotation-meta {
+                margin-top: 6px;
+                font-size: 11px;
+                opacity: 0.84;
+            }
+
+            #{{ $uid }} .{{ $uid }}__annotation-delete {
+                position: absolute;
+                top: 6px;
+                right: 6px;
+                width: 22px;
+                height: 22px;
+                border: 0;
+                border-radius: 999px;
+                background: rgba(15, 23, 42, 0.1);
+                color: inherit;
+                font-size: 11px;
+                font-weight: 700;
+                cursor: pointer;
+            }
+
+            #{{ $uid }} .{{ $uid }}__annotation-composer {
+                width: 100%;
+                display: grid;
+                grid-template-columns: minmax(0, 1fr) auto;
+                gap: 16px;
+                align-items: end;
+            }
+
+            #{{ $uid }} .{{ $uid }}__annotation-controls {
+                display: flex;
+                align-items: end;
+                gap: 12px;
+                flex-wrap: wrap;
+            }
+
+            #{{ $uid }} .{{ $uid }}__annotation-color-field {
+                display: flex;
+                flex-direction: column;
+                gap: 6px;
+            }
+
+            #{{ $uid }} .{{ $uid }}__annotation-color {
+                width: 52px;
+                height: 44px;
+                padding: 4px;
+                border: 1px solid #cbd5e1;
+                border-radius: 12px;
+                background: #ffffff;
+                cursor: pointer;
+            }
+
+            #{{ $uid }} .{{ $uid }}__action-btn.is-active {
+                background: #1d4ed8;
+                border-color: #1d4ed8;
+                color: #ffffff;
+            }
+
+            #{{ $uid }} .{{ $uid }}__html-scroll {
+                width: 100%;
+                max-height: 70vh;
+                overflow: auto;
+            }
+
+            #{{ $uid }} .{{ $uid }}__html-surface {
+                position: relative;
+                width: max-content;
+                min-width: 100%;
+                min-height: 420px;
+            }
+
+            #{{ $uid }} .{{ $uid }}__html-surface .{{ $uid }}__annotation-layer {
+                z-index: 2;
+            }
+
+            #{{ $uid }} .{{ $uid }}__html-preview {
+                width: 100%;
+                min-height: 420px;
+                padding: 28px;
+                overflow: visible;
+            }
+
+            #{{ $uid }} .{{ $uid }}__docx-body {
+                color: #0f172a;
+                line-height: 1.7;
+                font-size: 14px;
+            }
+
+            #{{ $uid }} .{{ $uid }}__docx-body h1,
+            #{{ $uid }} .{{ $uid }}__docx-body h2,
+            #{{ $uid }} .{{ $uid }}__docx-body h3,
+            #{{ $uid }} .{{ $uid }}__sheet h4 {
+                margin: 0 0 12px;
+                color: #0f172a;
+            }
+
+            #{{ $uid }} .{{ $uid }}__sheet + .{{ $uid }}__sheet {
+                margin-top: 24px;
+                border-top: 1px solid #e2e8f0;
+                padding-top: 24px;
+            }
+
+            #{{ $uid }} .{{ $uid }}__sheet-table {
+                display: block;
+                width: max-content;
+                min-width: 100%;
+                max-width: none;
+                overflow: visible;
+                border: 1px solid #dbe2ea;
+                border-radius: 12px;
+                background: #ffffff;
+                box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+            }
+
+            #{{ $uid }} .{{ $uid }}__sheet-table * {
+                box-sizing: border-box;
+            }
+
+            #{{ $uid }} .{{ $uid }}__sheet-table table {
+                width: max-content !important;
+                min-width: max-content !important;
+                border-collapse: collapse;
+                table-layout: auto;
+                font-size: 13px;
+                margin: 0;
+            }
+
+            #{{ $uid }} .{{ $uid }}__sheet-table td,
+            #{{ $uid }} .{{ $uid }}__sheet-table th {
+                border: 1px solid #dbe2ea;
+                padding: 8px 10px;
+                vertical-align: top;
+                white-space: nowrap;
+                overflow: visible;
+                overflow-wrap: normal;
+                word-break: normal;
+                min-width: 120px;
+                max-width: none;
+            }
+
+            #{{ $uid }} .{{ $uid }}__sheet-table tr:nth-child(even) {
+                background: #f8fafc;
+            }
+
+            #{{ $uid }} .{{ $uid }}__fallback,
+            #{{ $uid }} .{{ $uid }}__status-card {
+                max-width: 460px;
+                padding: 28px;
+                border: 1px dashed #94a3b8;
+                border-radius: 18px;
+                text-align: center;
+                background: rgba(255, 255, 255, 0.92);
+                color: #334155;
+            }
+
+            #{{ $uid }} .{{ $uid }}__fallback-type {
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 68px;
+                height: 68px;
+                margin-bottom: 14px;
+                border-radius: 20px;
+                background: #eff6ff;
+                color: #1d4ed8;
+                font-size: 18px;
+                font-weight: 700;
+                letter-spacing: 0.06em;
+            }
+
+            #{{ $uid }} .{{ $uid }}__fallback p,
+            #{{ $uid }} .{{ $uid }}__status-card p {
+                margin: 0 0 8px;
+                font-size: 13px;
+            }
+
+            #{{ $uid }} .{{ $uid }}__remark-thread,
+            #{{ $uid }} .{{ $uid }}__remark-field {
+                width: 100%;
+            }
+
+            #{{ $uid }} .{{ $uid }}__remark-thread {
+                max-height: 240px;
+                overflow-y: auto;
+                padding-right: 4px;
+            }
+
+            #{{ $uid }} .{{ $uid }}__remark-list {
+                display: flex;
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            #{{ $uid }} .{{ $uid }}__remark-row {
+                display: flex;
+                width: 100%;
+            }
+
+            #{{ $uid }} .{{ $uid }}__remark-row.is-own {
+                justify-content: flex-end;
+            }
+
+            #{{ $uid }} .{{ $uid }}__remark-row.is-other {
+                justify-content: flex-start;
+            }
+
+            #{{ $uid }} .{{ $uid }}__remark-entry {
+                padding: 12px 14px;
+                border: 1px solid #dbe2ea;
+                border-radius: 18px;
+                background: #ffffff;
+                width: min(100%, 540px);
+                box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+            }
+
+            #{{ $uid }} .{{ $uid }}__remark-entry.is-own {
+                background: linear-gradient(180deg, #dbeafe 0%, #bfdbfe 100%);
+                border-color: #93c5fd;
+                border-bottom-right-radius: 6px;
+            }
+
+            #{{ $uid }} .{{ $uid }}__remark-entry.is-other {
+                background: #ffffff;
+                border-color: #dbe2ea;
+                border-bottom-left-radius: 6px;
+            }
+
+            #{{ $uid }} .{{ $uid }}__remark-entry-meta,
+            #{{ $uid }} .{{ $uid }}__remark-label {
+                margin: 0 0 6px;
+                font-size: 12px;
+                font-weight: 700;
+                color: #475569;
+            }
+
+            #{{ $uid }} .{{ $uid }}__remark-entry-body {
+                margin: 0;
+                font-size: 13px;
+                line-height: 1.6;
+                color: #0f172a;
+                white-space: pre-wrap;
+            }
+
+            #{{ $uid }} .{{ $uid }}__remark-input {
+                width: 100%;
+                border: 1px solid #cbd5e1;
+                border-radius: 12px;
+                padding: 12px 14px;
+                background: #ffffff;
+                color: #0f172a;
+                font-size: 14px;
+                resize: vertical;
+                min-height: 110px;
+            }
+
+            #{{ $uid }} .{{ $uid }}__remark-input:focus {
+                outline: 0;
+                border-color: #60a5fa;
+                box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
+            }
+
+            #{{ $uid }} .{{ $uid }}__remark-empty {
+                color: #64748b;
+                font-style: italic;
+            }
+
+            @media (max-width: 1100px) {
+                #{{ $uid }} .{{ $uid }}__layout {
+                    grid-template-columns: 1fr;
+                }
+
+                #{{ $uid }} .{{ $uid }}__sidebar {
+                    border-right: 0;
+                    border-bottom: 1px solid #dbe2ea;
+                    max-height: 280px;
+                }
+            }
+
+            @media (max-width: 960px) {
+                #{{ $uid }} .{{ $uid }}__viewer-bar,
+                #{{ $uid }} .{{ $uid }}__remark-header {
+                    flex-direction: column;
+                    align-items: flex-start;
+                }
+
+                #{{ $uid }} .{{ $uid }}__actions {
+                    justify-content: flex-start;
+                }
+
+                #{{ $uid }} .{{ $uid }}__annotation-composer {
+                    grid-template-columns: 1fr;
+                }
+            }
+        </style>
+    @endif
+</div>

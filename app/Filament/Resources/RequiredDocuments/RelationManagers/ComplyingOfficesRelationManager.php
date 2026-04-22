@@ -16,6 +16,7 @@ use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Hidden;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -114,16 +115,52 @@ class ComplyingOfficesRelationManager extends RelationManager
                     ->disabled()
                     ->visible(fn ($get) => !empty($get('submitted_at')))
                     ->columnSpanFull(),
+
+                Hidden::make('attachment_remarks')
+                    ->default([]),
+
+                Hidden::make('attachment_remark_drafts')
+                    ->default([]),
+
+                Hidden::make('attachment_annotations')
+                    ->default([]),
                 
                 ViewField::make('attachments_preview')
-                    ->label('Submitted Attachments')
+                    ->label('Submitted Attachments and Agency Remarks')
                     ->view('filament.forms.components.attachment-preview')
-                    ->viewData(fn ($record) => [
-                        'preview' => FilamentAttachmentPreview::payload(
-                            $record?->attachments,
-                            'relation_manager_' . ($record?->id ?? 'new')
-                        ),
-                    ])
+                    ->viewData(function (ViewField $component, $get, $record) {
+                        $requiredDocument = $this->getOwnerRecord();
+                        $user = auth()->user();
+                        $agencyDepartmentCode = Office::where('office', $requiredDocument->agency_name)
+                            ->value('department_code');
+                        $isRequiringAgency = $user->department_code === $agencyDepartmentCode;
+                        $isComplied = (int) ($record?->status ?? $get('status') ?? -1) === 1;
+                        $editable = (bool) $record && ($user->hasRoleSafe('super_admin') || ($isRequiringAgency && $isComplied));
+
+                        return [
+                            'preview' => FilamentAttachmentPreview::payload(
+                                $record?->attachments,
+                                'relation_manager_' . ($record?->id ?? 'new'),
+                                $get('attachment_remarks') ?? $record?->attachment_remarks,
+                                $get('attachment_remark_drafts') ?? [],
+                                $this->resolveAttachmentViewerType($record),
+                                $get('attachment_annotations') ?? $record?->attachment_annotations
+                            ),
+                            'editable' => $editable,
+                            'annotationEditable' => $editable,
+                            'draftsStatePath' => str($component->getStatePath())
+                                ->replaceEnd('.attachments_preview', '.attachment_remark_drafts')
+                                ->toString(),
+                            'annotationsStatePath' => str($component->getStatePath())
+                                ->replaceEnd('.attachments_preview', '.attachment_annotations')
+                                ->toString(),
+                            'annotationAuthorName' => $user->name,
+                            'annotationAuthorLabel' => $this->resolveAttachmentCommentAuthorLabel($record),
+                            'annotationAuthorType' => $this->resolveAttachmentCommentAuthorType($record),
+                            'draftLabel' => 'Agency remark',
+                            'draftPlaceholder' => 'Write remarks or instructions for this submitted file. The complying office will see and reply from their submission form.',
+                        ];
+                    })
                     ->dehydrated(false)
                     ->columnSpanFull(),
 
@@ -529,6 +566,31 @@ class ComplyingOfficesRelationManager extends RelationManager
                     ->icon('heroicon-o-envelope'),
 
                 EditAction::make()
+                    ->mutateRecordDataUsing(function (array $data): array {
+                        $data['attachment_remark_drafts'] = [];
+
+                        return $data;
+                    })
+                    ->mutateFormDataUsing(function (array $data): array {
+                        /** @var ComplyingOffice|null $record */
+                        $record = $this->getMountedTableActionRecord();
+                        $drafts = $data['attachment_remark_drafts'] ?? [];
+                        unset($data['attachment_remark_drafts']);
+
+                        if (! $record) {
+                            return $data;
+                        }
+
+                        $data['attachment_remarks'] = FilamentAttachmentPreview::mergeRemarkThreads(
+                            $record->attachment_remarks,
+                            $drafts,
+                            auth()->user()->name,
+                            $this->resolveAttachmentCommentAuthorLabel($record),
+                            $this->resolveAttachmentCommentAuthorType($record)
+                        );
+
+                        return $data;
+                    })
                     ->slideOver()
                     ->modalWidth('7xl'),
                 // DissociateAction::make(),
@@ -610,5 +672,61 @@ class ComplyingOfficesRelationManager extends RelationManager
                         }),
                 ]),
             ]);
+    }
+
+    protected function resolveAttachmentCommentAuthorLabel(ComplyingOffice $record): string
+    {
+        $user = auth()->user();
+        $shortName = Office::where('department_code', $user->department_code)->value('short_name');
+
+        if (filled($shortName)) {
+            return (string) $shortName;
+        }
+
+        return (string) ($user->department_code ?? 'User');
+    }
+
+    protected function resolveAttachmentCommentAuthorType(ComplyingOffice $record): string
+    {
+        $user = auth()->user();
+
+        if ($user->hasRoleSafe('super_admin')) {
+            return 'super_admin';
+        }
+
+        $agencyDepartmentCode = Office::where('office', $this->getOwnerRecord()->agency_name)
+            ->value('department_code');
+
+        if ($user->department_code === $agencyDepartmentCode) {
+            return 'requiring_agency';
+        }
+
+        if ($user->department_code === $record->department_code) {
+            return 'complying_office';
+        }
+
+        return 'user';
+    }
+
+    protected function resolveAttachmentViewerType(?ComplyingOffice $record): ?string
+    {
+        $user = auth()->user();
+
+        if ($user->hasRoleSafe('super_admin')) {
+            return 'super_admin';
+        }
+
+        $agencyDepartmentCode = Office::where('office', $this->getOwnerRecord()->agency_name)
+            ->value('department_code');
+
+        if ($user->department_code === $agencyDepartmentCode) {
+            return 'requiring_agency';
+        }
+
+        if ($record && $user->department_code === $record->department_code) {
+            return 'complying_office';
+        }
+
+        return 'user';
     }
 }

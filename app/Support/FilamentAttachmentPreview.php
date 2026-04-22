@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\HtmlString;
@@ -9,11 +10,28 @@ use Illuminate\Support\HtmlString;
 class FilamentAttachmentPreview
 {
     /**
-     * @return array{uid: string, count: int, files: array<int, array<string, mixed>>}
+     * @return array{
+     *     uid: string,
+     *     count: int,
+     *     files: array<int, array<string, mixed>>,
+     *     threads: array<string, array<int, array<string, string|null>>>,
+     *     drafts: array<string, string>,
+     *     annotations: array<string, array<int, array<string, mixed>>>,
+     *     viewerType: string|null
+     * }
      */
-    public static function payload(mixed $attachments, string $context = 'attachments'): array
-    {
+    public static function payload(
+        mixed $attachments,
+        string $context = 'attachments',
+        mixed $remarks = [],
+        mixed $drafts = [],
+        ?string $viewerType = null,
+        mixed $annotations = []
+    ): array {
         $files = self::normalizeAttachmentItems($attachments);
+        $normalizedThreads = self::normalizeRemarkThreads($remarks);
+        $normalizedDrafts = self::normalizeDrafts($drafts);
+        $normalizedAnnotations = self::normalizeAnnotations($annotations);
         $uid = sprintf(
             'attachment_preview_%s_%s',
             preg_replace('/[^A-Za-z0-9_-]/', '_', $context) ?: 'files',
@@ -40,396 +58,65 @@ class FilamentAttachmentPreview
                     'isPdf' => $extension === 'pdf',
                     'isOffice' => $isOffice,
                     'isDocx' => $extension === 'docx',
-                    'isSpreadsheet' => in_array($extension, ['xls', 'xlsx'], true),
+                    'isSpreadsheet' => in_array($extension, ['xls', 'xlsx', 'csv'], true),
                     'previewUrl' => $url,
                 ];
             }, $files),
+            'threads' => self::filterThreadsToFiles($normalizedThreads, $files),
+            'drafts' => self::filterDraftsToFiles($normalizedDrafts, $files),
+            'annotations' => self::filterAnnotationsToFiles($normalizedAnnotations, $files),
+            'viewerType' => $viewerType,
         ];
     }
 
-    public static function render(mixed $attachments, string $context = 'attachments'): HtmlString
-    {
-        $payload = self::payload($attachments, $context);
-        $files = $payload['files'];
+    public static function render(
+        mixed $attachments,
+        string $context = 'attachments',
+        mixed $remarks = [],
+        mixed $annotations = []
+    ): HtmlString {
+        return new HtmlString((string) view('filament.forms.components.attachment-preview', [
+            'preview' => self::payload($attachments, $context, $remarks, [], null, $annotations),
+            'editable' => false,
+            'annotationEditable' => false,
+            'draftsStatePath' => null,
+            'annotationsStatePath' => null,
+        ]));
+    }
 
-        if ($files === []) {
-            return new HtmlString(
-                '<p style="font-size:0.875rem;color:#9ca3af;font-style:italic;">No files submitted.</p>'
-            );
-        }
+    /**
+     * @return array<string, array<int, array<string, string|null>>>
+     */
+    public static function mergeRemarkThreads(
+        mixed $existingRemarks,
+        mixed $drafts,
+        ?string $authorName = null,
+        ?string $authorLabel = null,
+        ?string $authorType = null,
+        ?string $createdAt = null
+    ): array {
+        $threads = self::normalizeRemarkThreads($existingRemarks);
+        $drafts = self::normalizeDrafts($drafts);
+        $createdAt ??= now()->toDateTimeString();
 
-        $uid = $payload['uid'];
-        $fileData = $files;
+        foreach ($drafts as $path => $draft) {
+            $message = trim($draft);
 
-        $sidebarHtml = collect($fileData)->map(function (array $file, int $index) use ($uid): string {
-            $preview = $file['isImage']
-                ? sprintf(
-                    '<img src="%s" alt="%s" loading="lazy">',
-                    e($file['url']),
-                    e($file['name'])
-                )
-                : sprintf(
-                    '<div class="%s__thumb-fallback">%s</div>',
-                    $uid,
-                    e(strtoupper($file['ext']))
-                );
-
-            return sprintf(
-                '<button type="button" class="%1$s__thumb" x-on:click="selectFile(%2$d)" :class="{ \'is-active\': activeIndex === %2$d }">
-                    <div class="%1$s__thumb-preview">%3$s</div>
-                    <span class="%1$s__thumb-name" title="%4$s">%4$s</span>
-                </button>',
-                $uid,
-                $index,
-                $preview,
-                e($file['name'])
-            );
-        })->implode('');
-
-        $filesJson = json_encode($fileData, JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT);
-        $count = $payload['count'];
-        $filesJsonForScript = e($filesJson);
-
-        $html = <<<HTML
-    <div
-        id="{$uid}"
-        class="{$uid}"
-        x-data="{
-            files: [],
-            activeIndex: 0,
-            init() {
-                this.files = JSON.parse(this.\$refs.filesData.textContent || '[]');
-            },
-            activeFile() {
-                return this.files[this.activeIndex] ?? null;
-            },
-            selectFile(index) {
-                if (index >= 0 && index < this.files.length) {
-                    this.activeIndex = index;
-                }
-            },
-            isPreviewable(file) {
-                return !!file && (file.isImage || file.isPdf || file.isOffice);
+            if ($message === '') {
+                continue;
             }
-        }"
-    >
-    <script type="application/json" x-ref="filesData">{$filesJsonForScript}</script>
-    <div class="{$uid}__header">
-        <div>
-            <p class="{$uid}__eyebrow">Attachments</p>
-            <h4 class="{$uid}__title">Preview submitted files</h4>
-        </div>
-        <span class="{$uid}__count">{$count} file(s)</span>
-    </div>
 
-    <div class="{$uid}__layout">
-        <div class="{$uid}__sidebar">
-            {$sidebarHtml}
-        </div>
-
-        <div class="{$uid}__viewer">
-            <div class="{$uid}__viewer-bar">
-                <div>
-                    <p class="{$uid}__file-label">Current file</p>
-                    <p class="{$uid}__file-name" x-text="activeFile() ? activeFile().name : 'No file selected'"></p>
-                </div>
-
-                <div class="{$uid}__actions">
-                    <a
-                        :href="activeFile() ? activeFile().url : '#'"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                    >Open</a>
-                    <a
-                        :href="activeFile() ? activeFile().url : '#'"
-                        :download="activeFile() ? activeFile().name : null"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                    >Download</a>
-                </div>
-            </div>
-
-            <div class="{$uid}__preview">
-                <template x-if="activeFile() && activeFile().isImage">
-                    <img :src="activeFile().url" :alt="activeFile().name">
-                </template>
-
-                <template x-if="activeFile() && (activeFile().isPdf || activeFile().isOffice)">
-                    <iframe :src="activeFile().previewUrl || activeFile().url" :title="activeFile().name"></iframe>
-                </template>
-
-                <template x-if="activeFile() && !isPreviewable(activeFile())">
-                    <div class="{$uid}__fallback">
-                        <div class="{$uid}__fallback-type" x-text="String(activeFile().ext || 'file').toUpperCase()"></div>
-                        <p>Inline preview is not available for this file type.</p>
-                        <p x-text="'Use Open or Download to inspect ' + activeFile().name + '.'"></p>
-                    </div>
-                </template>
-            </div>
-        </div>
-    </div>
-</div>
-
-<style>
-    #{$uid} {
-        border: 1px solid #dbe2ea;
-        border-radius: 16px;
-        background: linear-gradient(180deg, #f8fbff 0%, #eef4fb 100%);
-        overflow: hidden;
-    }
-
-    #{$uid} .{$uid}__header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 12px;
-        padding: 16px 18px;
-        border-bottom: 1px solid #dbe2ea;
-        background: rgba(255, 255, 255, 0.85);
-    }
-
-    #{$uid} .{$uid}__eyebrow {
-        margin: 0 0 4px;
-        font-size: 11px;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        color: #64748b;
-        font-weight: 700;
-    }
-
-    #{$uid} .{$uid}__title {
-        margin: 0;
-        font-size: 15px;
-        font-weight: 700;
-        color: #0f172a;
-    }
-
-    #{$uid} .{$uid}__count {
-        display: inline-flex;
-        align-items: center;
-        padding: 6px 10px;
-        border-radius: 999px;
-        background: #dbeafe;
-        color: #1d4ed8;
-        font-size: 12px;
-        font-weight: 600;
-        white-space: nowrap;
-    }
-
-    #{$uid} .{$uid}__layout {
-        display: grid;
-        grid-template-columns: minmax(180px, 220px) minmax(0, 1fr);
-        min-height: 420px;
-    }
-
-    #{$uid} .{$uid}__sidebar {
-        padding: 14px;
-        border-right: 1px solid #dbe2ea;
-        background: rgba(255, 255, 255, 0.82);
-        display: flex;
-        flex-direction: column;
-        gap: 10px;
-        max-height: 560px;
-        overflow-y: auto;
-    }
-
-    #{$uid} .{$uid}__thumb {
-        width: 100%;
-        border: 1px solid #dbe2ea;
-        border-radius: 12px;
-        padding: 10px;
-        background: #ffffff;
-        text-align: left;
-        cursor: pointer;
-        transition: border-color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
-    }
-
-    #{$uid} .{$uid}__thumb:hover,
-    #{$uid} .{$uid}__thumb.is-active {
-        border-color: #60a5fa;
-        box-shadow: 0 10px 24px rgba(37, 99, 235, 0.12);
-        transform: translateY(-1px);
-    }
-
-    #{$uid} .{$uid}__thumb-preview {
-        height: 96px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        overflow: hidden;
-        border-radius: 10px;
-        background: #f8fafc;
-    }
-
-    #{$uid} .{$uid}__thumb-preview img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        display: block;
-    }
-
-    #{$uid} .{$uid}__thumb-fallback {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 64px;
-        min-height: 64px;
-        border-radius: 12px;
-        padding: 12px;
-        background: #eff6ff;
-        color: #1d4ed8;
-        font-size: 14px;
-        font-weight: 700;
-        letter-spacing: 0.06em;
-    }
-
-    #{$uid} .{$uid}__thumb-name {
-        display: block;
-        margin-top: 10px;
-        font-size: 12px;
-        color: #334155;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-    }
-
-    #{$uid} .{$uid}__viewer {
-        min-width: 0;
-        display: flex;
-        flex-direction: column;
-    }
-
-    #{$uid} .{$uid}__viewer-bar {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 12px;
-        padding: 16px 18px;
-        border-bottom: 1px solid #dbe2ea;
-        background: rgba(255, 255, 255, 0.7);
-    }
-
-    #{$uid} .{$uid}__file-label {
-        margin: 0 0 4px;
-        font-size: 11px;
-        text-transform: uppercase;
-        letter-spacing: 0.08em;
-        color: #64748b;
-        font-weight: 700;
-    }
-
-    #{$uid} .{$uid}__file-name {
-        margin: 0;
-        font-size: 14px;
-        font-weight: 600;
-        color: #0f172a;
-        word-break: break-word;
-    }
-
-    #{$uid} .{$uid}__actions {
-        display: flex;
-        gap: 8px;
-        flex-wrap: wrap;
-    }
-
-    #{$uid} .{$uid}__actions a {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        padding: 8px 12px;
-        border-radius: 10px;
-        border: 1px solid #bfdbfe;
-        background: #eff6ff;
-        color: #1d4ed8;
-        text-decoration: none;
-        font-size: 12px;
-        font-weight: 700;
-    }
-
-    #{$uid} .{$uid}__preview {
-        flex: 1;
-        min-height: 320px;
-        padding: 18px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        background:
-            radial-gradient(circle at top right, rgba(191, 219, 254, 0.75), transparent 35%),
-            linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
-    }
-
-    #{$uid} .{$uid}__preview img,
-    #{$uid} .{$uid}__preview iframe {
-        width: 100%;
-        max-width: 100%;
-        min-height: 460px;
-        border: 0;
-        border-radius: 14px;
-        background: #ffffff;
-        box-shadow: 0 18px 36px rgba(15, 23, 42, 0.12);
-    }
-
-    #{$uid} .{$uid}__preview img {
-        object-fit: contain;
-        min-height: auto;
-        max-height: 70vh;
-        padding: 16px;
-    }
-
-    #{$uid} .{$uid}__fallback {
-        max-width: 420px;
-        padding: 28px;
-        border: 1px dashed #94a3b8;
-        border-radius: 18px;
-        text-align: center;
-        background: rgba(255, 255, 255, 0.9);
-        color: #334155;
-    }
-
-    #{$uid} .{$uid}__fallback-type {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        width: 68px;
-        height: 68px;
-        margin-bottom: 14px;
-        border-radius: 20px;
-        background: #eff6ff;
-        color: #1d4ed8;
-        font-size: 18px;
-        font-weight: 700;
-        letter-spacing: 0.06em;
-    }
-
-    #{$uid} .{$uid}__fallback p {
-        margin: 0 0 8px;
-        font-size: 13px;
-    }
-
-    @media (max-width: 960px) {
-        #{$uid} .{$uid}__layout {
-            grid-template-columns: 1fr;
+            $threads[$path] ??= [];
+            $threads[$path][] = [
+                'message' => $message,
+                'author_name' => $authorName,
+                'author_label' => $authorLabel,
+                'author_type' => $authorType,
+                'created_at' => $createdAt,
+            ];
         }
 
-        #{$uid} .{$uid}__sidebar {
-            border-right: 0;
-            border-bottom: 1px solid #dbe2ea;
-        }
-
-        #{$uid} .{$uid}__viewer-bar {
-            flex-direction: column;
-            align-items: flex-start;
-        }
-
-        #{$uid} .{$uid}__preview {
-            padding: 12px;
-        }
-    }
-</style>
-
-HTML;
-
-        return new HtmlString($html);
+        return $threads;
     }
 
     /**
@@ -442,7 +129,7 @@ HTML;
             $attachments = is_array($decoded) ? $decoded : [$attachments];
         }
 
-        if (!is_array($attachments)) {
+        if (! is_array($attachments)) {
             return [];
         }
 
@@ -460,7 +147,7 @@ HTML;
                 continue;
             }
 
-            if (!is_array($attachment)) {
+            if (! is_array($attachment)) {
                 continue;
             }
 
@@ -483,6 +170,256 @@ HTML;
         }
 
         return array_values($normalized);
+    }
+
+    /**
+     * @return array<string, array<int, array<string, string|null>>>
+     */
+    protected static function normalizeRemarkThreads(mixed $remarks): array
+    {
+        if (is_string($remarks)) {
+            $decoded = json_decode($remarks, true);
+            $remarks = is_array($decoded) ? $decoded : [];
+        }
+
+        if (! is_array($remarks)) {
+            return [];
+        }
+
+        return collect($remarks)
+            ->filter(fn (mixed $value, mixed $key): bool => is_string($key) && $key !== '')
+            ->map(fn (mixed $value): array => self::normalizeThreadEntries($value))
+            ->all();
+    }
+
+    /**
+     * @return array<int, array<string, string|null>>
+     */
+    protected static function normalizeThreadEntries(mixed $value): array
+    {
+        if (is_scalar($value)) {
+            $message = trim((string) $value);
+
+            return $message === ''
+                ? []
+                : [[
+                    'message' => $message,
+                    'author_name' => null,
+                    'author_label' => 'Comment',
+                    'author_type' => null,
+                    'created_at' => null,
+                ]];
+        }
+
+        if (! is_array($value)) {
+            return [];
+        }
+
+        if (array_key_exists('message', $value) || array_key_exists('body', $value)) {
+            $message = trim((string) ($value['message'] ?? $value['body'] ?? ''));
+
+            return $message === ''
+                ? []
+                : [[
+                    'message' => $message,
+                    'author_name' => self::nullableString($value['author_name'] ?? null),
+                    'author_label' => self::nullableString($value['author_label'] ?? $value['author_role'] ?? 'Comment'),
+                    'author_type' => self::resolveAuthorType($value),
+                    'created_at' => self::nullableString($value['created_at'] ?? null),
+                ]];
+        }
+
+        return collect($value)
+            ->map(function (mixed $entry): ?array {
+                if (is_scalar($entry)) {
+                    $message = trim((string) $entry);
+
+                    return $message === ''
+                        ? null
+                        : [
+                            'message' => $message,
+                            'author_name' => null,
+                            'author_label' => 'Comment',
+                            'author_type' => null,
+                            'created_at' => null,
+                        ];
+                }
+
+                if (! is_array($entry)) {
+                    return null;
+                }
+
+                $message = trim((string) ($entry['message'] ?? $entry['body'] ?? ''));
+
+                if ($message === '') {
+                    return null;
+                }
+
+                return [
+                    'message' => $message,
+                    'author_name' => self::nullableString($entry['author_name'] ?? null),
+                    'author_label' => self::nullableString($entry['author_label'] ?? $entry['author_role'] ?? 'Comment'),
+                    'author_type' => self::resolveAuthorType($entry),
+                    'created_at' => self::nullableString($entry['created_at'] ?? null),
+                ];
+            })
+            ->filter()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    protected static function normalizeDrafts(mixed $drafts): array
+    {
+        if (is_string($drafts)) {
+            $decoded = json_decode($drafts, true);
+            $drafts = is_array($decoded) ? $decoded : [];
+        }
+
+        if (! is_array($drafts)) {
+            return [];
+        }
+
+        return collect($drafts)
+            ->filter(fn (mixed $value, mixed $key): bool => is_string($key) && $key !== '')
+            ->map(fn (mixed $value): string => is_scalar($value) ? (string) $value : '')
+            ->all();
+    }
+
+    /**
+     * @return array<string, array<int, array<string, mixed>>>
+     */
+    protected static function normalizeAnnotations(mixed $annotations): array
+    {
+        if (is_string($annotations)) {
+            $decoded = json_decode($annotations, true);
+            $annotations = is_array($decoded) ? $decoded : [];
+        }
+
+        if (! is_array($annotations)) {
+            return [];
+        }
+
+        return collect($annotations)
+            ->filter(fn (mixed $value, mixed $key): bool => is_string($key) && $key !== '')
+            ->map(function (mixed $entries): array {
+                if (! is_array($entries)) {
+                    return [];
+                }
+
+                return collect($entries)
+                    ->map(function (mixed $entry): ?array {
+                        if (! is_array($entry)) {
+                            return null;
+                        }
+
+                        $text = trim((string) ($entry['text'] ?? $entry['message'] ?? ''));
+
+                        if ($text === '') {
+                            return null;
+                        }
+
+                        return [
+                            'id' => self::nullableString($entry['id'] ?? null) ?: (string) str()->uuid(),
+                            'text' => $text,
+                            'x' => round(max(0, min(100, (float) ($entry['x'] ?? 50))), 2),
+                            'y' => round(max(0, min(100, (float) ($entry['y'] ?? 50))), 2),
+                            'page' => max(1, (int) ($entry['page'] ?? 1)),
+                            'color' => self::nullableString($entry['color'] ?? null) ?: '#f97316',
+                            'author_name' => self::nullableString($entry['author_name'] ?? null),
+                            'author_label' => self::nullableString($entry['author_label'] ?? 'Annotation'),
+                            'author_type' => self::resolveAuthorType($entry),
+                            'created_at' => self::nullableString($entry['created_at'] ?? null),
+                        ];
+                    })
+                    ->filter()
+                    ->values()
+                    ->all();
+            })
+            ->all();
+    }
+
+    /**
+     * @param  array<int, array{path: string, url: string, name: string, ext: string}>  $files
+     * @return array<string, array<int, array<string, string|null>>>
+     */
+    protected static function filterThreadsToFiles(array $threads, array $files): array
+    {
+        $validPaths = self::collectFilePaths($files);
+
+        return collect($validPaths)
+            ->mapWithKeys(fn (string $path): array => [$path => $threads[$path] ?? []])
+            ->all();
+    }
+
+    /**
+     * @param  array<int, array{path: string, url: string, name: string, ext: string}>  $files
+     * @return array<string, string>
+     */
+    protected static function filterDraftsToFiles(array $drafts, array $files): array
+    {
+        $validPaths = self::collectFilePaths($files);
+
+        return collect($validPaths)
+            ->mapWithKeys(fn (string $path): array => [$path => $drafts[$path] ?? ''])
+            ->all();
+    }
+
+    /**
+     * @param  array<int, array{path: string, url: string, name: string, ext: string}>  $files
+     * @return array<string, array<int, array<string, mixed>>>
+     */
+    protected static function filterAnnotationsToFiles(array $annotations, array $files): array
+    {
+        $validPaths = self::collectFilePaths($files);
+
+        return collect($validPaths)
+            ->mapWithKeys(fn (string $path): array => [$path => array_values($annotations[$path] ?? [])])
+            ->all();
+    }
+
+    /**
+     * @param  array<int, array{path: string, url: string, name: string, ext: string}>  $files
+     * @return Collection<int, string>
+     */
+    protected static function collectFilePaths(array $files): Collection
+    {
+        return collect($files)
+            ->pluck('path')
+            ->filter(fn (mixed $path): bool => is_string($path) && $path !== '')
+            ->values();
+    }
+
+    protected static function nullableString(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $value = trim((string) $value);
+
+        return $value === '' ? null : $value;
+    }
+
+    protected static function resolveAuthorType(array $entry): ?string
+    {
+        $explicit = self::nullableString($entry['author_type'] ?? null);
+
+        if ($explicit !== null) {
+            return $explicit;
+        }
+
+        $label = strtolower((string) ($entry['author_label'] ?? $entry['author_role'] ?? ''));
+
+        return match ($label) {
+            'complying office' => 'complying_office',
+            'requiring agency' => 'requiring_agency',
+            'super admin' => 'super_admin',
+            'user' => 'user',
+            default => null,
+        };
     }
 
     protected static function resolveUrl(string $path): string

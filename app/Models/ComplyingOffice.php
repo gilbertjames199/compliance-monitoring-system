@@ -20,6 +20,8 @@ class ComplyingOffice extends Model
 
     protected $casts = [
         'attachments' => 'array',
+        'attachment_remarks' => 'array',
+        'attachment_annotations' => 'array',
     ];
 
     // Add this to store snapshot data before deletion

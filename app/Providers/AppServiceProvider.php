@@ -31,9 +31,21 @@ class AppServiceProvider extends ServiceProvider
             'panels::body.end',
             fn (): string => <<<'HTML'
 <script>
-    window.attachmentPreviewComponent = window.attachmentPreviewComponent || function () {
+    window.attachmentPreviewComponent = window.attachmentPreviewComponent || function (config = {}) {
         return {
+            componentId: config.componentId || 'attachment-preview',
+            editable: !!config.editable,
+            annotationEditable: !!config.annotationEditable,
+            draftsStatePath: config.draftsStatePath || null,
+            annotationsStatePath: config.annotationsStatePath || null,
+            viewerType: config.viewerType || null,
+            annotationAuthorName: config.annotationAuthorName || null,
+            annotationAuthorLabel: config.annotationAuthorLabel || 'Annotation',
+            annotationAuthorType: config.annotationAuthorType || null,
             files: [],
+            threads: {},
+            drafts: {},
+            annotations: {},
             activeIndex: 0,
             zoom: 1,
             rotation: 0,
@@ -45,8 +57,13 @@ class AppServiceProvider extends ServiceProvider
             loading: false,
             error: null,
             htmlPreview: '',
+            pdfPages: [],
+            annotationDraft: '',
+            annotationColor: '#f97316',
+            annotationMode: false,
+            draggingAnnotation: null,
             previewMode: 'fallback',
-            init(filesJson) {
+            init(filesJson, threadsJson, draftsJson, annotationsJson) {
                 try {
                     this.files = JSON.parse(filesJson || '[]');
                 } catch (error) {
@@ -54,10 +71,392 @@ class AppServiceProvider extends ServiceProvider
                     this.error = 'Unable to read attachment data.';
                 }
 
+                try {
+                    this.threads = JSON.parse(threadsJson || '{}') || {};
+                } catch (error) {
+                    this.threads = {};
+                }
+
+                try {
+                    this.drafts = JSON.parse(draftsJson || '{}') || {};
+                } catch (error) {
+                    this.drafts = {};
+                }
+
+                try {
+                    this.annotations = JSON.parse(annotationsJson || '{}') || {};
+                } catch (error) {
+                    this.annotations = {};
+                }
+
+                this.pruneThreads();
+                this.pruneDrafts();
+                this.pruneAnnotations();
+                this.syncDrafts();
+                this.syncAnnotations();
                 this.loadActiveFile();
             },
             activeFile() {
                 return this.files[this.activeIndex] ?? null;
+            },
+            activeFileKey() {
+                return this.activeFile()?.path || null;
+            },
+            currentThread() {
+                const key = this.activeFileKey();
+
+                return key ? (this.threads[key] || []) : [];
+            },
+            currentDraft() {
+                const key = this.activeFileKey();
+
+                return key ? (this.drafts[key] || '') : '';
+            },
+            currentAnnotations() {
+                const key = this.activeFileKey();
+
+                return key ? (this.annotations[key] || []) : [];
+            },
+            hasThreadForIndex(index) {
+                const key = this.files[index]?.path || null;
+
+                return key ? Array.isArray(this.threads[key]) && this.threads[key].length > 0 : false;
+            },
+            updateCurrentDraft(value) {
+                const key = this.activeFileKey();
+
+                if (!key) {
+                    return;
+                }
+
+                this.drafts = {
+                    ...this.drafts,
+                    [key]: value,
+                };
+
+                this.pruneDrafts();
+                this.syncDrafts();
+            },
+            pruneAnnotations() {
+                const validKeys = new Set(
+                    this.files
+                        .map((file) => file?.path || null)
+                        .filter((path) => typeof path === 'string' && path.length > 0)
+                );
+
+                this.annotations = Object.entries(this.annotations || {}).reduce((carry, [key, value]) => {
+                    if (!validKeys.has(key)) {
+                        return carry;
+                    }
+
+                    carry[key] = Array.isArray(value)
+                        ? value
+                            .filter((entry) => entry && typeof entry === 'object' && String(entry.text || '').trim() !== '')
+                            .map((entry) => ({
+                                ...entry,
+                                page: Math.max(1, Number(entry.page || 1)),
+                                x: this.clampPercent(entry.x),
+                                y: this.clampPercent(entry.y),
+                                color: entry.color || '#f97316',
+                            }))
+                        : [];
+
+                    return carry;
+                }, {});
+            },
+            pruneThreads() {
+                const validKeys = new Set(
+                    this.files
+                        .map((file) => file?.path || null)
+                        .filter((path) => typeof path === 'string' && path.length > 0)
+                );
+
+                this.threads = Object.entries(this.threads || {}).reduce((carry, [key, value]) => {
+                    if (!validKeys.has(key)) {
+                        return carry;
+                    }
+
+                    carry[key] = Array.isArray(value) ? value : [];
+
+                    return carry;
+                }, {});
+            },
+            pruneDrafts() {
+                const validKeys = new Set(
+                    this.files
+                        .map((file) => file?.path || null)
+                        .filter((path) => typeof path === 'string' && path.length > 0)
+                );
+
+                this.drafts = Object.entries(this.drafts || {}).reduce((carry, [key, value]) => {
+                    if (!validKeys.has(key)) {
+                        return carry;
+                    }
+
+                    carry[key] = typeof value === 'string' ? value : String(value ?? '');
+
+                    return carry;
+                }, {});
+            },
+            syncDrafts() {
+                if (!this.draftsStatePath || !this.$wire || typeof this.$wire.set !== 'function') {
+                    return;
+                }
+
+                this.$wire.set(this.draftsStatePath, { ...this.drafts });
+            },
+            syncAnnotations() {
+                if (!this.annotationsStatePath || !this.$wire || typeof this.$wire.set !== 'function') {
+                    return;
+                }
+
+                this.$wire.set(this.annotationsStatePath, { ...this.annotations });
+            },
+            formatEntryMeta(entry) {
+                const parts = [];
+
+                if (entry?.author_name) {
+                    parts.push(entry.author_name);
+                }
+
+                if (entry?.author_label) {
+                    parts.push(entry.author_label);
+                }
+
+                if (entry?.created_at) {
+                    parts.push(entry.created_at);
+                }
+
+                return parts.join(' | ');
+            },
+            isOwnEntry(entry) {
+                if (!this.viewerType) {
+                    return false;
+                }
+
+                return entry?.author_type === this.viewerType;
+            },
+            supportsAnnotations() {
+                const file = this.activeFile();
+
+                return this.isAnnotatableFile(file);
+            },
+            isAnnotatableFile(file) {
+                return this.isImage(file) || this.isPdf(file) || this.isDocx(file) || this.isSpreadsheet(file);
+            },
+            annotationSummary() {
+                const count = this.currentAnnotations().length;
+
+                return count ? `${count} remark${count === 1 ? '' : 's'} placed on this file` : 'No direct remark placed on this file yet';
+            },
+            annotationStatusText() {
+                if (!this.supportsAnnotations()) {
+                    return 'Annotations are available for PDF, DOCX, XLS, XLSX, CSV, PNG, JPG, and other image files.';
+                }
+
+                if (this.annotationEditable) {
+                    return this.annotationMode
+                        ? 'Placement mode is on'
+                        : 'Agency can place remarks directly on the file';
+                }
+
+                return this.currentAnnotations().length ? 'Saved remarks are visible on the file' : 'No saved direct remarks';
+            },
+            toggleAnnotationMode() {
+                if (!this.annotationEditable || !this.supportsAnnotations()) {
+                    return;
+                }
+
+                this.annotationMode = !this.annotationMode;
+            },
+            isPlacingAnnotation() {
+                return this.annotationEditable && this.annotationMode && this.supportsAnnotations();
+            },
+            shouldUseInteractivePdfOnly() {
+                return !!this.annotationEditable || this.currentAnnotations().length > 0;
+            },
+            annotationsForPage(pageNumber) {
+                return this.currentAnnotations().filter((annotation) => Number(annotation.page || 1) === Number(pageNumber || 1));
+            },
+            annotationStyle(annotation, pageNumber = null) {
+                const color = annotation?.color || '#f97316';
+                let left = this.clampPercent(annotation?.x);
+                let top = this.clampPercent(annotation?.y);
+
+                if (this.previewMode === 'pdf') {
+                    const annotationPage = Number(annotation?.page || 1);
+                    const targetPage = Number(pageNumber || annotationPage || 1);
+
+                    if (annotationPage !== targetPage) {
+                        return 'display:none;';
+                    }
+
+                    // PDF annotations are stored as percentages within their page shell,
+                    // so keep them anchored to that page rather than the viewport.
+                    left = this.clampPercent(annotation?.x);
+                    top = this.clampPercent(annotation?.y);
+                }
+
+                return `left:${left}%;top:${top}%;border-color:${color};--annotation-accent:${color};`;
+            },
+            formatAnnotationMeta(annotation) {
+                const parts = [];
+
+                if (annotation?.author_name) {
+                    parts.push(annotation.author_name);
+                }
+
+                if (annotation?.author_label) {
+                    parts.push(annotation.author_label);
+                }
+
+                if (annotation?.created_at) {
+                    parts.push(annotation.created_at);
+                }
+
+                return parts.join(' | ');
+            },
+            isOwnAnnotation(annotation) {
+                const activeType = this.annotationAuthorType || this.viewerType;
+
+                if (!activeType) {
+                    return false;
+                }
+
+                return annotation?.author_type === activeType;
+            },
+            isDraggingAnnotation(annotationId) {
+                return this.draggingAnnotation?.id === annotationId;
+            },
+            canDeleteAnnotation(annotation) {
+                if (!this.annotationEditable) {
+                    return false;
+                }
+
+                if (!annotation?.author_type || !this.annotationAuthorType) {
+                    return true;
+                }
+
+                return annotation.author_type === this.annotationAuthorType;
+            },
+            startAnnotationDrag(annotationId, pageNumber, event) {
+                if (!this.annotationEditable) {
+                    return;
+                }
+
+                const layer = event.currentTarget.closest('[class$="__annotation-layer"]');
+
+                if (!layer) {
+                    return;
+                }
+
+                this.draggingAnnotation = {
+                    id: annotationId,
+                    page: Math.max(1, Number(pageNumber || 1)),
+                    layer,
+                };
+                this.isDragging = false;
+            },
+            dragAnnotation(event) {
+                if (!this.draggingAnnotation) {
+                    return;
+                }
+
+                const { id, page, layer } = this.draggingAnnotation;
+                const rect = layer.getBoundingClientRect();
+
+                if (!rect.width || !rect.height) {
+                    return;
+                }
+
+                const nextX = this.clampPercent(((event.clientX - rect.left) / rect.width) * 100);
+                const nextY = this.clampPercent(((event.clientY - rect.top) / rect.height) * 100);
+                const key = this.activeFileKey();
+
+                if (!key) {
+                    return;
+                }
+
+                this.annotations = {
+                    ...this.annotations,
+                    [key]: this.currentAnnotations().map((annotation) => {
+                        if (annotation.id !== id || Number(annotation.page || 1) !== page) {
+                            return annotation;
+                        }
+
+                        return {
+                            ...annotation,
+                            x: nextX,
+                            y: nextY,
+                        };
+                    }),
+                };
+            },
+            stopAnnotationDrag() {
+                if (!this.draggingAnnotation) {
+                    return;
+                }
+
+                this.draggingAnnotation = null;
+                this.pruneAnnotations();
+                this.syncAnnotations();
+            },
+            placeAnnotation(event, pageNumber = 1) {
+                if (!this.isPlacingAnnotation() || this.draggingAnnotation) {
+                    return;
+                }
+
+                const key = this.activeFileKey();
+                const text = String(this.annotationDraft || '').trim();
+
+                if (!key || !text) {
+                    this.error = 'Add the remark text first, then click on the file.';
+                    this.annotationMode = false;
+                    return;
+                }
+
+                const rect = event.currentTarget.getBoundingClientRect();
+
+                if (!rect.width || !rect.height) {
+                    return;
+                }
+
+                const nextEntry = {
+                    id: this.createAnnotationId(),
+                    text,
+                    page: Math.max(1, Number(pageNumber || 1)),
+                    x: this.clampPercent(((event.clientX - rect.left) / rect.width) * 100),
+                    y: this.clampPercent(((event.clientY - rect.top) / rect.height) * 100),
+                    color: this.annotationColor || '#f97316',
+                    author_name: this.annotationAuthorName,
+                    author_label: this.annotationAuthorLabel,
+                    author_type: this.annotationAuthorType,
+                    created_at: this.currentTimestamp(),
+                };
+
+                this.annotations = {
+                    ...this.annotations,
+                    [key]: [...this.currentAnnotations(), nextEntry],
+                };
+
+                this.pruneAnnotations();
+                this.syncAnnotations();
+                this.annotationDraft = '';
+                this.annotationMode = false;
+            },
+            removeAnnotation(annotationId) {
+                const key = this.activeFileKey();
+
+                if (!key) {
+                    return;
+                }
+
+                this.annotations = {
+                    ...this.annotations,
+                    [key]: this.currentAnnotations().filter((annotation) => annotation.id !== annotationId),
+                };
+
+                this.syncAnnotations();
             },
             async selectFile(index) {
                 if (index < 0 || index >= this.files.length) {
@@ -69,6 +468,9 @@ class AppServiceProvider extends ServiceProvider
                 this.rotation = 0;
                 this.panX = 0;
                 this.panY = 0;
+                this.annotationMode = false;
+                this.annotationDraft = '';
+                this.draggingAnnotation = null;
                 await this.loadActiveFile();
             },
             zoomIn() {
@@ -90,6 +492,10 @@ class AppServiceProvider extends ServiceProvider
                 this.panY = 0;
             },
             startDrag(event) {
+                if (this.isPlacingAnnotation() || this.draggingAnnotation) {
+                    return;
+                }
+
                 this.isDragging = true;
                 this.dragStartX = event.clientX - this.panX;
                 this.dragStartY = event.clientY - this.panY;
@@ -106,7 +512,12 @@ class AppServiceProvider extends ServiceProvider
                 return ((this.rotation % 360) + 360) % 360;
             },
             previewStyle() {
-                return `transform: translate(${this.panX}px, ${this.panY}px) scale(${this.zoom}) rotate(${this.rotation}deg); transform-origin: center center; cursor: ${this.isDragging ? 'grabbing' : 'grab'};`;
+                const cursor = this.isPlacingAnnotation()
+                    ? 'crosshair'
+                    : (this.isDragging ? 'grabbing' : 'grab');
+                const transformOrigin = this.previewMode === 'pdf' ? 'top left' : 'center center';
+
+                return `transform: translate(${this.panX}px, ${this.panY}px) scale(${this.zoom}) rotate(${this.rotation}deg); transform-origin: ${transformOrigin}; cursor: ${cursor};`;
             },
             isImage(file) {
                 return !!file && file.isImage;
@@ -126,6 +537,7 @@ class AppServiceProvider extends ServiceProvider
                 this.loading = false;
                 this.error = null;
                 this.htmlPreview = '';
+                this.pdfPages = [];
                 this.previewMode = 'fallback';
 
                 if (!file) {
@@ -138,7 +550,7 @@ class AppServiceProvider extends ServiceProvider
                 }
 
                 if (this.isPdf(file)) {
-                    this.previewMode = 'pdf';
+                    await this.renderPdf(file);
                     return;
                 }
 
@@ -150,6 +562,123 @@ class AppServiceProvider extends ServiceProvider
                 if (this.isSpreadsheet(file)) {
                     await this.renderSpreadsheet(file);
                 }
+            },
+            async renderPdf(file) {
+                this.loading = true;
+
+                try {
+                    await this.loadScriptOnce(
+                        'pdfjs',
+                        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
+                    );
+
+                    if (!window.pdfjsLib) {
+                        throw new Error('Unable to load the PDF viewer.');
+                    }
+
+                    if (window.pdfjsLib.GlobalWorkerOptions) {
+                        window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+                            'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                    }
+
+                    const pdfData = await this.fetchFileBytes(file.url, 'Unable to load the PDF file.');
+                    const loadingTask = window.pdfjsLib.getDocument({
+                        data: pdfData,
+                        disableWorker: false,
+                        useWorkerFetch: false,
+                        isEvalSupported: true,
+                        enableXfa: true,
+                        useSystemFonts: true,
+                    });
+                    const pdf = await loadingTask.promise;
+                    const pages = [];
+
+                    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+                        const page = await pdf.getPage(pageNumber);
+                        const viewport = page.getViewport({ scale: 1.4 });
+
+                        pages.push({
+                            pageNumber,
+                            width: Math.round(viewport.width),
+                            height: Math.round(viewport.height),
+                        });
+                    }
+
+                    this.pdfPages = pages;
+                    this.previewMode = 'pdf';
+                    this.loading = false;
+                    await this.$nextTick();
+                    await this.waitForPdfCanvases(pdf.numPages);
+
+                    for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber += 1) {
+                        const page = await pdf.getPage(pageNumber);
+                        const viewport = page.getViewport({ scale: 1.4 });
+                        const canvas = document.getElementById(this.pdfCanvasId(pageNumber));
+
+                        if (!canvas) {
+                            throw new Error(`Missing PDF canvas for page ${pageNumber}.`);
+                        }
+
+                        const context = canvas.getContext('2d', { alpha: false });
+
+                        if (!context) {
+                            throw new Error(`Unable to create a drawing context for page ${pageNumber}.`);
+                        }
+
+                        canvas.width = Math.ceil(viewport.width);
+                        canvas.height = Math.ceil(viewport.height);
+                        context.save();
+                        context.fillStyle = '#ffffff';
+                        context.fillRect(0, 0, canvas.width, canvas.height);
+                        context.restore();
+
+                        await page.render({
+                            canvasContext: context,
+                            viewport,
+                            background: 'rgba(255,255,255,1)',
+                        }).promise;
+                    }
+                } catch (error) {
+                    if (this.shouldUseInteractivePdfOnly()) {
+                        this.error = error?.message || 'Interactive PDF rendering failed. Native PDF mode is disabled while annotations are enabled.';
+                        this.previewMode = 'fallback';
+                    } else {
+                        this.error = error?.message || 'Interactive PDF rendering failed. Showing the browser PDF viewer instead.';
+                        this.previewMode = 'pdf-native';
+                    }
+                } finally {
+                    this.loading = false;
+                }
+            },
+            waitForPdfCanvases(pageCount) {
+                const totalPages = Math.max(1, Number(pageCount || 0));
+
+                return new Promise((resolve, reject) => {
+                    let attempts = 0;
+                    const maxAttempts = 40;
+
+                    const check = () => {
+                        const allReady = Array.from({ length: totalPages }, (_, index) =>
+                            document.getElementById(this.pdfCanvasId(index + 1))
+                        ).every(Boolean);
+
+                        if (allReady) {
+                            resolve();
+                            return;
+                        }
+
+                        attempts += 1;
+
+                        if (attempts >= maxAttempts) {
+                            reject(new Error('Missing PDF canvas elements after Alpine render.'));
+                            return;
+                        }
+
+                        requestAnimationFrame(check);
+                    };
+
+                    requestAnimationFrame(check);
+                });
             },
             async renderDocx(file) {
                 this.loading = true;
@@ -198,13 +727,20 @@ class AppServiceProvider extends ServiceProvider
                     }
 
                     const arrayBuffer = await response.arrayBuffer();
-                    const workbook = window.XLSX.read(arrayBuffer, { type: 'array' });
+                    const workbook = window.XLSX.read(arrayBuffer, {
+                        type: 'array',
+                        raw: false,
+                    });
 
                     this.htmlPreview = workbook.SheetNames.map((sheetName) => `
                         <section class="${file.uidClass || 'attachment-preview'}__sheet">
                             <h4>${this.escapeHtml(sheetName)}</h4>
                             <div class="${file.uidClass || 'attachment-preview'}__sheet-table">
-                                ${window.XLSX.utils.sheet_to_html(workbook.Sheets[sheetName])}
+                                ${window.XLSX.utils.sheet_to_html(workbook.Sheets[sheetName], {
+                                    editable: false,
+                                    header: '',
+                                    footer: '',
+                                })}
                             </div>
                         </section>
                     `).join('');
@@ -228,11 +764,182 @@ class AppServiceProvider extends ServiceProvider
                     return;
                 }
 
+                if (this.isPdf(file)) {
+                    await this.downloadPdfWithAnnotations(file);
+                    return;
+                }
+
+                if (this.isImage(file)) {
+                    await this.downloadImageWithAnnotations(file);
+                    return;
+                }
+
+                if (this.previewMode === 'html') {
+                    await this.downloadHtmlPreviewWithAnnotations(file);
+                    return;
+                }
+
                 if (!this.isImage(file)) {
+                    await this.downloadFileFallback(file);
+                    return;
+                }
+            },
+            async openCurrent() {
+                const file = this.activeFile();
+
+                if (!file) {
+                    return;
+                }
+
+                if (!this.currentAnnotations().length) {
                     window.open(file.url, '_blank', 'noopener');
                     return;
                 }
 
+                if (this.isPdf(file)) {
+                    const blob = await this.buildAnnotatedPdfBlob(file);
+
+                    if (blob) {
+                        this.openBlobInNewTab(blob);
+                        return;
+                    }
+                }
+
+                if (this.isImage(file)) {
+                    const blob = await this.buildAnnotatedImageBlob(file);
+
+                    if (blob) {
+                        this.openBlobInNewTab(blob);
+                        return;
+                    }
+                }
+
+                if (this.previewMode === 'html') {
+                    const blob = await this.buildAnnotatedHtmlBlob(file);
+
+                    if (blob) {
+                        this.openBlobInNewTab(blob);
+                        return;
+                    }
+                }
+
+                await this.openFileFallback(file);
+            },
+            async downloadPdfWithAnnotations(file) {
+                const blob = await this.buildAnnotatedPdfBlob(file);
+
+                if (!blob) {
+                    await this.downloadFileFallback(file);
+                    return;
+                }
+
+                this.triggerBlobDownload(blob, this.buildDownloadName(file.name, 'pdf', '_annotated'));
+            },
+            async downloadImageWithAnnotations(file) {
+                const blob = await this.buildAnnotatedImageBlob(file);
+                const extension = String(file.ext || 'png').toLowerCase();
+
+                if (!blob) {
+                    await this.downloadFileFallback(file);
+                    return;
+                }
+
+                this.triggerBlobDownload(
+                    blob,
+                    this.buildDownloadName(file.name, extension, '_annotated')
+                );
+            },
+            async downloadHtmlPreviewWithAnnotations(file) {
+                const blob = await this.buildAnnotatedHtmlBlob(file);
+
+                if (!blob) {
+                    await this.downloadFileFallback(file);
+                    return;
+                }
+
+                this.triggerBlobDownload(
+                    blob,
+                    this.buildDownloadName(file.name, 'png', '_annotated')
+                );
+            },
+            async buildAnnotatedPdfBlob(file) {
+                if (!this.currentAnnotations().length) {
+                    return null;
+                }
+
+                await this.loadScriptOnce(
+                    'pdf-lib',
+                    'https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js'
+                );
+
+                if (!window.PDFLib?.PDFDocument) {
+                    return null;
+                }
+
+                const pdfBytes = await this.fetchFileBytes(file.url, 'Unable to download the PDF file.');
+                const pdfDocument = await window.PDFLib.PDFDocument.load(pdfBytes);
+                const font = await pdfDocument.embedFont(window.PDFLib.StandardFonts.Helvetica);
+                const pages = pdfDocument.getPages();
+                const groupedAnnotations = this.groupAnnotationsByPage();
+
+                pages.forEach((page, index) => {
+                    const pageNumber = index + 1;
+                    const pageAnnotations = groupedAnnotations[pageNumber] || [];
+                    const width = page.getWidth();
+                    const height = page.getHeight();
+
+                    pageAnnotations.forEach((annotation) => {
+                        const x = (this.clampPercent(annotation.x) / 100) * width;
+                        const y = height - ((this.clampPercent(annotation.y) / 100) * height);
+                        const fontSize = 10;
+                        const metaFontSize = 9;
+                        const lineHeight = 12;
+                        const padding = 8;
+                        const maxTextWidth = 220 - (padding * 2);
+                        const textLines = this.wrapPdfText(annotation.text, font, fontSize, maxTextWidth);
+                        const metaLines = this.wrapPdfText(this.formatAnnotationMeta(annotation), font, metaFontSize, maxTextWidth);
+                        const lines = [
+                            ...textLines.map((line) => ({ text: line, size: fontSize, color: 'primary' })),
+                            ...metaLines.map((line) => ({ text: line, size: metaFontSize, color: 'secondary' })),
+                        ];
+                        const widestLine = Math.max(
+                            ...lines.map((line) => font.widthOfTextAtSize(String(line.text), line.size)),
+                            120
+                        );
+                        const boxWidth = Math.min(260, widestLine + (padding * 2));
+                        const boxHeight = (lines.length * lineHeight) + (padding * 2);
+                        const drawX = Math.max(12, Math.min(width - boxWidth - 12, x));
+                        const drawY = Math.max(boxHeight + 12, Math.min(height - 12, y));
+                        const rgb = this.hexToPdfLibColor(annotation.color || '#f97316');
+
+                        page.drawRectangle({
+                            x: drawX,
+                            y: drawY - boxHeight,
+                            width: boxWidth,
+                            height: boxHeight,
+                            color: window.PDFLib.rgb(1, 1, 1),
+                            borderColor: rgb,
+                            borderWidth: 1,
+                            opacity: 0.92,
+                        });
+
+                        lines.forEach((line, lineIndex) => {
+                            page.drawText(String(line.text), {
+                                x: drawX + padding,
+                                y: drawY - padding - line.size - (lineIndex * lineHeight),
+                                size: line.size,
+                                font,
+                                color: line.color === 'primary' ? rgb : window.PDFLib.rgb(0.25, 0.29, 0.36),
+                            });
+                        });
+                    });
+                });
+
+                const outputBytes = await pdfDocument.save();
+
+                return new Blob([outputBytes], { type: 'application/pdf' });
+            },
+            async buildAnnotatedImageBlob(file) {
                 const image = await this.loadImage(file.url);
                 const rotation = this.normalizedRotation();
                 const shouldSwapSides = rotation === 90 || rotation === 270;
@@ -240,8 +947,7 @@ class AppServiceProvider extends ServiceProvider
                 const context = canvas.getContext('2d');
 
                 if (!context) {
-                    window.open(file.url, '_blank', 'noopener');
-                    return;
+                    return null;
                 }
 
                 canvas.width = shouldSwapSides ? image.naturalHeight : image.naturalWidth;
@@ -257,6 +963,8 @@ class AppServiceProvider extends ServiceProvider
                     image.naturalHeight
                 );
 
+                this.drawImageAnnotations(context, canvas.width, canvas.height, this.currentAnnotations(), rotation);
+
                 const extension = String(file.ext || 'png').toLowerCase();
                 const mimeType = ({
                     jpg: 'image/jpeg',
@@ -264,12 +972,131 @@ class AppServiceProvider extends ServiceProvider
                     png: 'image/png',
                     webp: 'image/webp',
                 })[extension] || 'image/png';
-                const downloadName = this.buildDownloadName(file.name, extension);
-                const link = document.createElement('a');
 
-                link.href = canvas.toDataURL(mimeType, 1);
-                link.download = downloadName;
-                link.click();
+                return this.canvasToBlob(canvas, mimeType, 1);
+            },
+            async buildAnnotatedHtmlBlob(file) {
+                const container = document.querySelector(`#${this.componentId} .${this.componentId}__page-shell--html`);
+
+                if (!container) {
+                    return null;
+                }
+
+                await this.loadScriptOnce(
+                    'html2canvas',
+                    'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js'
+                );
+
+                if (!window.html2canvas) {
+                    return null;
+                }
+
+                const canvas = await window.html2canvas(container, {
+                    backgroundColor: '#ffffff',
+                    scale: 2,
+                    useCORS: true,
+                });
+
+                return this.canvasToBlob(canvas, 'image/png', 1);
+            },
+            groupAnnotationsByPage() {
+                return this.currentAnnotations().reduce((carry, annotation) => {
+                    const pageNumber = Math.max(1, Number(annotation.page || 1));
+
+                    carry[pageNumber] = carry[pageNumber] || [];
+                    carry[pageNumber].push(annotation);
+
+                    return carry;
+                }, {});
+            },
+            drawImageAnnotations(context, canvasWidth, canvasHeight, annotations, rotation) {
+                if (!Array.isArray(annotations) || !annotations.length) {
+                    return;
+                }
+
+                const normalizedRotation = ((rotation % 360) + 360) % 360;
+
+                annotations.forEach((annotation) => {
+                    const point = this.mapAnnotationPointForRotation(
+                        (this.clampPercent(annotation.x) / 100) * canvasWidth,
+                        (this.clampPercent(annotation.y) / 100) * canvasHeight,
+                        canvasWidth,
+                        canvasHeight,
+                        normalizedRotation
+                    );
+
+                    this.drawAnnotationBoxOnCanvas(
+                        context,
+                        point.x,
+                        point.y,
+                        annotation.text,
+                        this.formatAnnotationMeta(annotation),
+                        annotation.color || '#f97316',
+                        canvasWidth,
+                        canvasHeight
+                    );
+                });
+            },
+            drawAnnotationBoxOnCanvas(context, x, y, text, meta, color, width, height) {
+                const padding = 10;
+                const lineHeight = 16;
+                const metaLineHeight = 14;
+                const maxTextWidth = 280;
+                context.save();
+                context.font = 'bold 13px sans-serif';
+                const textLines = this.wrapCanvasText(context, String(text || ''), maxTextWidth);
+                context.font = '12px sans-serif';
+                const metaLines = this.wrapCanvasText(context, String(meta || ''), maxTextWidth);
+                const widestText = Math.max(
+                    ...textLines.map((line) => this.measureCanvasLine(context, line, 'bold 13px sans-serif')),
+                    ...metaLines.map((line) => this.measureCanvasLine(context, line, '12px sans-serif')),
+                    120
+                );
+                const boxWidth = Math.min(320, widestText + (padding * 2));
+                const boxHeight = (textLines.length * lineHeight) + (metaLines.length * metaLineHeight) + (padding * 2);
+                const drawX = Math.max(12, Math.min(width - boxWidth - 12, x));
+                const drawY = Math.max(boxHeight + 12, Math.min(height - 12, y));
+
+                context.fillStyle = 'rgba(255, 255, 255, 0.94)';
+                context.strokeStyle = color;
+                context.lineWidth = 2;
+                context.beginPath();
+                context.roundRect(drawX, drawY - boxHeight, boxWidth, boxHeight, 12);
+                context.fill();
+                context.stroke();
+                context.fillStyle = color;
+                context.font = 'bold 13px sans-serif';
+                textLines.forEach((line, index) => {
+                    context.fillText(line, drawX + padding, drawY - boxHeight + padding + 12 + (index * lineHeight), boxWidth - (padding * 2));
+                });
+
+                context.fillStyle = '#475569';
+                context.font = '12px sans-serif';
+                metaLines.forEach((line, index) => {
+                    context.fillText(
+                        line,
+                        drawX + padding,
+                        drawY - boxHeight + padding + 12 + (textLines.length * lineHeight) + (index * metaLineHeight),
+                        boxWidth - (padding * 2)
+                    );
+                });
+
+                context.restore();
+            },
+            mapAnnotationPointForRotation(x, y, width, height, rotation) {
+                if (rotation === 90) {
+                    return { x: width - y, y: x };
+                }
+
+                if (rotation === 180) {
+                    return { x: width - x, y: height - y };
+                }
+
+                if (rotation === 270) {
+                    return { x: y, y: height - x };
+                }
+
+                return { x, y };
             },
             loadScriptOnce(key, src) {
                 window.__attachmentPreviewScripts = window.__attachmentPreviewScripts || {};
@@ -312,14 +1139,217 @@ class AppServiceProvider extends ServiceProvider
 
                     image.onload = () => resolve(image);
                     image.onerror = () => reject(new Error('Unable to load this image.'));
+                    image.crossOrigin = 'anonymous';
                     image.src = url;
                 });
             },
-            buildDownloadName(name, extension) {
+            async fetchFileBytes(url, errorMessage = 'Unable to load this file.') {
+                const response = await fetch(url, {
+                    credentials: 'same-origin',
+                });
+
+                if (!response.ok) {
+                    throw new Error(errorMessage);
+                }
+
+                return new Uint8Array(await response.arrayBuffer());
+            },
+            canvasToBlob(canvas, mimeType, quality = 1) {
+                return new Promise((resolve, reject) => {
+                    canvas.toBlob((blob) => {
+                        if (!blob) {
+                            reject(new Error('Unable to export the preview.'));
+                            return;
+                        }
+
+                        resolve(blob);
+                    }, mimeType, quality);
+                });
+            },
+            triggerBlobDownload(blob, downloadName) {
+                const link = document.createElement('a');
+                const objectUrl = URL.createObjectURL(blob);
+
+                link.href = objectUrl;
+                link.download = downloadName;
+                link.click();
+
+                setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+            },
+            openBlobInNewTab(blob) {
+                const objectUrl = URL.createObjectURL(blob);
+                const opened = window.open(objectUrl, '_blank', 'noopener');
+
+                if (!opened) {
+                    setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+                    return;
+                }
+
+                setTimeout(() => URL.revokeObjectURL(objectUrl), 60000);
+            },
+            buildDownloadName(name, extension, suffix = '_rotated') {
                 const safeExtension = extension || 'png';
                 const baseName = String(name || 'image').replace(/\.[^.]+$/, '');
 
-                return `${baseName}_rotated.${safeExtension}`;
+                return `${baseName}${suffix}.${safeExtension}`;
+            },
+            async downloadFileFallback(file) {
+                try {
+                    const response = await fetch(file.url);
+
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch file');
+                    }
+
+                    const blob = await response.blob();
+                    const extension = String(file.ext || 'xlsx').toLowerCase();
+                    this.triggerBlobDownload(blob, this.buildDownloadName(file.name, extension, ''));
+                } catch (error) {
+                    console.error('Download failed:', error);
+                    window.open(file.url, '_blank', 'noopener');
+                }
+            },
+            async openFileFallback(file) {
+                try {
+                    const response = await fetch(file.url);
+
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch file');
+                    }
+
+                    const blob = await response.blob();
+                    this.openBlobInNewTab(blob);
+                } catch (error) {
+                    console.error('Open failed:', error);
+                    window.open(file.url, '_blank', 'noopener');
+                }
+            },
+            pdfPreviewUrl(file) {
+                const url = String(file?.previewUrl || file?.url || '').trim();
+
+                if (!url) {
+                    return '';
+                }
+
+                const separator = url.includes('?') ? '&' : '?';
+
+                return `${url}${separator}inline=1#toolbar=1&navpanes=0&view=FitH`;
+            },
+            hexToPdfLibColor(value) {
+                const hex = String(value || '#f97316').replace('#', '').padEnd(6, '0').slice(0, 6);
+                const red = parseInt(hex.slice(0, 2), 16) / 255;
+                const green = parseInt(hex.slice(2, 4), 16) / 255;
+                const blue = parseInt(hex.slice(4, 6), 16) / 255;
+
+                return window.PDFLib.rgb(red, green, blue);
+            },
+            pdfCanvasId(pageNumber) {
+                return `${this.componentId}-pdf-${this.activeIndex}-${pageNumber}`;
+            },
+            createAnnotationId() {
+                return `annotation-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+            },
+            currentTimestamp() {
+                return new Date().toLocaleString('en-US', {
+                    year: 'numeric',
+                    month: 'numeric',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                    second: '2-digit',
+                    hour12: true,
+                });
+            },
+            wrapPdfText(text, font, fontSize, maxWidth) {
+                return this.wrapText(String(text || ''), (value) => font.widthOfTextAtSize(value, fontSize), maxWidth);
+            },
+            wrapCanvasText(context, text, maxWidth) {
+                return this.wrapText(String(text || ''), (value) => context.measureText(value).width, maxWidth);
+            },
+            wrapText(text, measure, maxWidth) {
+                const normalized = String(text || '').trim();
+
+                if (!normalized) {
+                    return [];
+                }
+
+                const paragraphs = normalized.split(/\r?\n/);
+                const lines = [];
+
+                paragraphs.forEach((paragraph) => {
+                    const words = paragraph.split(/\s+/).filter(Boolean);
+
+                    if (!words.length) {
+                        lines.push('');
+                        return;
+                    }
+
+                    let currentLine = words.shift() || '';
+
+                    words.forEach((word) => {
+                        const candidate = `${currentLine} ${word}`.trim();
+
+                        if (measure(candidate) <= maxWidth) {
+                            currentLine = candidate;
+                            return;
+                        }
+
+                        if (measure(word) > maxWidth) {
+                            lines.push(currentLine);
+                            lines.push(...this.breakLongToken(word, measure, maxWidth));
+                            currentLine = '';
+                            return;
+                        }
+
+                        lines.push(currentLine);
+                        currentLine = word;
+                    });
+
+                    if (currentLine) {
+                        lines.push(currentLine);
+                    }
+                });
+
+                return lines.filter((line, index, array) => line !== '' || array.length === 1);
+            },
+            breakLongToken(token, measure, maxWidth) {
+                const parts = [];
+                let current = '';
+
+                for (const character of String(token || '')) {
+                    const candidate = `${current}${character}`;
+
+                    if (current && measure(candidate) > maxWidth) {
+                        parts.push(current);
+                        current = character;
+                        continue;
+                    }
+
+                    current = candidate;
+                }
+
+                if (current) {
+                    parts.push(current);
+                }
+
+                return parts;
+            },
+            measureCanvasLine(context, text, font) {
+                context.save();
+                context.font = font;
+                const width = context.measureText(String(text || '')).width;
+                context.restore();
+
+                return width;
+            },
+            clampPercent(value) {
+                const number = Number(value);
+
+                if (Number.isNaN(number)) {
+                    return 50;
+                }
+
+                return Math.max(0, Math.min(100, +number.toFixed(2)));
             },
             escapeHtml(value) {
                 return String(value)
