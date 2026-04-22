@@ -38,6 +38,7 @@ class AppServiceProvider extends ServiceProvider
             annotationEditable: !!config.annotationEditable,
             draftsStatePath: config.draftsStatePath || null,
             annotationsStatePath: config.annotationsStatePath || null,
+            viewStatesStatePath: config.viewStatesStatePath || null,
             viewerType: config.viewerType || null,
             annotationAuthorName: config.annotationAuthorName || null,
             annotationAuthorLabel: config.annotationAuthorLabel || 'Annotation',
@@ -46,6 +47,7 @@ class AppServiceProvider extends ServiceProvider
             threads: {},
             drafts: {},
             annotations: {},
+            viewStates: {},
             activeIndex: 0,
             zoom: 1,
             rotation: 0,
@@ -63,7 +65,7 @@ class AppServiceProvider extends ServiceProvider
             annotationMode: false,
             draggingAnnotation: null,
             previewMode: 'fallback',
-            init(filesJson, threadsJson, draftsJson, annotationsJson) {
+            init(filesJson, threadsJson, draftsJson, annotationsJson, viewStatesJson) {
                 try {
                     this.files = JSON.parse(filesJson || '[]');
                 } catch (error) {
@@ -89,11 +91,19 @@ class AppServiceProvider extends ServiceProvider
                     this.annotations = {};
                 }
 
+                try {
+                    this.viewStates = JSON.parse(viewStatesJson || '{}') || {};
+                } catch (error) {
+                    this.viewStates = {};
+                }
+
                 this.pruneThreads();
                 this.pruneDrafts();
                 this.pruneAnnotations();
+                this.pruneViewStates();
                 this.syncDrafts();
                 this.syncAnnotations();
+                this.applyActiveViewState();
                 this.loadActiveFile();
             },
             activeFile() {
@@ -198,6 +208,25 @@ class AppServiceProvider extends ServiceProvider
                     return carry;
                 }, {});
             },
+            pruneViewStates() {
+                const validKeys = new Set(
+                    this.files
+                        .map((file) => file?.path || null)
+                        .filter((path) => typeof path === 'string' && path.length > 0)
+                );
+
+                this.viewStates = Object.entries(this.viewStates || {}).reduce((carry, [key, value]) => {
+                    if (!validKeys.has(key)) {
+                        return carry;
+                    }
+
+                    carry[key] = {
+                        rotation: this.normalizeStoredRotation(value?.rotation),
+                    };
+
+                    return carry;
+                }, {});
+            },
             syncDrafts() {
                 if (!this.draftsStatePath || !this.$wire || typeof this.$wire.set !== 'function') {
                     return;
@@ -211,6 +240,13 @@ class AppServiceProvider extends ServiceProvider
                 }
 
                 this.$wire.set(this.annotationsStatePath, { ...this.annotations });
+            },
+            syncViewStates() {
+                if (!this.viewStatesStatePath || !this.$wire || typeof this.$wire.set !== 'function') {
+                    return;
+                }
+
+                this.$wire.set(this.viewStatesStatePath, { ...this.viewStates });
             },
             formatEntryMeta(entry) {
                 const parts = [];
@@ -465,12 +501,12 @@ class AppServiceProvider extends ServiceProvider
 
                 this.activeIndex = index;
                 this.zoom = 1;
-                this.rotation = 0;
                 this.panX = 0;
                 this.panY = 0;
                 this.annotationMode = false;
                 this.annotationDraft = '';
                 this.draggingAnnotation = null;
+                this.applyActiveViewState();
                 await this.loadActiveFile();
             },
             zoomIn() {
@@ -481,15 +517,18 @@ class AppServiceProvider extends ServiceProvider
             },
             rotateLeft() {
                 this.rotation -= 90;
+                this.persistActiveViewState();
             },
             rotateRight() {
                 this.rotation += 90;
+                this.persistActiveViewState();
             },
             resetView() {
                 this.zoom = 1;
                 this.rotation = 0;
                 this.panX = 0;
                 this.panY = 0;
+                this.persistActiveViewState();
             },
             startDrag(event) {
                 if (this.isPlacingAnnotation() || this.draggingAnnotation) {
@@ -511,13 +550,54 @@ class AppServiceProvider extends ServiceProvider
             normalizedRotation() {
                 return ((this.rotation % 360) + 360) % 360;
             },
-            previewStyle() {
+            stageStyle() {
                 const cursor = this.isPlacingAnnotation()
                     ? 'crosshair'
                     : (this.isDragging ? 'grabbing' : 'grab');
+
+                if (this.usesContentTransform()) {
+                    return `transform: translate(${this.panX}px, ${this.panY}px); cursor: ${cursor};`;
+                }
+
                 const transformOrigin = this.previewMode === 'pdf' ? 'top left' : 'center center';
 
                 return `transform: translate(${this.panX}px, ${this.panY}px) scale(${this.zoom}) rotate(${this.rotation}deg); transform-origin: ${transformOrigin}; cursor: ${cursor};`;
+            },
+            contentTransformStyle() {
+                const origin = this.isWorkbookFile(this.activeFile()) ? 'top left' : 'center center';
+
+                return `transform: scale(${this.zoom}) rotate(${this.rotation}deg); transform-origin: ${origin};`;
+            },
+            usesContentTransform() {
+                return this.previewMode === 'image' || this.previewMode === 'html';
+            },
+            applyActiveViewState() {
+                const key = this.activeFileKey();
+                const state = key ? this.viewStates[key] : null;
+
+                this.rotation = this.normalizeStoredRotation(state?.rotation);
+            },
+            persistActiveViewState() {
+                const key = this.activeFileKey();
+
+                if (!key) {
+                    return;
+                }
+
+                this.viewStates = {
+                    ...this.viewStates,
+                    [key]: {
+                        rotation: this.normalizeStoredRotation(this.rotation),
+                    },
+                };
+
+                this.pruneViewStates();
+                this.syncViewStates();
+            },
+            normalizeStoredRotation(value) {
+                const normalized = ((Number(value || 0) % 360) + 360) % 360;
+
+                return [90, 180, 270].includes(normalized) ? normalized : 0;
             },
             isImage(file) {
                 return !!file && file.isImage;
@@ -530,6 +610,14 @@ class AppServiceProvider extends ServiceProvider
             },
             isSpreadsheet(file) {
                 return !!file && file.isSpreadsheet;
+            },
+            isWorkbookFile(file) {
+                const extension = String(file?.ext || '').toLowerCase();
+
+                return extension === 'xlsx' || extension === 'xls';
+            },
+            hasServerHtmlPreview(file) {
+                return !!String(file?.contentPreviewUrl || '').trim();
             },
             async loadActiveFile() {
                 const file = this.activeFile();
@@ -560,7 +648,41 @@ class AppServiceProvider extends ServiceProvider
                 }
 
                 if (this.isSpreadsheet(file)) {
+                    if (this.isWorkbookFile(file)) {
+                        await this.renderSpreadsheet(file);
+                        return;
+                    }
+
+                    if (this.hasServerHtmlPreview(file)) {
+                        await this.renderServerHtmlPreview(file);
+                        return;
+                    }
+
                     await this.renderSpreadsheet(file);
+                }
+            },
+            async renderServerHtmlPreview(file) {
+                this.loading = true;
+
+                try {
+                    const response = await fetch(file.contentPreviewUrl, {
+                        credentials: 'same-origin',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                        },
+                    });
+
+                    if (!response.ok) {
+                        throw new Error('Unable to load the file preview.');
+                    }
+
+                    this.htmlPreview = await response.text();
+                    this.previewMode = 'html';
+                } catch (error) {
+                    this.error = error?.message || 'Unable to preview this file.';
+                    this.previewMode = 'fallback';
+                } finally {
+                    this.loading = false;
                 }
             },
             async renderPdf(file) {
@@ -730,20 +852,14 @@ class AppServiceProvider extends ServiceProvider
                     const workbook = window.XLSX.read(arrayBuffer, {
                         type: 'array',
                         raw: false,
+                        cellStyles: true,
+                        cellDates: true,
                     });
 
-                    this.htmlPreview = workbook.SheetNames.map((sheetName) => `
-                        <section class="${file.uidClass || 'attachment-preview'}__sheet">
-                            <h4>${this.escapeHtml(sheetName)}</h4>
-                            <div class="${file.uidClass || 'attachment-preview'}__sheet-table">
-                                ${window.XLSX.utils.sheet_to_html(workbook.Sheets[sheetName], {
-                                    editable: false,
-                                    header: '',
-                                    footer: '',
-                                })}
-                            </div>
-                        </section>
-                    `).join('');
+                    this.htmlPreview = workbook.SheetNames
+                        .map((sheetName) => this.renderWorkbookSheetHtml(workbook.Sheets[sheetName], sheetName, file.uidClass || 'attachment-preview'))
+                        .filter(Boolean)
+                        .join('');
 
                     if (!this.htmlPreview) {
                         this.htmlPreview = '<p>No sheet data found.</p>';
@@ -756,6 +872,132 @@ class AppServiceProvider extends ServiceProvider
                 } finally {
                     this.loading = false;
                 }
+            },
+            renderWorkbookSheetHtml(sheet, sheetName, uidClass) {
+                if (!sheet || !sheet['!ref']) {
+                    return '';
+                }
+
+                const range = window.XLSX.utils.decode_range(sheet['!ref']);
+                const maxRows = 120;
+                const maxCols = 24;
+                const endRow = Math.min(range.e.r, range.s.r + maxRows - 1);
+                const endCol = Math.min(range.e.c, range.s.c + maxCols - 1);
+                const merges = Array.isArray(sheet['!merges']) ? sheet['!merges'] : [];
+                const coveredCells = new Set();
+                const mergeStarts = new Map();
+                const rows = [];
+                const colgroup = ['<col class="attachment-preview__sheet-rownum-col">'];
+
+                for (let columnIndex = range.s.c; columnIndex <= endCol; columnIndex += 1) {
+                    const width = this.sheetColumnWidth(sheet, columnIndex);
+                    const style = width ? ` style="width:${width}px;min-width:${Math.min(width, 240)}px"` : '';
+                    colgroup.push(`<col${style}>`);
+                }
+
+                merges.forEach((merge) => {
+                    if (!merge || merge.s.r > endRow || merge.s.c > endCol) {
+                        return;
+                    }
+
+                    const key = `${merge.s.r}:${merge.s.c}`;
+                    mergeStarts.set(key, merge);
+
+                    for (let row = merge.s.r; row <= Math.min(merge.e.r, endRow); row += 1) {
+                        for (let column = merge.s.c; column <= Math.min(merge.e.c, endCol); column += 1) {
+                            if (row === merge.s.r && column === merge.s.c) {
+                                continue;
+                            }
+
+                            coveredCells.add(`${row}:${column}`);
+                        }
+                    }
+                });
+
+                const headerCells = ['<th class="attachment-preview__sheet-corner"></th>'];
+
+                for (let columnIndex = range.s.c; columnIndex <= endCol; columnIndex += 1) {
+                    headerCells.push(`<th scope="col">${this.escapeHtml(window.XLSX.utils.encode_col(columnIndex))}</th>`);
+                }
+
+                for (let rowIndex = range.s.r; rowIndex <= endRow; rowIndex += 1) {
+                    const cells = [`<th scope="row" class="attachment-preview__sheet-index">${rowIndex + 1}</th>`];
+
+                    for (let columnIndex = range.s.c; columnIndex <= endCol; columnIndex += 1) {
+                        const coveredKey = `${rowIndex}:${columnIndex}`;
+
+                        if (coveredCells.has(coveredKey)) {
+                            continue;
+                        }
+
+                        const cellAddress = window.XLSX.utils.encode_cell({ r: rowIndex, c: columnIndex });
+                        const cell = sheet[cellAddress];
+                        const merge = mergeStarts.get(coveredKey);
+                        const attrs = [];
+
+                        if (merge) {
+                            const colspan = Math.min(merge.e.c, endCol) - merge.s.c + 1;
+                            const rowspan = Math.min(merge.e.r, endRow) - merge.s.r + 1;
+
+                            if (colspan > 1) {
+                                attrs.push(`colspan="${colspan}"`);
+                            }
+
+                            if (rowspan > 1) {
+                                attrs.push(`rowspan="${rowspan}"`);
+                            }
+                        }
+
+                        if (cell?.z) {
+                            attrs.push(`data-format="${this.escapeHtml(String(cell.z))}"`);
+                        }
+
+                        const formatted = cell
+                            ? window.XLSX.utils.format_cell(cell, cell.v, { dateNF: 'yyyy-mm-dd hh:mm' })
+                            : '';
+
+                        cells.push(`<td ${attrs.join(' ')}>${this.escapeHtml(String(formatted || ''))}</td>`);
+                    }
+
+                    rows.push(`<tr>${cells.join('')}</tr>`);
+                }
+
+                let limitNotice = '';
+
+                if (range.e.r > endRow || range.e.c > endCol) {
+                    limitNotice = `<p class="${uidClass}__limit-note">Preview trimmed to the first ${endRow - range.s.r + 1} row(s) and ${endCol - range.s.c + 1} column(s).</p>`;
+                }
+
+                return `
+                    <section class="${uidClass}__sheet">
+                        <h4>${this.escapeHtml(sheetName)}</h4>
+                        <div class="${uidClass}__sheet-table">
+                            <table>
+                                <colgroup>${colgroup.join('')}</colgroup>
+                                <thead><tr>${headerCells.join('')}</tr></thead>
+                                <tbody>${rows.join('')}</tbody>
+                            </table>
+                        </div>
+                        ${limitNotice}
+                    </section>
+                `;
+            },
+            sheetColumnWidth(sheet, columnIndex) {
+                const column = Array.isArray(sheet?.['!cols']) ? sheet['!cols'][columnIndex] : null;
+
+                if (!column) {
+                    return 120;
+                }
+
+                if (typeof column.wpx === 'number' && column.wpx > 0) {
+                    return Math.min(Math.max(column.wpx, 70), 320);
+                }
+
+                if (typeof column.wch === 'number' && column.wch > 0) {
+                    return Math.min(Math.max(Math.round(column.wch * 9), 70), 320);
+                }
+
+                return 120;
             },
             async downloadCurrent() {
                 const file = this.activeFile();
@@ -791,7 +1033,7 @@ class AppServiceProvider extends ServiceProvider
                     return;
                 }
 
-                if (!this.currentAnnotations().length) {
+                if (!this.currentAnnotations().length && !(this.isImage(file) && this.normalizedRotation() !== 0)) {
                     window.open(file.url, '_blank', 'noopener');
                     return;
                 }

@@ -304,6 +304,7 @@ class ComplyingOfficeForm
                                         $remarks = $get('attachment_remarks') ?? $record?->attachment_remarks ?? [];
                                         $drafts = $get('attachment_remark_drafts') ?? [];
                                         $annotations = $get('attachment_annotations') ?? $record?->attachment_annotations ?? [];
+                                        $viewStates = $get('attachment_view_states') ?? $record?->attachment_view_states ?? [];
 
                                         $user = auth()->user();
                                         $isOwnOffice = $record && $user->department_code === $record->department_code;
@@ -322,12 +323,14 @@ class ComplyingOfficeForm
                                                 $remarks,
                                                 $drafts,
                                                 self::resolveAttachmentViewerType($record),
-                                                $annotations
+                                                $annotations,
+                                                $viewStates
                                             ),
                                             'editable' => $editable,
                                             'annotationEditable' => false,
                                             'draftsStatePath' => 'data.attachment_remark_drafts',
                                             'annotationsStatePath' => 'data.attachment_annotations',
+                                            'viewStatesStatePath' => 'data.attachment_view_states',
                                             'draftLabel' => 'Your reply',
                                             'draftPlaceholder' => 'Reply to the requiring agency about this file.',
                                         ]);
@@ -344,6 +347,10 @@ class ComplyingOfficeForm
                             ->dehydrated(),
 
                         Hidden::make('attachment_annotations')
+                            ->default([])
+                            ->dehydrated(),
+
+                        Hidden::make('attachment_view_states')
                             ->default([])
                             ->dehydrated(),
 
@@ -432,6 +439,7 @@ class ComplyingOfficeForm
                                     $set('submitted_at', null);
                                     $set('attachment_remarks', []);
                                     $set('attachment_remark_drafts', []);
+                                    $set('attachment_view_states', []);
                                 }
                             })
 

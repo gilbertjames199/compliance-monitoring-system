@@ -6,6 +6,7 @@
         'annotationEditable' => $annotationEditable ?? false,
         'draftsStatePath' => $draftsStatePath ?? 'data.attachment_remark_drafts',
         'annotationsStatePath' => $annotationsStatePath ?? 'data.attachment_annotations',
+        'viewStatesStatePath' => $viewStatesStatePath ?? 'data.attachment_view_states',
         'draftLabel' => $draftLabel ?? 'Your reply',
         'draftPlaceholder' => $draftPlaceholder ?? 'Reply to the requiring agency about this file.',
     ])

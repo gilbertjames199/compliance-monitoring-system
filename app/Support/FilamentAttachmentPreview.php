@@ -17,6 +17,7 @@ class FilamentAttachmentPreview
      *     threads: array<string, array<int, array<string, string|null>>>,
      *     drafts: array<string, string>,
      *     annotations: array<string, array<int, array<string, mixed>>>,
+     *     viewStates: array<string, array<string, mixed>>,
      *     viewerType: string|null
      * }
      */
@@ -26,12 +27,14 @@ class FilamentAttachmentPreview
         mixed $remarks = [],
         mixed $drafts = [],
         ?string $viewerType = null,
-        mixed $annotations = []
+        mixed $annotations = [],
+        mixed $viewStates = []
     ): array {
         $files = self::normalizeAttachmentItems($attachments);
         $normalizedThreads = self::normalizeRemarkThreads($remarks);
         $normalizedDrafts = self::normalizeDrafts($drafts);
         $normalizedAnnotations = self::normalizeAnnotations($annotations);
+        $normalizedViewStates = self::normalizeViewStates($viewStates);
         $uid = sprintf(
             'attachment_preview_%s_%s',
             preg_replace('/[^A-Za-z0-9_-]/', '_', $context) ?: 'files',
@@ -60,11 +63,15 @@ class FilamentAttachmentPreview
                     'isDocx' => $extension === 'docx',
                     'isSpreadsheet' => in_array($extension, ['xls', 'xlsx', 'csv'], true),
                     'previewUrl' => $url,
+                    'contentPreviewUrl' => AttachmentContentPreview::supports($path)
+                        ? route('attachments.preview', ['path' => $path])
+                        : null,
                 ];
             }, $files),
             'threads' => self::filterThreadsToFiles($normalizedThreads, $files),
             'drafts' => self::filterDraftsToFiles($normalizedDrafts, $files),
             'annotations' => self::filterAnnotationsToFiles($normalizedAnnotations, $files),
+            'viewStates' => self::filterViewStatesToFiles($normalizedViewStates, $files),
             'viewerType' => $viewerType,
         ];
     }
@@ -76,11 +83,12 @@ class FilamentAttachmentPreview
         mixed $annotations = []
     ): HtmlString {
         return new HtmlString((string) view('filament.forms.components.attachment-preview', [
-            'preview' => self::payload($attachments, $context, $remarks, [], null, $annotations),
+            'preview' => self::payload($attachments, $context, $remarks, [], null, $annotations, []),
             'editable' => false,
             'annotationEditable' => false,
             'draftsStatePath' => null,
             'annotationsStatePath' => null,
+            'viewStatesStatePath' => null,
         ]));
     }
 
@@ -342,6 +350,34 @@ class FilamentAttachmentPreview
     }
 
     /**
+     * @return array<string, array{rotation:int}>
+     */
+    protected static function normalizeViewStates(mixed $viewStates): array
+    {
+        if (is_string($viewStates)) {
+            $decoded = json_decode($viewStates, true);
+            $viewStates = is_array($decoded) ? $decoded : [];
+        }
+
+        if (! is_array($viewStates)) {
+            return [];
+        }
+
+        return collect($viewStates)
+            ->filter(fn (mixed $value, mixed $key): bool => is_string($key) && $key !== '')
+            ->map(function (mixed $entry): array {
+                if (! is_array($entry)) {
+                    return ['rotation' => 0];
+                }
+
+                return [
+                    'rotation' => self::normalizeRotation($entry['rotation'] ?? 0),
+                ];
+            })
+            ->all();
+    }
+
+    /**
      * @param  array<int, array{path: string, url: string, name: string, ext: string}>  $files
      * @return array<string, array<int, array<string, string|null>>>
      */
@@ -377,6 +413,20 @@ class FilamentAttachmentPreview
 
         return collect($validPaths)
             ->mapWithKeys(fn (string $path): array => [$path => array_values($annotations[$path] ?? [])])
+            ->all();
+    }
+
+    /**
+     * @param  array<int, array{path: string, url: string, name: string, ext: string}>  $files
+     * @return array<string, array{rotation:int}>
+     */
+    public static function filterViewStatesToFiles(mixed $viewStates, array $files): array
+    {
+        $normalized = self::normalizeViewStates($viewStates);
+        $validPaths = self::collectFilePaths($files);
+
+        return collect($validPaths)
+            ->mapWithKeys(fn (string $path): array => [$path => $normalized[$path] ?? ['rotation' => 0]])
             ->all();
     }
 
@@ -435,5 +485,16 @@ class FilamentAttachmentPreview
         }
 
         return URL::to($url);
+    }
+
+    protected static function normalizeRotation(mixed $value): int
+    {
+        $rotation = (int) $value;
+        $normalized = (($rotation % 360) + 360) % 360;
+
+        return match ($normalized) {
+            90, 180, 270 => $normalized,
+            default => 0,
+        };
     }
 }

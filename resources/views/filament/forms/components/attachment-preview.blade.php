@@ -1,10 +1,11 @@
 <div>
     @php
-        $preview ??= ['uid' => 'attachment_preview_empty', 'count' => 0, 'files' => [], 'threads' => [], 'drafts' => [], 'annotations' => [], 'viewerType' => null];
+        $preview ??= ['uid' => 'attachment_preview_empty', 'count' => 0, 'files' => [], 'threads' => [], 'drafts' => [], 'annotations' => [], 'viewStates' => [], 'viewerType' => null];
         $files = $preview['files'] ?? [];
         $threads = $preview['threads'] ?? [];
         $drafts = $preview['drafts'] ?? [];
         $annotations = $preview['annotations'] ?? [];
+        $viewStates = $preview['viewStates'] ?? [];
         $viewerType = $preview['viewerType'] ?? null;
         $uid = $preview['uid'] ?? 'attachment_preview_empty';
         $count = $preview['count'] ?? count($files);
@@ -12,6 +13,7 @@
         $annotationEditable ??= false;
         $draftsStatePath ??= null;
         $annotationsStatePath ??= null;
+        $viewStatesStatePath ??= null;
         $annotationAuthorName ??= null;
         $annotationAuthorLabel ??= 'Annotation';
         $annotationAuthorType ??= null;
@@ -31,12 +33,13 @@
                 annotationEditable: @js($annotationEditable),
                 draftsStatePath: @js($draftsStatePath),
                 annotationsStatePath: @js($annotationsStatePath),
+                viewStatesStatePath: @js($viewStatesStatePath),
                 viewerType: @js($viewerType),
                 annotationAuthorName: @js($annotationAuthorName),
                 annotationAuthorLabel: @js($annotationAuthorLabel),
                 annotationAuthorType: @js($annotationAuthorType),
             })"
-            x-init="init($refs.filesJson.textContent, $refs.threadsJson.textContent, $refs.draftsJson.textContent, $refs.annotationsJson.textContent)"
+            x-init="init($refs.filesJson.textContent, $refs.threadsJson.textContent, $refs.draftsJson.textContent, $refs.annotationsJson.textContent, $refs.viewStatesJson.textContent)"
             @mousemove.window="dragAnnotation($event)"
             @mouseup.window="stopAnnotationDrag()"
             @mouseleave.window="stopAnnotationDrag()"
@@ -45,6 +48,7 @@
             <script type="application/json" x-ref="threadsJson">@json($threads)</script>
             <script type="application/json" x-ref="draftsJson">@json($drafts)</script>
             <script type="application/json" x-ref="annotationsJson">@json($annotations)</script>
+            <script type="application/json" x-ref="viewStatesJson">@json($viewStates)</script>
 
             <div class="{{ $uid }}__header">
                 <div>
@@ -110,33 +114,35 @@
 
                         <template x-if="!loading && previewMode === 'image'">
                             <div class="{{ $uid }}__stage-wrap">
-                                <div class="{{ $uid }}__stage" :style="previewStyle()" @mousedown="startDrag($event)" @mousemove="drag($event)" @mouseup="stopDrag()" @mouseleave="stopDrag()">
+                                <div class="{{ $uid }}__stage" :style="stageStyle()" @mousedown="startDrag($event)" @mousemove="drag($event)" @mouseup="stopDrag()" @mouseleave="stopDrag()">
                                     <div class="{{ $uid }}__page-shell {{ $uid }}__page-shell--image">
-                                        <img class="{{ $uid }}__image" :src="activeFile().url" :alt="activeFile().name">
-                                        <div
-                                            class="{{ $uid }}__annotation-layer"
-                                            :class="{ 'is-placing': isPlacingAnnotation() }"
-                                            @click="placeAnnotation($event, 1)"
-                                        >
-                                            <template x-for="annotation in annotationsForPage(1)" :key="annotation.id">
-                                                <div
-                                                    class="{{ $uid }}__annotation-pin"
-                                                    :class="{ 'is-own': isOwnAnnotation(annotation), 'is-dragging': isDraggingAnnotation(annotation.id) }"
-                                                    :style="annotationStyle(annotation)"
-                                                    @mousedown.stop="startAnnotationDrag(annotation.id, 1, $event)"
-                                                >
-                                                    <button
-                                                        type="button"
-                                                        class="{{ $uid }}__annotation-delete"
-                                                        x-show="canDeleteAnnotation(annotation)"
-                                                        @click.stop="removeAnnotation(annotation.id)"
+                                        <div class="{{ $uid }}__transform-surface" :style="contentTransformStyle()">
+                                            <img class="{{ $uid }}__image" :src="activeFile().url" :alt="activeFile().name">
+                                            <div
+                                                class="{{ $uid }}__annotation-layer"
+                                                :class="{ 'is-placing': isPlacingAnnotation() }"
+                                                @click="placeAnnotation($event, 1)"
+                                            >
+                                                <template x-for="annotation in annotationsForPage(1)" :key="annotation.id">
+                                                    <div
+                                                        class="{{ $uid }}__annotation-pin"
+                                                        :class="{ 'is-own': isOwnAnnotation(annotation), 'is-dragging': isDraggingAnnotation(annotation.id) }"
+                                                        :style="annotationStyle(annotation)"
+                                                        @mousedown.stop="startAnnotationDrag(annotation.id, 1, $event)"
                                                     >
-                                                        x
-                                                    </button>
-                                                    <p class="{{ $uid }}__annotation-text" x-text="annotation.text"></p>
-                                                    <p class="{{ $uid }}__annotation-meta" x-text="formatAnnotationMeta(annotation)"></p>
-                                                </div>
-                                            </template>
+                                                        <button
+                                                            type="button"
+                                                            class="{{ $uid }}__annotation-delete"
+                                                            x-show="canDeleteAnnotation(annotation)"
+                                                            @click.stop="removeAnnotation(annotation.id)"
+                                                        >
+                                                            x
+                                                        </button>
+                                                        <p class="{{ $uid }}__annotation-text" x-text="annotation.text"></p>
+                                                        <p class="{{ $uid }}__annotation-meta" x-text="formatAnnotationMeta(annotation)"></p>
+                                                    </div>
+                                                </template>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
@@ -145,7 +151,7 @@
 
                         <template x-if="!loading && previewMode === 'pdf'">
                             <div class="{{ $uid }}__stage-wrap">
-                                <div class="{{ $uid }}__stage {{ $uid }}__stage--document {{ $uid }}__pdf-stack" :style="previewStyle()" @mousedown="startDrag($event)" @mousemove="drag($event)" @mouseup="stopDrag()" @mouseleave="stopDrag()">
+                                <div class="{{ $uid }}__stage {{ $uid }}__stage--document {{ $uid }}__pdf-stack" :style="stageStyle()" @mousedown="startDrag($event)" @mousemove="drag($event)" @mouseup="stopDrag()" @mouseleave="stopDrag()">
                                     <template x-for="page in pdfPages" :key="page.pageNumber">
                                         <div class="{{ $uid }}__page-shell" :style="'width:' + page.width + 'px;height:' + page.height + 'px'">
                                             <canvas
@@ -189,7 +195,7 @@
 
                         <template x-if="!loading && previewMode === 'pdf-native' && !shouldUseInteractivePdfOnly()">
                             <div class="{{ $uid }}__stage-wrap">
-                                <div class="{{ $uid }}__stage {{ $uid }}__stage--document" :style="previewStyle()" @mousedown="startDrag($event)" @mousemove="drag($event)" @mouseup="stopDrag()" @mouseleave="stopDrag()">
+                                <div class="{{ $uid }}__stage {{ $uid }}__stage--document" :style="stageStyle()" @mousedown="startDrag($event)" @mousemove="drag($event)" @mouseup="stopDrag()" @mouseleave="stopDrag()">
                                     <div class="{{ $uid }}__page-shell {{ $uid }}__page-shell--pdf-native">
                                         <iframe
                                             class="{{ $uid }}__frame"
@@ -229,35 +235,37 @@
 
                         <template x-if="!loading && previewMode === 'html'">
                             <div class="{{ $uid }}__stage-wrap">
-                                <div class="{{ $uid }}__stage {{ $uid }}__stage--document" :style="previewStyle()" @mousedown="startDrag($event)" @mousemove="drag($event)" @mouseup="stopDrag()" @mouseleave="stopDrag()">
-                                    <div class="{{ $uid }}__page-shell {{ $uid }}__page-shell--html">
-                                        <div class="{{ $uid }}__html-scroll">
-                                            <div class="{{ $uid }}__html-surface">
-                                                <div class="{{ $uid }}__html-preview" x-html="htmlPreview"></div>
-                                                <div
-                                                    class="{{ $uid }}__annotation-layer"
-                                                    :class="{ 'is-placing': isPlacingAnnotation() }"
-                                                    @click="placeAnnotation($event, 1)"
-                                                >
-                                                    <template x-for="annotation in annotationsForPage(1)" :key="annotation.id">
-                                                        <div
-                                                            class="{{ $uid }}__annotation-pin"
-                                                            :class="{ 'is-own': isOwnAnnotation(annotation), 'is-dragging': isDraggingAnnotation(annotation.id) }"
-                                                            :style="annotationStyle(annotation)"
-                                                            @mousedown.stop="startAnnotationDrag(annotation.id, 1, $event)"
-                                                        >
-                                                            <button
-                                                                type="button"
-                                                                class="{{ $uid }}__annotation-delete"
-                                                                x-show="canDeleteAnnotation(annotation)"
-                                                                @click.stop="removeAnnotation(annotation.id)"
+                                <div class="{{ $uid }}__stage {{ $uid }}__stage--document" :style="stageStyle()" @mousedown="startDrag($event)" @mousemove="drag($event)" @mouseup="stopDrag()" @mouseleave="stopDrag()">
+                                    <div class="{{ $uid }}__page-shell {{ $uid }}__page-shell--html" :class="{ '{{ $uid }}__page-shell--spreadsheet': isWorkbookFile(activeFile()) }">
+                                        <div class="{{ $uid }}__html-scroll" :class="{ 'is-spreadsheet': isWorkbookFile(activeFile()) }">
+                                            <div class="{{ $uid }}__transform-surface" :style="contentTransformStyle()">
+                                                <div class="{{ $uid }}__html-surface">
+                                                    <div class="{{ $uid }}__html-preview" x-html="htmlPreview"></div>
+                                                    <div
+                                                        class="{{ $uid }}__annotation-layer"
+                                                        :class="{ 'is-placing': isPlacingAnnotation() }"
+                                                        @click="placeAnnotation($event, 1)"
+                                                    >
+                                                        <template x-for="annotation in annotationsForPage(1)" :key="annotation.id">
+                                                            <div
+                                                                class="{{ $uid }}__annotation-pin"
+                                                                :class="{ 'is-own': isOwnAnnotation(annotation), 'is-dragging': isDraggingAnnotation(annotation.id) }"
+                                                                :style="annotationStyle(annotation)"
+                                                                @mousedown.stop="startAnnotationDrag(annotation.id, 1, $event)"
                                                             >
-                                                                x
-                                                            </button>
-                                                            <p class="{{ $uid }}__annotation-text" x-text="annotation.text"></p>
-                                                            <p class="{{ $uid }}__annotation-meta" x-text="formatAnnotationMeta(annotation)"></p>
-                                                        </div>
-                                                    </template>
+                                                                <button
+                                                                    type="button"
+                                                                    class="{{ $uid }}__annotation-delete"
+                                                                    x-show="canDeleteAnnotation(annotation)"
+                                                                    @click.stop="removeAnnotation(annotation.id)"
+                                                                >
+                                                                    x
+                                                                </button>
+                                                                <p class="{{ $uid }}__annotation-text" x-text="annotation.text"></p>
+                                                                <p class="{{ $uid }}__annotation-meta" x-text="formatAnnotationMeta(annotation)"></p>
+                                                            </div>
+                                                        </template>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
@@ -601,6 +609,8 @@
                 display: flex;
                 align-items: center;
                 justify-content: center;
+                width: fit-content;
+                margin: 0 auto;
             }
 
             #{{ $uid }} .{{ $uid }}__stage--document {
@@ -621,10 +631,17 @@
 
             #{{ $uid }} .{{ $uid }}__page-shell--image {
                 display: inline-flex;
+                align-items: center;
+                justify-content: center;
             }
 
             #{{ $uid }} .{{ $uid }}__page-shell--html {
-                width: min(920px, 100%);
+                width: fit-content;
+                max-width: 100%;
+            }
+
+            #{{ $uid }} .{{ $uid }}__page-shell--spreadsheet {
+                width: min(1120px, 100%);
             }
 
             #{{ $uid }} .{{ $uid }}__page-shell--pdf-native {
@@ -666,11 +683,20 @@
             }
 
             #{{ $uid }} .{{ $uid }}__image {
+                display: block;
                 width: auto;
                 max-width: min(100%, 960px);
                 max-height: 70vh;
                 object-fit: contain;
                 padding: 16px;
+            }
+
+            #{{ $uid }} .{{ $uid }}__transform-surface {
+                position: relative;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                transition: transform 0.18s ease;
             }
 
             #{{ $uid }} .{{ $uid }}__annotation-layer {
@@ -786,16 +812,41 @@
             }
 
             #{{ $uid }} .{{ $uid }}__html-scroll {
-                width: 100%;
+                width: fit-content;
+                max-width: min(100%, 1100px);
                 max-height: 70vh;
                 overflow: auto;
+            }
+
+            #{{ $uid }} .{{ $uid }}__html-scroll.is-spreadsheet {
+                width: min(100%, 1040px);
+                height: min(72vh, 680px);
+                min-width: 520px;
+                min-height: 340px;
+                max-width: 100%;
+                max-height: 78vh;
+                resize: both;
+                overflow: auto;
+                padding: 0;
+                border: 1px solid #cbd5e1;
+                border-radius: 14px;
+                background:
+                    linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px) 0 0 / 32px 32px,
+                    linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px) 0 0 / 32px 32px,
+                    #ffffff;
+                box-shadow: 0 18px 36px rgba(15, 23, 42, 0.12);
             }
 
             #{{ $uid }} .{{ $uid }}__html-surface {
                 position: relative;
                 width: max-content;
-                min-width: 100%;
+                min-width: min(820px, 100%);
                 min-height: 420px;
+            }
+
+            #{{ $uid }} .{{ $uid }}__html-scroll.is-spreadsheet .{{ $uid }}__html-surface {
+                min-width: fit-content;
+                min-height: fit-content;
             }
 
             #{{ $uid }} .{{ $uid }}__html-surface .{{ $uid }}__annotation-layer {
@@ -803,10 +854,29 @@
             }
 
             #{{ $uid }} .{{ $uid }}__html-preview {
-                width: 100%;
+                width: max-content;
+                min-width: 100%;
                 min-height: 420px;
-                padding: 28px;
+                padding: 20px;
                 overflow: visible;
+                background:
+                    linear-gradient(90deg, rgba(148, 163, 184, 0.08) 1px, transparent 1px) 0 0 / 32px 32px,
+                    linear-gradient(rgba(148, 163, 184, 0.08) 1px, transparent 1px) 0 0 / 32px 32px,
+                    #ffffff;
+            }
+
+            #{{ $uid }} .{{ $uid }}__html-scroll.is-spreadsheet .{{ $uid }}__transform-surface {
+                display: inline-block;
+                min-width: fit-content;
+            }
+
+            #{{ $uid }} .{{ $uid }}__html-scroll.is-spreadsheet .{{ $uid }}__html-preview {
+                min-width: fit-content;
+                min-height: fit-content;
+                padding: 16px;
+                background: transparent;
+                box-shadow: none;
+                border-radius: 0;
             }
 
             #{{ $uid }} .{{ $uid }}__docx-body {
@@ -829,16 +899,30 @@
                 padding-top: 24px;
             }
 
+            #{{ $uid }} .{{ $uid }}__sheet h4 {
+                position: sticky;
+                left: 0;
+                display: inline-flex;
+                align-items: center;
+                gap: 8px;
+                padding: 8px 12px;
+                border: 1px solid #cbd5e1;
+                border-radius: 10px;
+                background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+                box-shadow: 0 8px 16px rgba(15, 23, 42, 0.06);
+                z-index: 1;
+            }
+
             #{{ $uid }} .{{ $uid }}__sheet-table {
                 display: block;
                 width: max-content;
                 min-width: 100%;
                 max-width: none;
-                overflow: visible;
-                border: 1px solid #dbe2ea;
-                border-radius: 12px;
+                overflow: auto;
+                border: 1px solid #cbd5e1;
+                border-radius: 14px;
                 background: #ffffff;
-                box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+                box-shadow: 0 20px 40px rgba(15, 23, 42, 0.08);
             }
 
             #{{ $uid }} .{{ $uid }}__sheet-table * {
@@ -850,25 +934,85 @@
                 min-width: max-content !important;
                 border-collapse: collapse;
                 table-layout: auto;
-                font-size: 13px;
+                font-size: 12px;
                 margin: 0;
+                background: #ffffff;
             }
 
             #{{ $uid }} .{{ $uid }}__sheet-table td,
             #{{ $uid }} .{{ $uid }}__sheet-table th {
                 border: 1px solid #dbe2ea;
-                padding: 8px 10px;
+                padding: 7px 10px;
                 vertical-align: top;
-                white-space: nowrap;
-                overflow: visible;
-                overflow-wrap: normal;
-                word-break: normal;
-                min-width: 120px;
-                max-width: none;
+                white-space: pre-wrap;
+                overflow-wrap: anywhere;
+                word-break: break-word;
+                min-width: 128px;
+                max-width: 280px;
+                line-height: 1.45;
+                color: #0f172a;
             }
 
-            #{{ $uid }} .{{ $uid }}__sheet-table tr:nth-child(even) {
+            #{{ $uid }} .{{ $uid }}__sheet-table thead th {
+                position: sticky;
+                top: 0;
+                z-index: 3;
+                background: linear-gradient(180deg, #e2e8f0 0%, #cbd5e1 100%);
+                text-align: center;
+                font-weight: 700;
+                color: #334155;
+            }
+
+            #{{ $uid }} .{{ $uid }}__sheet-table .attachment-preview__sheet-index {
+                position: sticky;
+                left: 0;
+                z-index: 2;
+                min-width: 52px;
+                max-width: 52px;
+                text-align: center;
+                background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+                color: #475569;
+                font-weight: 700;
+            }
+
+            #{{ $uid }} .{{ $uid }}__sheet-table .attachment-preview__sheet-corner {
+                left: 0;
+                z-index: 4;
+                min-width: 52px;
+                max-width: 52px;
+            }
+
+            #{{ $uid }} .{{ $uid }}__sheet-table tbody tr:nth-child(even) td {
                 background: #f8fafc;
+            }
+
+            #{{ $uid }} .{{ $uid }}__sheet-table tbody tr:hover td,
+            #{{ $uid }} .{{ $uid }}__sheet-table tbody tr:hover .attachment-preview__sheet-index {
+                background: #eff6ff;
+            }
+
+            #{{ $uid }} .{{ $uid }}__sheet-table .attachment-preview__truncated,
+            #{{ $uid }} .{{ $uid }}__sheet-table .attachment-preview__empty {
+                text-align: center;
+                color: #64748b;
+                font-style: italic;
+                background: #f8fafc;
+            }
+
+            #{{ $uid }} .{{ $uid }}__limit-note {
+                margin: 12px 0 0;
+                color: #64748b;
+                font-size: 12px;
+            }
+
+            #{{ $uid }} .{{ $uid }}__text-file {
+                margin: 0;
+                padding: 20px;
+                font-size: 12px;
+                line-height: 1.6;
+                color: #0f172a;
+                white-space: pre-wrap;
+                background: linear-gradient(180deg, #fff 0%, #f8fafc 100%);
             }
 
             #{{ $uid }} .{{ $uid }}__fallback,

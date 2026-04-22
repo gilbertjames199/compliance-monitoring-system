@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AttachmentPreviewController;
 use App\Mail\DueDateReminderMail;
 use App\Models\RequiredDocument;
 use App\Models\User;
@@ -15,6 +16,9 @@ Route::get('/', function () {
     return redirect()->route('filament.admin.auth.login');
 
 });
+
+Route::middleware('auth')->get('/attachments/preview', AttachmentPreviewController::class)
+    ->name('attachments.preview');
 
 Route::get('email-test', function() {
 
@@ -40,5 +44,4 @@ Route::get('email-test', function() {
     }
     return 'Emails sent!';
 });
-
 

@@ -124,6 +124,9 @@ class ComplyingOfficesRelationManager extends RelationManager
 
                 Hidden::make('attachment_annotations')
                     ->default([]),
+
+                Hidden::make('attachment_view_states')
+                    ->default([]),
                 
                 ViewField::make('attachments_preview')
                     ->label('Submitted Attachments and Agency Remarks')
@@ -144,7 +147,8 @@ class ComplyingOfficesRelationManager extends RelationManager
                                 $get('attachment_remarks') ?? $record?->attachment_remarks,
                                 $get('attachment_remark_drafts') ?? [],
                                 $this->resolveAttachmentViewerType($record),
-                                $get('attachment_annotations') ?? $record?->attachment_annotations
+                                $get('attachment_annotations') ?? $record?->attachment_annotations,
+                                $get('attachment_view_states') ?? $record?->attachment_view_states
                             ),
                             'editable' => $editable,
                             'annotationEditable' => $editable,
@@ -153,6 +157,9 @@ class ComplyingOfficesRelationManager extends RelationManager
                                 ->toString(),
                             'annotationsStatePath' => str($component->getStatePath())
                                 ->replaceEnd('.attachments_preview', '.attachment_annotations')
+                                ->toString(),
+                            'viewStatesStatePath' => str($component->getStatePath())
+                                ->replaceEnd('.attachments_preview', '.attachment_view_states')
                                 ->toString(),
                             'annotationAuthorName' => $user->name,
                             'annotationAuthorLabel' => $this->resolveAttachmentCommentAuthorLabel($record),
@@ -587,6 +594,11 @@ class ComplyingOfficesRelationManager extends RelationManager
                             auth()->user()->name,
                             $this->resolveAttachmentCommentAuthorLabel($record),
                             $this->resolveAttachmentCommentAuthorType($record)
+                        );
+
+                        $data['attachment_view_states'] = FilamentAttachmentPreview::filterViewStatesToFiles(
+                            $data['attachment_view_states'] ?? $record->attachment_view_states,
+                            FilamentAttachmentPreview::payload($data['attachments'] ?? $record->attachments)['files']
                         );
 
                         return $data;

@@ -66,6 +66,7 @@ class EditComplyingOffice extends EditRecord
         $user = auth()->user();
         $record = $this->record->refresh(); // ← always read fresh from DB
         $drafts = $data['attachment_remark_drafts'] ?? [];
+        $viewStates = $data['attachment_view_states'] ?? [];
         unset($data['attachment_remark_drafts']);
 
         // ✅ ALWAYS guard against stale-form status downgrade
@@ -94,6 +95,7 @@ class EditComplyingOffice extends EditRecord
             $data['validated_by']      = null;
             $data['attachment_remarks'] = [];
             $data['attachment_annotations'] = [];
+            $data['attachment_view_states'] = [];
 
         } else {
             $alreadyComplied = $record->status == 1 && $record->validation_status !== 'returned';
@@ -108,6 +110,7 @@ class EditComplyingOffice extends EditRecord
                 $data['validated_at']      = $record->validated_at;
                 $data['attachment_remarks'] = $record->attachment_remarks;
                 $data['attachment_annotations'] = $record->attachment_annotations;
+                $data['attachment_view_states'] = $record->attachment_view_states;
 
             } else {
                 // Fresh submission or re-submission after return
@@ -136,6 +139,10 @@ class EditComplyingOffice extends EditRecord
             );
 
             $data['attachment_annotations'] = $record->attachment_annotations;
+            $data['attachment_view_states'] = FilamentAttachmentPreview::filterViewStatesToFiles(
+                $viewStates,
+                FilamentAttachmentPreview::payload($attachments)['files']
+            );
         }
 
         return $data;
