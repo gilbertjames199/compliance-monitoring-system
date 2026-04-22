@@ -603,8 +603,8 @@ class ComplyingOfficesRelationManager extends RelationManager
 
                         return $data;
                     })
-                    ->slideOver()
-                    ->modalWidth('7xl'),
+                    // ->slideOver()
+                    ->modalWidth('8xl'),
                 // DissociateAction::make(),
                 DeleteAction::make()
                     ->visible(function ($record) {
