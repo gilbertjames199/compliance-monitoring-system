@@ -3,6 +3,7 @@
 namespace App\Listeners;
 
 use App\Models\AuditLog;
+use App\Models\Office;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
 use Illuminate\Http\Request;
@@ -28,6 +29,9 @@ class AuthEventListener
         if (Cache::has($cacheKey)) return;
         Cache::put($cacheKey, true, now()->addSeconds(5));
 
+        $officeName = Office::where('department_code', $user->department_code)
+            ->value('office') ?? $user->department_code;
+
         try {
             AuditLog::create([
                 'event'                 => 'logged in',
@@ -37,7 +41,7 @@ class AuthEventListener
                 'requirement_id'        => null,
                 'requirement_name'      => null,
                 'complying_office_id'   => null,
-                'office_name'           => $user->department_code ?? null,
+                'office_name'           => $officeName,
                 'requiring_agency_name' => null,
                 'remarks'               => 'Login from IP: ' . $this->request->ip(),
             ]);
@@ -63,6 +67,9 @@ class AuthEventListener
         if (Cache::has($cacheKey)) return;
         Cache::put($cacheKey, true, now()->addSeconds(5));
 
+        $officeName = Office::where('department_code', $user->department_code)
+            ->value('office') ?? $user->department_code;
+
         try {
             AuditLog::create([
                 'event'                 => 'logged out',
@@ -72,7 +79,7 @@ class AuthEventListener
                 'requirement_id'        => null,
                 'requirement_name'      => null,
                 'complying_office_id'   => null,
-                'office_name'           => $user->department_code ?? null,
+                'office_name'           => $officeName,
                 'requiring_agency_name' => null,
                 'remarks'               => 'Logout from IP: ' . $this->request->ip(),
             ]);
