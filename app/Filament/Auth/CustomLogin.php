@@ -83,14 +83,27 @@ class CustomLogin extends DdoLogin
                     ->body('Please contact your administrator.')
                     ->send();
 
+                // Throw instead of return null — forces form to reset cleanly
+                throw ValidationException::withMessages([
+                    'data.UserName' => ' ', // empty space to avoid duplicate message
+                ]);
+            }
+
+            // 4. Check if user has roles
+            if ($user->roles()->count() === 0) {
+                Notification::make()
+                    ->title('Access Denied')
+                    ->danger()
+                    ->body('You have no roles assigned. Please contact PICTO.')
+                    ->send();
                 return null;
             }
 
-            // 4. Log the user in
+            // 5. Log the user in
             // Filament::auth()->login($user, $data['remember'] ?? false);
             Auth::guard('web')->login($user, $data['remember'] ?? false);
 
-            // 5. Regenerate session
+            // 6. Regenerate session
             session()->regenerate();
           
             return app(LoginResponse::class);
