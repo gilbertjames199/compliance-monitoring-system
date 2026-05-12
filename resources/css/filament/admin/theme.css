@@ -42,5 +42,15 @@
     @apply bg-[#fffef9] dark:bg-[#121212];
 }
 
+.fi-ta-cell:has(.fi-ta-actions) {
+  vertical-align: top;
+}
 
+.fi-ta-cell:has(.fi-ta-actions) .fi-ta-actions {
+  align-items: flex-start;
+}
+
+.fi-ta-cell:has(.fi-ta-record-checkbox) {
+  vertical-align: top;
+}
 

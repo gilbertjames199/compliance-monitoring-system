@@ -46,6 +46,7 @@ class RequiredDocumentsTable
             
         return $table
             ->modifyQueryUsing(function (Builder $query) use ($user, $officeName) {
+                $query->with(['complyingOffices.office']);
 
                 if (! $user) {
                     return;
@@ -108,6 +109,8 @@ class RequiredDocumentsTable
                     ->wrap()
                     ->limit(100)
                     ->searchable()
+                    ->alignStart()
+                    ->extraCellAttributes(['class' => 'align-top'])
                     ->tooltip(function (TextColumn $column): ?string {
                         $state = $column->getState();
 
@@ -121,34 +124,69 @@ class RequiredDocumentsTable
                 TextColumn::make('agency_name')
                     ->label('Requiring Agency')
                     ->searchable()
-                    ->wrap(),
+                    ->wrap()
+                    ->alignStart()
+                    ->extraCellAttributes(['class' => 'align-top']),
+                TextColumn::make('complying_offices_list')
+                    ->label('Complying Office/s')
+                    ->html()
+                    ->wrap()
+                    ->extraCellAttributes(['class' => 'align-top'])
+                    ->getStateUsing(function ($record) {
+                        $offices = $record->complyingOffices
+                            ->map(fn ($complyingOffice) => $complyingOffice->office?->short_name
+                                ?? $complyingOffice->office?->office
+                                ?? $complyingOffice->department_code)
+                            ->filter()
+                            ->unique()
+                            ->values()
+                            ->all();
+
+                        if (empty($offices)) {
+                            return '<span class="text-gray-500">No complying office assigned</span>';
+                        }
+
+                        return collect($offices)
+                            ->map(fn ($office) => sprintf(
+                                '<span class="inline-flex items-center rounded-md bg-primary-50 px-2 py-1 text-xs font-medium text-primary-700 ring-1 ring-inset ring-primary-600/20 me-1 mb-1">%s</span>',
+                                e($office)
+                            ))
+                            ->implode('');
+                    })
+                    ->extraAttributes(['class' => 'whitespace-normal']),
                 IconColumn::make('is_confidential')
                     ->label('Confidential')
                     ->boolean()
                     ->sortable()
                     ->searchable()
+                    ->extraCellAttributes(['class' => 'align-top'])
                     ->trueColor('warning')   // yellow
                     ->falseColor('gray')     // dark / black-ish
                     ->trueIcon('heroicon-o-lock-closed')
                     ->falseIcon('heroicon-o-lock-open'),
                 TextColumn::make('year')
-                    ->searchable(),
+                    ->searchable()
+                    ->extraCellAttributes(['class' => 'align-top']),
                 TextColumn::make('category.category')
                     ->label('Category')
                     ->searchable()
                     ->wrap()
-                    ->limit(100),
+                    ->limit(100)
+                    ->extraCellAttributes(['class' => 'align-top']),
                 TextColumn::make('date_from')
                     ->label('Start Date')
                     ->date()
-                    ->searchable(),
+                    ->searchable()
+                    ->extraCellAttributes(['class' => 'align-top']),
                 TextColumn::make('due_date')
                     ->label('Deadline')
                     ->date()
-                    ->searchable(),
+                    ->searchable()
+                    ->extraCellAttributes(['class' => 'align-top']),
                 TextColumn::make('compliance_count')
                     ->label('Complied Count')
                     ->alignCenter()
+                    ->extraCellAttributes(['class' => 'align-top'])
                     ->getStateUsing(function ($record) {
                         $total = $record->complyingOffices()->count();
                         $complied = $record->complyingOffices()
@@ -169,6 +207,7 @@ class RequiredDocumentsTable
                 TextColumn::make('validation_count')
                     ->label('Validated Count')
                     ->alignCenter()
+                    ->extraCellAttributes(['class' => 'align-top'])
                     ->getStateUsing(function ($record) {
                         $total = $record->complyingOffices()->count();
                         $validated = $record->complyingOffices()

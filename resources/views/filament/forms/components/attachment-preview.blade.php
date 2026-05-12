@@ -362,13 +362,26 @@
                         <template x-if="editable">
                             <label class="{{ $uid }}__remark-field">
                                 <span class="{{ $uid }}__remark-label">{{ $draftLabel }}</span>
-                                <textarea
-                                    rows="4"
-                                    class="{{ $uid }}__remark-input"
-                                    placeholder="{{ $draftPlaceholder }}"
-                                    :value="currentDraft()"
-                                    @input="updateCurrentDraft($event.target.value)"
-                                ></textarea>
+                                <div class="{{ $uid }}__remark-composer">
+                                    <textarea
+                                        rows="4"
+                                        class="{{ $uid }}__remark-input"
+                                        placeholder="{{ $draftPlaceholder }}"
+                                        :value="currentDraft()"
+                                        @input="updateCurrentDraft($event.target.value)"
+                                    ></textarea>
+                                    <button
+                                        type="submit"
+                                        class="{{ $uid }}__send-btn"
+                                        :disabled="!currentDraft().trim()"
+                                        aria-label="Send reply"
+                                    >
+                                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                            <line x1="22" y1="2" x2="11" y2="13"></line>
+                                            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                                        </svg>
+                                    </button>
+                                </div>
                             </label>
                         </template>
                     </div>
@@ -1119,6 +1132,7 @@
                 border: 1px solid #cbd5e1;
                 border-radius: 12px;
                 padding: 12px 14px;
+                padding-right: 64px;
                 background: #ffffff;
                 color: #0f172a;
                 font-size: 14px;
@@ -1130,6 +1144,45 @@
                 outline: 0;
                 border-color: #60a5fa;
                 box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.2);
+            }
+
+            #{{ $uid }} .{{ $uid }}__remark-composer {
+                position: relative;
+            }
+
+            #{{ $uid }} .{{ $uid }}__send-btn {
+                position: absolute;
+                right: 14px;
+                bottom: 14px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+                width: 42px;
+                height: 42px;
+                border-radius: 50%;
+                border: 1px solid transparent;
+                background: #2563eb;
+                color: #ffffff;
+                font-size: 0;
+                cursor: pointer;
+                transition: transform 0.15s ease, background-color 0.15s ease, border-color 0.15s ease;
+            }
+
+            #{{ $uid }} .{{ $uid }}__send-btn:hover:not(:disabled) {
+                background: #1d4ed8;
+                transform: translateY(-1px);
+            }
+
+            #{{ $uid }} .{{ $uid }}__send-btn:disabled {
+                background: #93c5fd;
+                border-color: transparent;
+                opacity: 0.65;
+                cursor: not-allowed;
+            }
+
+            #{{ $uid }} .{{ $uid }}__send-btn svg {
+                width: 18px;
+                height: 18px;
             }
 
             #{{ $uid }} .{{ $uid }}__remark-empty {
