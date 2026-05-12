@@ -73,6 +73,22 @@
                     <strong>on or before the deadline</strong> to maintain compliance.
                 </div>
 
+                 <!-- ✅ NEW: ACCESS LINK -->
+                <div style="margin-top:20px; padding:15px; background:#fdf6e3; border-left:4px solid #a86b00; font-size:13px; color:#555; line-height:1.8;">
+                    You may access the Compliance Monitoring System using your <strong>OPCR credentials</strong>:<br><br>
+                    <a href="https://cms.davaodeoro.gov.ph/"
+                       style="display:inline-block; background: linear-gradient(135deg, #a86b00, #f2b705); color:#ffffff; padding:10px 22px; border-radius:6px; text-decoration:none; font-weight:bold; font-size:13px;">
+                        &#128279; Access CMS Portal
+                    </a>
+                    <br><br>
+                    <span style="font-size:12px; color:#888;">
+                        Or copy this link: 
+                        <a href="https://cms.davaodeoro.gov.ph/" style="color:#a86b00; text-decoration:none;">
+                            https://cms.davaodeoro.gov.ph/
+                        </a>
+                    </span>
+                </div>
+
             </td>
         </tr>
 
