@@ -71,6 +71,7 @@ class ComplyingOfficesTable
                         ->sortable()
                         ->limit(100)
                         ->wrap()
+                        ->extraCellAttributes(['class' => 'align-top'])
                         ->tooltip(function (TextColumn $column): ?string {
                             $state = $column->getState();
 
@@ -85,12 +86,14 @@ class ComplyingOfficesTable
                         ->label('Requiring Agency')
                         ->sortable()
                         ->searchable() 
-                        ->wrap(),
+                        ->wrap()
+                        ->extraCellAttributes(['class' => 'align-top']),
                     TextColumn::make('office.office')
                         ->label('Complying Office')
                         ->sortable()
                         ->searchable()
-                        ->wrap(),
+                        ->wrap()
+                        ->extraCellAttributes(['class' => 'align-top']),
                     IconColumn::make('requiredDocument.is_confidential')
                         ->label('Confidential')
                         ->boolean()
@@ -99,7 +102,8 @@ class ComplyingOfficesTable
                         ->trueColor('warning')   // yellow
                         ->falseColor('gray')     // dark / black-ish
                         ->trueIcon('heroicon-o-lock-closed')
-                        ->falseIcon('heroicon-o-lock-open'),
+                        ->falseIcon('heroicon-o-lock-open')
+                        ->extraCellAttributes(['class' => 'align-top']),
                     TextColumn::make('status')
                         ->label('Compliance Status')
                         ->formatStateUsing(function ($state) {
@@ -118,7 +122,8 @@ class ComplyingOfficesTable
                         ])
                         ->html()
                         ->sortable()
-                        ->searchable(),
+                        ->searchable()
+                        ->extraCellAttributes(['class' => 'align-top']),
 
                     TextColumn::make('validation_status')
                         ->label('Validation Status')
@@ -138,7 +143,9 @@ class ComplyingOfficesTable
                         ])
                         ->html()
                         ->sortable()
-                        ->searchable(),
+                        ->searchable()
+                        ->extraCellAttributes(['class' => 'align-top']),
+
                     TextColumn::make('requiredDocument.due_date')
                         ->label('Deadline')
                         ->sortable()
@@ -151,15 +158,20 @@ class ComplyingOfficesTable
                         ($record->status != 1 && $record->status != 'complied' && now()->gt($record->requiredDocument->due_date))
                             ? 'danger'
                             : null // Default color
-                        ),
+                        )
+                        ->extraCellAttributes(['class' => 'align-top']),
+
                     TextColumn::make('created_at')
                         ->dateTime()
                         ->sortable()
-                        ->toggleable(isToggledHiddenByDefault: true),
+                        ->toggleable(isToggledHiddenByDefault: true)
+                        ->extraCellAttributes(['class' => 'align-top']),
+
                     TextColumn::make('updated_at')
                         ->dateTime()
                         ->sortable()
-                        ->toggleable(isToggledHiddenByDefault: true),
+                        ->toggleable(isToggledHiddenByDefault: true)
+                        ->extraCellAttributes(['class' => 'align-top']),
                 ])
                 ->defaultSort('created_at', 'desc')
                 ->filters([
