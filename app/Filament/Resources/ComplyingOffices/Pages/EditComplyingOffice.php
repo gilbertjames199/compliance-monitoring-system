@@ -62,7 +62,8 @@ class EditComplyingOffice extends EditRecord
 
 Please ensure the submission is reviewed and re-submitted once finalized.
 
-If it remains **Partially Complied**, it will not be considered complete and cannot be reviewed by the requiring agency.')
+If it remains **Partially Complied**, it will not be considered complete and cannot be reviewed by the requiring agency.
+The **Department Head may log in using their OPCR credentials** to complete this action.')
         ->markdown()
         ->toHtmlString()
 )
