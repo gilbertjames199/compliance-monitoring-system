@@ -4,7 +4,6 @@ namespace App\Support;
 
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\URL;
 use Illuminate\Support\HtmlString;
 
 class FilamentAttachmentPreview
@@ -145,11 +144,13 @@ class FilamentAttachmentPreview
 
         foreach ($attachments as $attachment) {
             if (is_string($attachment) && $attachment !== '') {
+                $path = self::normalizeAttachmentPath($attachment);
+
                 $normalized[] = [
-                    'path' => $attachment,
-                    'url' => self::resolveUrl($attachment),
-                    'name' => basename($attachment),
-                    'ext' => strtolower(pathinfo($attachment, PATHINFO_EXTENSION)),
+                    'path' => $path,
+                    'url' => self::resolveUrl($path),
+                    'name' => basename(parse_url($attachment, PHP_URL_PATH) ?: $path),
+                    'ext' => strtolower(pathinfo(parse_url($attachment, PHP_URL_PATH) ?: $path, PATHINFO_EXTENSION)),
                 ];
 
                 continue;
@@ -159,19 +160,24 @@ class FilamentAttachmentPreview
                 continue;
             }
 
-            $path = (string) ($attachment['path'] ?? $attachment['file'] ?? $attachment['url'] ?? '');
+            $path = self::normalizeAttachmentPath(
+                (string) ($attachment['path'] ?? $attachment['file'] ?? $attachment['url'] ?? '')
+            );
 
             if ($path === '') {
                 continue;
             }
 
-            $name = (string) ($attachment['name'] ?? basename($path));
-            $url = (string) ($attachment['url'] ?? self::resolveUrl($path));
+            $providedUrl = self::normalizeAttachmentUrl(
+                $attachment['previewUrl'] ?? $attachment['url'] ?? null
+            );
+            $name = (string) ($attachment['name'] ?? basename(parse_url($path, PHP_URL_PATH) ?: $path));
+            $url = $providedUrl ?: self::resolveUrl($path);
             $ext = (string) ($attachment['ext'] ?? pathinfo($name ?: $path, PATHINFO_EXTENSION));
 
             $normalized[] = [
                 'path' => $path,
-                'url' => filter_var($url, FILTER_VALIDATE_URL) ? $url : self::resolveUrl($url),
+                'url' => $url,
                 'name' => $name,
                 'ext' => strtolower($ext),
             ];
@@ -478,7 +484,56 @@ class FilamentAttachmentPreview
             return $path;
         }
 
-        return asset(Storage::disk('public')->url($path));
+        return asset(Storage::disk('public')->url(ltrim($path, '/')));
+    }
+
+    protected static function normalizeAttachmentPath(string $value): string
+    {
+        $value = trim($value);
+
+        if ($value === '') {
+            return '';
+        }
+
+        $parsedPath = parse_url($value, PHP_URL_PATH);
+
+        if (is_string($parsedPath) && $parsedPath !== '') {
+            $storagePath = self::stripStoragePrefix($parsedPath);
+
+            if ($storagePath !== null) {
+                return $storagePath;
+            }
+        }
+
+        return self::stripStoragePrefix($value) ?? $value;
+    }
+
+    protected static function normalizeAttachmentUrl(mixed $value): ?string
+    {
+        if ($value === null) {
+            return null;
+        }
+
+        $url = trim((string) $value);
+
+        return $url === '' ? null : $url;
+    }
+
+    protected static function stripStoragePrefix(string $path): ?string
+    {
+        $path = urldecode(trim($path));
+
+        if ($path === '') {
+            return null;
+        }
+
+        $normalized = '/' . ltrim($path, '/');
+
+        if (! str_starts_with($normalized, '/storage/')) {
+            return null;
+        }
+
+        return ltrim(substr($normalized, strlen('/storage/')), '/');
     }
 
     protected static function normalizeRotation(mixed $value): int
