@@ -478,13 +478,7 @@ class FilamentAttachmentPreview
             return $path;
         }
 
-        $url = Storage::disk('public')->url($path);
-
-        if (filter_var($url, FILTER_VALIDATE_URL)) {
-            return $url;
-        }
-
-        return URL::to($url);
+        return asset(Storage::disk('public')->url($path));
     }
 
     protected static function normalizeRotation(mixed $value): int

@@ -206,7 +206,8 @@ class ComplyingOfficesTable
 
                 ->recordActions([
                     // ViewAction::make(),
-                    EditAction::make(),
+                    EditAction::make()
+                        ->label('Review & Submit'),
                 ])
                 ->toolbarActions([
                     BulkActionGroup::make([

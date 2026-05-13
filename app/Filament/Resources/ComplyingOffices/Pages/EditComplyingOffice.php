@@ -5,17 +5,67 @@ namespace App\Filament\Resources\ComplyingOffices\Pages;
 use App\Filament\Resources\ComplyingOffices\ComplyingOfficeResource;
 use App\Models\Office;
 use App\Support\FilamentAttachmentPreview;
+use Filament\Actions\Action;
 use Filament\Resources\Pages\EditRecord;
+use Filament\Support\Enums\Alignment;
 
 class EditComplyingOffice extends EditRecord
 {
     protected static string $resource = ComplyingOfficeResource::class;
 
-    protected function getHeaderActions(): array
+    protected function getFormActions(): array
     {
         return [
-            // DeleteAction::make(),
+            $this->getSaveFormAction(),
         ];
+    }
+
+    protected function getSaveFormAction(): Action
+    {
+        $action = Action::make('save')
+            ->label('Submit')
+            ->action(fn () => $this->save())
+            ->requiresConfirmation(fn (): bool => $this->shouldConfirmSubmit())
+            ->disabled(fn () => (int) $this->record->status === 1)
+            ->keyBindings(['mod+s'])
+            ->color('primary');
+
+        if (auth()->user()->can('UpdateDepartmentComplianceStatus:ComplyingOffice')) {
+            $action
+                ->modalIcon('heroicon-o-paper-airplane')
+                ->modalIconColor('primary')
+                ->modalHeading('Submit Compliance Record?')
+                ->modalDescription(
+                    str('Are you sure you want to submit this compliance record? **Once submitted, you will no longer be able to modify the uploaded files** unless the validation status is returned by the requiring agency.')
+                        ->markdown()
+                        ->toHtmlString()
+                )
+                ->modalSubmitActionLabel('Submit Now')
+                ->modalCancelActionLabel('Go Back & Review')
+                ->modalWidth('xl')
+                ->modalAlignment(Alignment::Center)
+                ->modalFooterActionsAlignment(Alignment::Center);
+        }
+
+        return $action;
+    }
+
+    protected function shouldConfirmSubmit(): bool
+    {
+        $user = auth()->user();
+        
+        // Only show confirmation if user has this permission
+        if (!$user->can('UpdateDepartmentComplianceStatus:ComplyingOffice')) {
+            return false;
+        }
+
+        $data = $this->form->getState();
+        $record = $this->record;
+
+        $currentStatus = (int) ($record->status ?? -1);
+        $newStatus = (int) ($data['status'] ?? $currentStatus);
+
+        return $newStatus === 1 && $currentStatus !== 1;
     }
 
     // protected function mutateFormDataBeforeSave(array $data): array
