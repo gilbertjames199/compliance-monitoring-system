@@ -68,6 +68,40 @@ class UserForm
                     ->searchable()
                     ->preload(),
 
+                Select::make('accessible_department_codes')
+                    ->label('Additional Office Access')
+                    ->options(
+                        Office::orderBy('office')
+                            ->get()
+                            ->mapWithKeys(function ($office) {
+                                $label = $office->office;
+
+                                if (!empty($office->short_name)) {
+                                    $label .= ' (' . $office->short_name . ')';
+                                }
+
+                                return [
+                                    $office->department_code => $label,
+                                ];
+                            })
+                            ->toArray()
+                    )
+                    ->multiple()
+                    ->searchable()
+                    ->preload()
+                    ->helperText('Optional. Use this for department heads who need to act for more than one office.')
+                    ->afterStateHydrated(function ($component, ?Model $record) {
+                        if (! $record) {
+                            return;
+                        }
+
+                        $component->state(
+                            $record->officeAssignments()
+                                ->pluck('department_code')
+                                ->toArray()
+                        );
+                    }),
+
                 TextInput::make('UserName')
                     ->required(fn ($livewire, $record) => !$record),
     
@@ -123,16 +157,6 @@ class UserForm
                     ->allowHtml()
                     ->columnSpanFull(),
             ]);
-    }
-
-    public static function afterSave(Form $form, Model $record): void
-    {
-        $permissions = collect($form->getState())
-            ->filter(fn($value, $key) => str_starts_with($key, 'permissions_'))
-            ->flatten()
-            ->toArray();
-        dd($permissions);
-        $record->syncPermissions($permissions);
     }
 
     public function sampleFunction(){

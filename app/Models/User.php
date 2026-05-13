@@ -6,6 +6,7 @@ use App\Models\DatabaseNotification;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -105,6 +106,34 @@ class User extends Authenticatable implements FilamentUser
     public function requiredDocuments()
     {
         return $this->belongsToMany(\App\Models\RequiredDocument::class, 'document_user', 'user_id', 'document_id');
+    }
+
+    public function officeAssignments(): HasMany
+    {
+        return $this->hasMany(UserOfficeAssignment::class, 'user_id', 'recid');
+    }
+
+    public function accessibleDepartmentCodes(): array
+    {
+        $extraDepartmentCodes = $this->relationLoaded('officeAssignments')
+            ? $this->officeAssignments->pluck('department_code')->all()
+            : $this->officeAssignments()->pluck('department_code')->all();
+
+        return collect([$this->department_code])
+            ->merge($extraDepartmentCodes)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    public function hasAccessToDepartment(?string $departmentCode): bool
+    {
+        if (blank($departmentCode)) {
+            return false;
+        }
+
+        return in_array($departmentCode, $this->accessibleDepartmentCodes(), true);
     }
 
 

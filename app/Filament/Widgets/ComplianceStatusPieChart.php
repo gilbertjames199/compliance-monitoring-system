@@ -32,13 +32,14 @@ class ComplianceStatusPieChart extends ChartWidget
 
         $complyingQuery      = ComplyingOffice::query();
         $requiredDocsQuery   = RequiredDocument::query();
+        $accessibleDepartmentCodes = $user->accessibleDepartmentCodes();
 
         // 🔒 OFFICE SCOPE: only assigned to this user/department (except super_admin)
         if (! $user->hasRoleSafe('super_admin')) {
-            $complyingQuery->where('department_code', $user->department_code);
+            $complyingQuery->whereIn('department_code', $accessibleDepartmentCodes);
 
             $requiredDocsQuery->whereHas('complyingOffices', fn ($q) =>
-                $q->where('department_code', $user->department_code)
+                $q->whereIn('department_code', $accessibleDepartmentCodes)
             );
         }
 
@@ -56,10 +57,10 @@ class ComplianceStatusPieChart extends ChartWidget
 
         // Case 2: RequiredDocument has NO ComplyingOffice record at all
         $noRecordNotComplied = (clone $requiredDocsQuery)
-            ->whereDoesntHave('complyingOffices', function ($q) use ($user) {
+            ->whereDoesntHave('complyingOffices', function ($q) use ($user, $accessibleDepartmentCodes) {
                 //if (!$user->hasRoleSafe('super_admin')) {
                 if (! $user->can('ViewAllOffices:RequiredDocument')) {
-                    $q->where('department_code', $user->department_code);
+                    $q->whereIn('department_code', $accessibleDepartmentCodes);
                 }
             })->count();
 

@@ -30,10 +30,11 @@ class ValidationStatusChart extends ChartWidget
         }
 
         $query = ComplyingOffice::query();
+        $accessibleDepartmentCodes = $user->accessibleDepartmentCodes();
         
         // 🔒 OFFICE SCOPE
         if (! $user->hasRoleSafe('super_admin')) {
-            $query->where('department_code', $user->department_code);
+            $query->whereIn('department_code', $accessibleDepartmentCodes);
         }
 
         // 🔒 CONFIDENTIAL CONTROL

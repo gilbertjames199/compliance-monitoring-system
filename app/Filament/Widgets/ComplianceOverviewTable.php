@@ -46,6 +46,7 @@ class ComplianceOverviewTable extends TableWidget
 
                 // Only show pending / partial
                 $query->whereIn('status', [-1, 0]);
+                $accessibleDepartmentCodes = $user->accessibleDepartmentCodes();
 
                 // Join required for confidentiality filtering
                 $query->join(
@@ -57,7 +58,7 @@ class ComplianceOverviewTable extends TableWidget
 
                 // ✅ ONLY super_admin can see all
                 if (! $user->hasRoleSafe('super_admin')) {
-                    $query->where('complying_offices.department_code', $user->department_code);
+                    $query->whereIn('complying_offices.department_code', $accessibleDepartmentCodes);
                 }
 
                 // 🔒 CONFIDENTIAL CONTROL

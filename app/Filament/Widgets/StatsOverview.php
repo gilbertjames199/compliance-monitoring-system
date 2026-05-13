@@ -42,11 +42,12 @@ class StatsOverview extends BaseWidget
         }
         // Base query for RequiredDocument
         $requiredDocsQuery = RequiredDocument::query();
+        $accessibleDepartmentCodes = $user->accessibleDepartmentCodes();
 
         // 🔒 OFFICE SCOPE
         if (! $user->hasRoleSafe('super_admin')) {
             $requiredDocsQuery->whereHas('complyingOffices', fn ($q) =>
-                $q->where('department_code', $user->department_code)
+                $q->whereIn('department_code', $accessibleDepartmentCodes)
             );
         }
         // 🔒 CONFIDENTIAL CONTROL
@@ -89,7 +90,7 @@ class StatsOverview extends BaseWidget
             // }
             // 🔒 OFFICE SCOPE
             if (! $user->hasRoleSafe('super_admin')) {
-                $query->where('department_code', $user->department_code);
+                $query->whereIn('department_code', $accessibleDepartmentCodes);
             }
 
             // 🔒 CONFIDENTIAL CONTROL

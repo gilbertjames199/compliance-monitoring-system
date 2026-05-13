@@ -26,15 +26,14 @@ class ComplyingOfficesTable
                         return;
                     }
 
+                    $accessibleDepartmentCodes = $user->accessibleDepartmentCodes();
+
                     /**
                      * GLOBAL RULE:
                      * Everyone (including superadmin) can ONLY see records
                      * where their office is the complying office.
                      */
-                    $query->where(
-                        'complying_offices.department_code',
-                        $user->department_code
-                    );
+                    $query->whereIn('complying_offices.department_code', $accessibleDepartmentCodes);
 
                     /**
                      * EXTRA RULES PER ROLE
@@ -86,6 +85,11 @@ class ComplyingOfficesTable
                         ->label('Requiring Agency')
                         ->sortable()
                         ->searchable() 
+                        ->wrap(),
+                    TextColumn::make('office.office')
+                        ->label('Complying Office')
+                        ->sortable()
+                        ->searchable()
                         ->wrap(),
                     IconColumn::make('requiredDocument.is_confidential')
                         ->label('Confidential')

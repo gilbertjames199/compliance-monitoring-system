@@ -47,11 +47,6 @@ class ComplyingOfficeForm
                                     $set('agency_name', null);
                                 }
                             }),
-                        Select::make('department_code')
-                            ->label('Complying Office')
-                            ->disabled()
-                            ->options(Office::all()->pluck('office', 'department_code')),
-                        
                        
 
                         TextInput::make('agency_name')
@@ -169,7 +164,7 @@ class ComplyingOfficeForm
                                 // Super Admin → can edit only their own office and status = 0
                                 //if ($user->hasRoleSafe('super_admin')) {
                                 if ($user->can('UpdateOwnOfficeComplianceStatus:ComplyingOffice')) {
-                                    $isOwnOffice = $record->department_code === $user->department_code;
+                                    $isOwnOffice = $user->hasAccessToDepartment($record->department_code);
                                     $statusIsZero = $record->status == 0;
                                     return !($isOwnOffice && $statusIsZero);
                                 }
@@ -266,7 +261,7 @@ class ComplyingOfficeForm
                             ->label('Remarks (Requiring Agency)')
                             ->placeholder(function ($record) use ($isAdmin) {
                                 $isOwnOffice = $record
-                                    && auth()->user()->department_code === $record->department_code;
+                                    && auth()->user()->hasAccessToDepartment($record->department_code);
                                 $user = auth()->user(); // <-- define $user inside closure
                                 if ($user->hasRoleSafe('requiring_agency')) {
                                     return 'Enter your review comments, clarifications, or audit notes for this submission.';
@@ -279,7 +274,7 @@ class ComplyingOfficeForm
                             ->dehydrated()
                             ->disabled(function ($record) use ($isAdmin) {
                                 $isOwnOffice = $record
-                                    && auth()->user()->department_code === $record->department_code;
+                                    && auth()->user()->hasAccessToDepartment($record->department_code);
 
                                 return !$isAdmin || $isOwnOffice;
                             })
@@ -307,7 +302,7 @@ class ComplyingOfficeForm
                                         $viewStates = $get('attachment_view_states') ?? $record?->attachment_view_states ?? [];
 
                                         $user = auth()->user();
-                                        $isOwnOffice = $record && $user->department_code === $record->department_code;
+                                        $isOwnOffice = $record && $user->hasAccessToDepartment($record->department_code);
 
                                         $validationStatus = $get('validation_status') ?? $record?->validation_status;
                                         $isValidated = $validationStatus === 'validated';
@@ -363,7 +358,7 @@ class ComplyingOfficeForm
                 // SECTION 3: DOCUMENT SUBMISSION & STATUS
                 Section::make('Document Submission & Compliance Status')
                     ->description(function ($record) use ($isAdmin) {
-                        $isOwnOffice = $record && auth()->user()->department_code === $record->department_code;
+                        $isOwnOffice = $record && auth()->user()->hasAccessToDepartment($record->department_code);
                         
                         if ($isAdmin && !$isOwnOffice) {
                             return 'View submission and submission notes';
@@ -455,7 +450,7 @@ class ComplyingOfficeForm
                                 $user = auth()->user();
 
                                 // Must belong to same office
-                                if ($user->department_code !== $record->department_code) {
+                                if (! $user->hasAccessToDepartment($record->department_code)) {
                                     return true;
                                 }
 
@@ -544,7 +539,7 @@ class ComplyingOfficeForm
                         Textarea::make('submission_notes')
                             ->label('Submission Notes')
                             ->placeholder(function ($record) {
-                                $isOwnOffice = $record && auth()->user()->department_code === $record->department_code;
+                                $isOwnOffice = $record && auth()->user()->hasAccessToDepartment($record->department_code);
 
                                 return $isOwnOffice
                                     ? 'Add any notes about the submitted documents'
@@ -561,7 +556,7 @@ class ComplyingOfficeForm
                                 $user = auth()->user();
 
                                 // Must belong to same office
-                                if ($user->department_code !== $record->department_code) {
+                                if (! $user->hasAccessToDepartment($record->department_code)) {
                                     return true;
                                 }
 
@@ -615,7 +610,7 @@ class ComplyingOfficeForm
             return 'super_admin';
         }
 
-        if ($record && $user->department_code === $record->department_code) {
+        if ($record && $user->hasAccessToDepartment($record->department_code)) {
             return 'complying_office';
         }
 

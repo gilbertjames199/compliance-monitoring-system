@@ -212,13 +212,16 @@ class EditComplyingOffice extends EditRecord
     protected function resolveAttachmentCommentAuthorLabel($record): string
     {
         $user = auth()->user();
-        $shortName = Office::where('department_code', $user->department_code)->value('short_name');
+        $departmentCode = $record && $user->hasAccessToDepartment($record->department_code)
+            ? $record->department_code
+            : $user->department_code;
+        $shortName = Office::where('department_code', $departmentCode)->value('short_name');
 
         if (filled($shortName)) {
             return (string) $shortName;
         }
 
-        return (string) ($user->department_code ?? 'User');
+        return (string) ($departmentCode ?? 'User');
     }
 
     protected function resolveAttachmentCommentAuthorType($record): string
@@ -229,7 +232,7 @@ class EditComplyingOffice extends EditRecord
             return 'super_admin';
         }
 
-        if ($record && $user->department_code === $record->department_code) {
+        if ($record && $user->hasAccessToDepartment($record->department_code)) {
             return 'complying_office';
         }
 
