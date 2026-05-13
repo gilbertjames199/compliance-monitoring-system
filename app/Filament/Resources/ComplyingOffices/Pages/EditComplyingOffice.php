@@ -66,7 +66,7 @@ If it remains **Partially Complied**, it will not be considered complete and can
         ->markdown()
         ->toHtmlString()
 )
-                ->modalSubmitActionLabel('Save')
+                ->modalSubmitActionLabel('Submit')
                 ->modalCancelActionLabel('Go Back & Review')
                 ->modalWidth('xl')
                 ->modalAlignment(Alignment::Center)
