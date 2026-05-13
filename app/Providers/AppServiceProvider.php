@@ -748,7 +748,7 @@ class AppServiceProvider extends ServiceProvider
                             throw new Error(`Missing PDF canvas for page ${pageNumber}.`);
                         }
 
-                        const context = canvas.getContext('2d', { alpha: false });
+                        const context = canvas.getContext('2d');
 
                         if (!context) {
                             throw new Error(`Unable to create a drawing context for page ${pageNumber}.`);
@@ -756,7 +756,9 @@ class AppServiceProvider extends ServiceProvider
 
                         canvas.width = Math.ceil(viewport.width);
                         canvas.height = Math.ceil(viewport.height);
+                        canvas.style.backgroundColor = '#ffffff';
                         context.save();
+                        context.clearRect(0, 0, canvas.width, canvas.height);
                         context.fillStyle = '#ffffff';
                         context.fillRect(0, 0, canvas.width, canvas.height);
                         context.restore();

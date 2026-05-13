@@ -34,10 +34,18 @@ class FilamentAttachmentPreview
         $normalizedDrafts = self::normalizeDrafts($drafts);
         $normalizedAnnotations = self::normalizeAnnotations($annotations);
         $normalizedViewStates = self::normalizeViewStates($viewStates);
+        $stateFingerprint = md5(json_encode([
+            'files' => $files,
+            'threads' => $normalizedThreads,
+            'drafts' => $normalizedDrafts,
+            'annotations' => $normalizedAnnotations,
+            'viewStates' => $normalizedViewStates,
+            'viewerType' => $viewerType,
+        ]));
         $uid = sprintf(
             'attachment_preview_%s_%s',
             preg_replace('/[^A-Za-z0-9_-]/', '_', $context) ?: 'files',
-            substr(md5($context . json_encode($files)), 0, 8)
+            substr(md5($context . $stateFingerprint), 0, 8)
         );
 
         return [
