@@ -268,21 +268,21 @@ class AppServiceProvider extends ServiceProvider
                     return;
                 }
 
-                this.$wire.set(this.draftsStatePath, { ...this.drafts }, false);
+                this.$wire.set(this.draftsStatePath, { ...this.drafts });
             },
             syncAnnotations() {
                 if (!this.annotationsStatePath || !this.$wire || typeof this.$wire.set !== 'function') {
                     return;
                 }
 
-                this.$wire.set(this.annotationsStatePath, { ...this.annotations }, false);
+                this.$wire.set(this.annotationsStatePath, { ...this.annotations });
             },
             syncViewStates() {
                 if (!this.viewStatesStatePath || !this.$wire || typeof this.$wire.set !== 'function') {
                     return;
                 }
 
-                this.$wire.set(this.viewStatesStatePath, { ...this.viewStates }, false);
+                this.$wire.set(this.viewStatesStatePath, { ...this.viewStates });
             },
             formatEntryMeta(entry) {
                 const parts = [];

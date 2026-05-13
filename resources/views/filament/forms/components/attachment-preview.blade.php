@@ -1,4 +1,4 @@
-<div>
+<div wire:ignore>
     @php
         $preview ??= ['uid' => 'attachment_preview_empty', 'count' => 0, 'files' => [], 'threads' => [], 'drafts' => [], 'annotations' => [], 'viewStates' => [], 'viewerType' => null];
         $files = $preview['files'] ?? [];
