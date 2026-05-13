@@ -40,12 +40,15 @@ class UsersTable
             ->columns([
                 // TextColumn::make('recid'),
                 TextColumn::make('FullName')
-                    ->searchable(),
+                    ->searchable()
+                    ->extraCellAttributes(['class' => 'align-top']),
                 TextColumn::make('UserName')
                     ->label('Username')
-                    ->searchable(),
+                    ->searchable()
+                    ->extraCellAttributes(['class' => 'align-top']),
                 BadgeColumn::make('is_active')
                     ->label('Active Status')
+                    ->extraCellAttributes(['class' => 'align-top'])
                     ->colors([
                         'success' => fn ($state) => $state,
                         'danger' => fn ($state) => ! $state,
@@ -54,7 +57,8 @@ class UsersTable
                     ->searchable(), // now works because it's using the database column
                 TextColumn::make('email')
                     ->label('Email address')
-                    ->searchable(),
+                    ->searchable()
+                    ->extraCellAttributes(['class' => 'align-top']),
                 // TextColumn::make('department_code')
                 //     ->label('Department Code')
                 //     ->searchable(),
@@ -68,10 +72,12 @@ class UsersTable
                         return $office
                             ? "{$office->office} ({$office->short_name})"
                             : $state;
-                    }),
+                    })
+                    ->extraCellAttributes(['class' => 'align-top']),
                 TextColumn::make('Designation')
                     ->label('Designation')
-                    ->searchable(),
+                    ->searchable()
+                    ->extraCellAttributes(['class' => 'align-top']),
                 TextColumn::make('roles.name')
                     ->label('Role')
                     ->badge()
@@ -82,7 +88,8 @@ class UsersTable
                         'danger',
                         'info',
                         'gray',
-                    ])[abs(crc32($state)) % 6]),
+                    ])[abs(crc32($state)) % 6])
+                    ->extraCellAttributes(['class' => 'align-top']),
             ])
             ->defaultSort('recid', 'asc')
             ->filters([
