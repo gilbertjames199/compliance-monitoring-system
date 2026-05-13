@@ -426,12 +426,13 @@ class FilamentAttachmentPreview
      * @param  array<int, array{path: string, url: string, name: string, ext: string}>  $files
      * @return array<string, array<int, array<string, mixed>>>
      */
-    protected static function filterAnnotationsToFiles(array $annotations, array $files): array
+    public static function filterAnnotationsToFiles(mixed $annotations, array $files): array
     {
+        $normalized = self::normalizeAnnotations($annotations);
         $validPaths = self::collectFilePaths($files);
 
         return collect($validPaths)
-            ->mapWithKeys(fn (string $path): array => [$path => array_values($annotations[$path] ?? [])])
+            ->mapWithKeys(fn (string $path): array => [$path => array_values($normalized[$path] ?? [])])
             ->all();
     }
 

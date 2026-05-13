@@ -596,6 +596,11 @@ class ComplyingOfficesRelationManager extends RelationManager
                             $this->resolveAttachmentCommentAuthorType($record)
                         );
 
+                        $data['attachment_annotations'] = FilamentAttachmentPreview::filterAnnotationsToFiles(
+                            $data['attachment_annotations'] ?? $record->attachment_annotations,
+                            FilamentAttachmentPreview::payload($data['attachments'] ?? $record->attachments)['files']
+                        );
+
                         $data['attachment_view_states'] = FilamentAttachmentPreview::filterViewStatesToFiles(
                             $data['attachment_view_states'] ?? $record->attachment_view_states,
                             FilamentAttachmentPreview::payload($data['attachments'] ?? $record->attachments)['files']

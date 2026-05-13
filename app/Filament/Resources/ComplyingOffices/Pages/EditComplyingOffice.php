@@ -134,6 +134,7 @@ class EditComplyingOffice extends EditRecord
         }
 
         $attachments = $data['attachments'] ?? null;
+        $annotationState = $data['attachment_annotations'] ?? $record->attachment_annotations;
         $isEmpty = empty($attachments) || (is_array($attachments) && count(array_filter($attachments)) === 0);
 
         if ($isEmpty) {
@@ -188,7 +189,10 @@ class EditComplyingOffice extends EditRecord
                 $this->resolveAttachmentCommentAuthorType($record)
             );
 
-            $data['attachment_annotations'] = $record->attachment_annotations;
+            $data['attachment_annotations'] = FilamentAttachmentPreview::filterAnnotationsToFiles(
+                $annotationState,
+                FilamentAttachmentPreview::payload($attachments)['files']
+            );
             $data['attachment_view_states'] = FilamentAttachmentPreview::filterViewStatesToFiles(
                 $viewStates,
                 FilamentAttachmentPreview::payload($attachments)['files']
