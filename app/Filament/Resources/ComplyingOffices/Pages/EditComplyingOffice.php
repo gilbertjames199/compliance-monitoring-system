@@ -34,15 +34,15 @@ class EditComplyingOffice extends EditRecord
             $action
                 ->modalIcon('heroicon-o-paper-airplane')
                 ->modalIconColor('primary')
-                ->modalHeading('Submit Compliance Record?')
+                ->modalHeading('Are you sure you want to submit this?')
                 ->modalDescription(
-                    str('Are you sure you want to submit this compliance record? **Once submitted, you will no longer be able to modify the uploaded files** unless the validation status is returned by the requiring agency.')
+                    str('**Once submitted, you will no longer be able to modify the uploaded files** unless the validation status is returned by the requiring agency.')
                         ->markdown()
                         ->toHtmlString()
                 )
                 ->modalSubmitActionLabel('Submit Now')
                 ->modalCancelActionLabel('Go Back & Review')
-                ->modalWidth('xl')
+                ->modalWidth('lg')
                 ->modalAlignment(Alignment::Center)
                 ->modalFooterActionsAlignment(Alignment::Center);
         }

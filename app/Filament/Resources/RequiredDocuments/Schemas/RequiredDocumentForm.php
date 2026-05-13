@@ -311,7 +311,8 @@ class RequiredDocumentForm
                                     ->required()
                                     ->multiple()
                                     ->options(
-                                        Office::orderBy('office')
+                                        Office::on('mysql2')
+                                            ->orderBy('office')
                                             ->get()
                                             ->mapWithKeys(function ($office) {
                                                 $label = $office->office;
@@ -327,6 +328,8 @@ class RequiredDocumentForm
 
                                     ->preload()
                                     ->searchable()
+                                    ->reactive()
+                                    ->live()
                                     ->disabled(fn ($record) => self::isNotRequiringAgency($record))
                                     ->afterStateHydrated(function ($component, $state, $record) {
                                         if ($record?->exists) {
@@ -335,24 +338,6 @@ class RequiredDocumentForm
                                             );
                                         }
                                     })
-                                    // ->dehydrateStateUsing(function ($state, $record) {
-                                    //     $user = auth()->user();
-
-                                    //     // ✅ admin can remove anything
-                                    //     if ($user?->hasRole('super_admin')) {
-                                    //         return $state;
-                                    //     }
-
-                                    //     if (!$record?->exists) return $state;
-
-                                    //     $locked = $record->complyingOffices()
-                                    //         ->whereIn('status', [0, 1])
-                                    //         ->pluck('department_code')
-                                    //         ->toArray();
-
-                                    //     // 🔒 Force locked offices to stay
-                                    //     return array_unique(array_merge($state ?? [], $locked));
-                                    // })
                                     ->dehydrateStateUsing(function ($state, $record) {
                                         static $notified = false;
 
@@ -413,6 +398,40 @@ class RequiredDocumentForm
                                             )
                                             ->disabled(fn ($record) => self::isNotRequiringAgency($record)),
                                         ]),
+
+                        // Select::make('divisions')
+                        //             ->label('Divisions within Office')
+                        //             ->multiple()
+                        //             ->options(function (Get $get) {
+                        //                 $selectedOffices = $get('complying_offices') ?? [];
+                                        
+                        //                 if (empty($selectedOffices)) {
+                        //                     return [];
+                        //                 }
+
+                        //                 return \DB::connection('mysql2')
+                        //                     ->table('fms.divisions')
+                        //                     ->whereIn('department_code', $selectedOffices)
+                        //                     ->orderBy('division_name1')
+                        //                     ->get()
+                        //                     ->mapWithKeys(function ($division) {
+                        //                         $label = $division->division_name1;
+
+                        //                         if (!empty($division->division_short_name)) {
+                        //                             $label .= ' (' . $division->division_short_name . ')';
+                        //                         }
+
+                        //                         return [$division->division_code => $label];
+                        //                     })
+                        //                     ->toArray();
+                        //             })
+                        //             ->preload()
+                        //             ->searchable()
+                        //             ->reactive()
+                        //             ->live()
+                        //             ->visible(fn (Get $get) => !empty($get('complying_offices')))
+                        //             ->disabled(fn ($record) => self::isNotRequiringAgency($record))
+                        //             ->helperText('Select specific divisions within the selected office(s).'),
                                     
 
                          ])->columnSpanFull(),
@@ -438,11 +457,6 @@ class RequiredDocumentForm
 
     public static function mutateFormDataBeforeCreate(array $data): array
     {
-        // $data['_selected_offices'] = $data['complying_offices'] ?? [];
-        // $data['_status'] = $data['status'] ?? -1;
-
-        // unset($data['complying_offices'], $data['status']);
-
         $data['_selected_offices'] = $data['complying_offices'] ?? [];
         
         $data['created_by'] = auth()->id(); // returns recid value
@@ -460,7 +474,7 @@ class RequiredDocumentForm
             $data['recurrence_interval'] = null;
         }
 
-        unset($data['complying_offices']);
+        unset($data['complying_offices'], $data['divisions']);
 
         return $data;
     }

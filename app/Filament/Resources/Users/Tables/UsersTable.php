@@ -55,9 +55,20 @@ class UsersTable
                 TextColumn::make('email')
                     ->label('Email address')
                     ->searchable(),
+                // TextColumn::make('department_code')
+                //     ->label('Department Code')
+                //     ->searchable(),
                 TextColumn::make('department_code')
-                    ->label('Department Code')
-                    ->searchable(),
+                    ->label('Department')
+                    ->searchable()
+                    ->wrap()
+                    ->formatStateUsing(function ($state) {
+                        $office = Office::where('department_code', $state)->first();
+
+                        return $office
+                            ? "{$office->office} ({$office->short_name})"
+                            : $state;
+                    }),
                 TextColumn::make('Designation')
                     ->label('Designation')
                     ->searchable(),
@@ -84,9 +95,21 @@ class UsersTable
                     ]),
 
                 // Department filter
+                // SelectFilter::make('department_code')
+                //     ->label('Department')
+                //     ->options(fn () => Office::pluck('department_code', 'department_code')
+                //     ->toArray())
+                //     ->searchable(),
                 SelectFilter::make('department_code')
                     ->label('Department')
-                    ->options(fn () => Office::pluck('department_code', 'department_code')->toArray())
+                    ->options(
+                        fn () => Office::query()
+                            ->get()
+                            ->mapWithKeys(fn ($office) => [
+                                $office->department_code => "{$office->short_name} - {$office->office}"
+                            ])
+                            ->toArray()
+                    )
                     ->searchable(),
 
                 // Designation filter
