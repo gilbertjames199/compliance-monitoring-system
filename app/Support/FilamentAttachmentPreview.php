@@ -11,6 +11,7 @@ class FilamentAttachmentPreview
     /**
      * @return array{
      *     uid: string,
+     *     stateKey: string,
      *     count: int,
      *     files: array<int, array<string, mixed>>,
      *     threads: array<string, array<int, array<string, string|null>>>,
@@ -50,6 +51,10 @@ class FilamentAttachmentPreview
 
         return [
             'uid' => $uid,
+            'stateKey' => sprintf(
+                'attachment_preview_state_%s',
+                preg_replace('/[^A-Za-z0-9_-]/', '_', $context) ?: 'files'
+            ),
             'count' => count($files),
             'files' => array_map(function (array $file) use ($uid): array {
                 $path = $file['path'];

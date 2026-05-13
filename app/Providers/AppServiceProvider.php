@@ -41,6 +41,7 @@ class AppServiceProvider extends ServiceProvider
     window.attachmentPreviewComponent = window.attachmentPreviewComponent || function (config = {}) {
         return {
             componentId: config.componentId || 'attachment-preview',
+            stateKey: config.stateKey || config.componentId || 'attachment-preview',
             editable: !!config.editable,
             annotationEditable: !!config.annotationEditable,
             draftsStatePath: config.draftsStatePath || null,
@@ -73,6 +74,8 @@ class AppServiceProvider extends ServiceProvider
             draggingAnnotation: null,
             previewMode: 'fallback',
             init(filesJson, threadsJson, draftsJson, annotationsJson, viewStatesJson) {
+                window.__attachmentPreviewState = window.__attachmentPreviewState || {};
+
                 try {
                     this.files = JSON.parse(filesJson || '[]');
                 } catch (error) {
@@ -110,8 +113,34 @@ class AppServiceProvider extends ServiceProvider
                 this.pruneViewStates();
                 this.syncDrafts();
                 this.syncAnnotations();
+                this.restoreActiveSelection();
                 this.applyActiveViewState();
                 this.loadActiveFile();
+            },
+            rememberActiveSelection() {
+                const key = this.stateKey;
+                const filePath = this.activeFileKey();
+
+                if (!key) {
+                    return;
+                }
+
+                window.__attachmentPreviewState[key] = {
+                    activePath: filePath,
+                };
+            },
+            restoreActiveSelection() {
+                const key = this.stateKey;
+                const savedPath = key ? window.__attachmentPreviewState?.[key]?.activePath : null;
+
+                if (!savedPath) {
+                    this.activeIndex = 0;
+                    return;
+                }
+
+                const savedIndex = this.files.findIndex((file) => file?.path === savedPath);
+
+                this.activeIndex = savedIndex >= 0 ? savedIndex : 0;
             },
             activeFile() {
                 return this.files[this.activeIndex] ?? null;
@@ -507,6 +536,7 @@ class AppServiceProvider extends ServiceProvider
                 }
 
                 this.activeIndex = index;
+                this.rememberActiveSelection();
                 this.zoom = 1;
                 this.panX = 0;
                 this.panY = 0;

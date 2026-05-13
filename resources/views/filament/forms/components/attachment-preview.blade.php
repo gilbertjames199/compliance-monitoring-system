@@ -8,6 +8,7 @@
         $viewStates = $preview['viewStates'] ?? [];
         $viewerType = $preview['viewerType'] ?? null;
         $uid = $preview['uid'] ?? 'attachment_preview_empty';
+        $stateKey = $preview['stateKey'] ?? ('attachment_preview_state_' . $uid);
         $count = $preview['count'] ?? count($files);
         $editable ??= false;
         $annotationEditable ??= false;
@@ -29,6 +30,7 @@
             class="{{ $uid }}"
             x-data="window.attachmentPreviewComponent({
                 componentId: @js($uid),
+                stateKey: @js($stateKey),
                 editable: @js($editable),
                 annotationEditable: @js($annotationEditable),
                 draftsStatePath: @js($draftsStatePath),
