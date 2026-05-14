@@ -377,8 +377,8 @@ class ComplyingOfficeForm
                             ->imageEditor()
                             ->imagePreviewHeight(200)
                             ->required()
-                            // ->maxFiles(3)
-                            ->maxSize(10240) // 10MB
+                            ->maxFiles(3)
+                            ->maxSize(5120) //5mb
                             // ->panelLayout('grid')
                             ->reactive()
                             ->acceptedFileTypes([
@@ -388,11 +388,10 @@ class ComplyingOfficeForm
                                 'text/csv',
                                 'application/csv',
                                 'text/comma-separated-values',
-                                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
                                 'application/vnd.ms-excel',                                          // .xls
                                 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
                             ])
-                            ->helperText('Accepted file types: PDF, JPG, JPEG, PNG, DOCX, XLS, XLSX, CSV. Maximum file size: 10MB.')
+                            ->helperText('Accepted file types: PDF, JPG, JPEG, PNG, XLS, XLSX, CSV. Maximum file size: 3MB.')
                             ->rules([
                                     fn () => function (string $attribute, $value, $fail) {
                                         $originalName = strtolower($value->getClientOriginalName());
@@ -419,8 +418,12 @@ class ComplyingOfficeForm
                                     } else {
                                         $set('status', 0); // Partially complied
                                     }
-                                    $set('submitted_by', $user->name);
-                                    $set('submitted_at', now());
+                                    // $set('submitted_by', $user->name);
+                                    // $set('submitted_at', now());
+                                    if (! $user->hasRoleSafe('super_admin')) {
+                                        $set('submitted_by', $user->name);
+                                        $set('submitted_at', now());
+                                    }
                                     
                                     // ✅ Notify requiring agency
                                     if ($record && $record->requiringAgency) {
@@ -448,6 +451,11 @@ class ComplyingOfficeForm
                                 }
 
                                 $user = auth()->user();
+
+                                // ✅ Super Admin can always edit/upload
+                                if ($user->hasRoleSafe('super_admin')) {
+                                    return false;
+                                }
 
                                 // Must belong to same office
                                 if (! $user->hasAccessToDepartment($record->department_code)) {
@@ -574,21 +582,39 @@ class ComplyingOfficeForm
                             })
                             ->columnSpanFull(),
 
+                        // TextInput::make('submitted_by')
+                        //     ->label('Submitted By')
+                        //     ->disabled()
+                        //     ->dehydrated()
+                        //     ->reactive()
+                        //     ->visible(fn ($get) => !empty($get('attachments')))
+                        //     ->columnSpan(1),
                         TextInput::make('submitted_by')
                             ->label('Submitted By')
-                            ->disabled()
+                            ->disabled(fn () => ! auth()->user()->hasRoleSafe('super_admin'))
                             ->dehydrated()
                             ->reactive()
                             ->visible(fn ($get) => !empty($get('attachments')))
                             ->columnSpan(1),
 
 
+                        // DateTimePicker::make('submitted_at')
+                        //     ->label('Submission Date & Time')
+                        //     ->disabled()
+                        //     ->dehydrated()
+                        //     ->reactive()
+                        //     ->displayFormat('m/d/Y h:i A')
+                        //     ->seconds(false)
+                        //     ->visible(fn ($get) => !empty($get('attachments')))
+                        //     ->columnSpan(1),
                         DateTimePicker::make('submitted_at')
                             ->label('Submission Date & Time')
-                            ->disabled()
+                            ->disabled(fn () => ! auth()->user()->hasRoleSafe('super_admin'))
                             ->dehydrated()
                             ->reactive()
                             ->displayFormat('m/d/Y h:i A')
+                            // ->native(false)
+                            // ->timezone(config('app.timezone'))
                             ->seconds(false)
                             ->visible(fn ($get) => !empty($get('attachments')))
                             ->columnSpan(1),

@@ -35,7 +35,10 @@ class EditComplyingOffice extends EditRecord
         if ($hasApprovalPermission) {
             $action
                 ->requiresConfirmation(fn (): bool => $this->shouldConfirmSubmit())
-                ->disabled(fn () => (int) $this->record->status === 1)
+                ->disabled(fn () =>
+                    ! auth()->user()->hasRoleSafe('super_admin')
+                    && (int) $this->record->status === 1
+                )
                 ->modalIcon('heroicon-o-paper-airplane')
                 ->modalIconColor('primary')
                 ->modalHeading('Are you sure you want to submit this?')
@@ -213,14 +216,26 @@ The **Department Head may log in using their OPCR credentials** to complete this
             if ($alreadyComplied) {
                 // ✅ Preserve ALL original DB values — nothing should change
                 $data['status']            = 1;
-                $data['submitted_by']      = $record->submitted_by;
-                $data['submitted_at']      = $record->submitted_at;
                 $data['validation_status'] = $record->validation_status;
                 $data['validated_by']      = $record->validated_by;
                 $data['validated_at']      = $record->validated_at;
                 $data['attachment_remarks'] = $record->attachment_remarks;
                 $data['attachment_annotations'] = $record->attachment_annotations;
                 $data['attachment_view_states'] = $record->attachment_view_states;
+
+                // ✅ Super Admin can manually override submission author & date
+                if ($user->hasRoleSafe('super_admin')) {
+                    $data['submitted_by'] = filled($data['submitted_by'] ?? null)
+                        ? $data['submitted_by']
+                        : $record->submitted_by;
+
+                    $data['submitted_at'] = filled($data['submitted_at'] ?? null)
+                        ? \Carbon\Carbon::parse($data['submitted_at'])
+                        : $record->submitted_at;
+                } else {
+                    $data['submitted_by'] = $record->submitted_by;
+                    $data['submitted_at'] = $record->submitted_at;
+                }
 
             } else {
                 // Fresh submission or re-submission after return
@@ -232,8 +247,27 @@ The **Department Head may log in using their OPCR credentials** to complete this
                     $data['status'] = 0;
                 }
 
-                $data['submitted_by']      = $user->name;
-                $data['submitted_at']      = now();
+                // $data['submitted_by']      = $user->name;
+                // $data['submitted_at']      = now();
+                // $data['validation_status'] = 'pending_review';
+                if ($user->hasRoleSafe('super_admin')) {
+
+                    $data['submitted_by'] = filled($data['submitted_by'] ?? null)
+                        ? $data['submitted_by']
+                        : ($record->submitted_by ?? $user->name);
+
+                    $data['submitted_at'] = filled($data['submitted_at'] ?? null)
+                        ? \Carbon\Carbon::parse($data['submitted_at'])
+                        : ($record->submitted_at ?? now());
+
+                } else {
+
+                    // Preserve original submission date if already exists
+                    $data['submitted_by'] = $record->submitted_by ?? $user->name;
+
+                    $data['submitted_at'] = $record->submitted_at ?? now();
+                }
+
                 $data['validation_status'] = 'pending_review';
                 $data['validated_by']      = null;
                 $data['validated_at']      = null;
