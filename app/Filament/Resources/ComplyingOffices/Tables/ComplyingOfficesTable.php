@@ -82,6 +82,7 @@ class ComplyingOfficesTable
                             // Only render the tooltip if the column contents exceeds the length limit.
                             return $state;
                         }),
+                        
                     TextColumn::make('requiredDocument.agency_name')
                         ->label('Requiring Agency')
                         ->sortable()

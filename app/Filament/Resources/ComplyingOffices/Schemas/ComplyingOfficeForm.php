@@ -47,7 +47,12 @@ class ComplyingOfficeForm
                                     $set('agency_name', null);
                                 }
                             }),
-                       
+                    
+                        TextInput::make('office_name')
+                            ->label('Complying Office')
+                            ->disabled()
+                            ->dehydrated(false)
+                            ->formatStateUsing(fn ($record) => $record?->office?->office ?? '-'),
 
                         TextInput::make('agency_name')
                             ->label('Requiring Agency')
@@ -377,7 +382,7 @@ class ComplyingOfficeForm
                             ->imageEditor()
                             ->imagePreviewHeight(200)
                             ->required()
-                            ->sortable()
+                            ->reorderable()
                             // ->maxFiles(3)
                             ->maxSize(10240) //5mb
                             // ->panelLayout('grid')
