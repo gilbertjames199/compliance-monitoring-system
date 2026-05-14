@@ -4,13 +4,18 @@ namespace App\Providers;
 
 use App\Listeners\AuthEventListener;
 use App\Models\ComplyingOffice;
+use App\Models\DocumentCategory;
 use App\Models\RequiredDocument;
 use App\Observers\ComplyingOfficeObserver;
 use App\Observers\RequiredDocumentObserver;
+use App\Policies\ComplyingOfficePolicy;
+use App\Policies\DocumentCategoryPolicy;
+use App\Policies\RequiredDocumentPolicy;
 use Filament\Support\Facades\FilamentView;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
 use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -34,6 +39,10 @@ class AppServiceProvider extends ServiceProvider
         Event::listen(Login::class,  [AuthEventListener::class, 'handleLogin']);
         Event::listen(Logout::class, [AuthEventListener::class, 'handleLogout']);
 
+        Gate::policy(ComplyingOffice::class, ComplyingOfficePolicy::class); 
+        Gate::policy(RequiredDocument::class, RequiredDocumentPolicy::class);    
+        Gate::policy(DocumentCategory::class, DocumentCategoryPolicy::class);     
+        
         FilamentView::registerRenderHook(
             'panels::body.end',
             fn (): string => <<<'HTML'

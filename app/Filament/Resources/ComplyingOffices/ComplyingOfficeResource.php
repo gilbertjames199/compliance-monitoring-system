@@ -54,4 +54,5 @@ class ComplyingOfficeResource extends Resource
             'edit' => EditComplyingOffice::route('/{record}/edit'),
         ];
     }
+    
 }

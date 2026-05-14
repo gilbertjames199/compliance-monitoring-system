@@ -17,9 +17,28 @@ class ComplyingOfficePolicy
         return $authUser->can('ViewAny:ComplyingOffice');
     }
 
+    // public function view(AuthUser $authUser, ComplyingOffice $complyingOffice): bool
+    // {
+    //     return $authUser->can('View:ComplyingOffice');
+    // }
     public function view(AuthUser $authUser, ComplyingOffice $complyingOffice): bool
     {
-        return $authUser->can('View:ComplyingOffice');
+        if (!$authUser->can('View:ComplyingOffice')) {
+            return false;
+        }
+
+        // Super admin sees all
+        if ($authUser->hasRoleSafe('super_admin')) {
+            return true;
+        }
+
+        // Requiring agency can view records linked to their agency
+        if ($authUser->hasRoleSafe('requiring_agency')) {
+            return $complyingOffice->requiredDocument?->agency_name === $authUser->agency_name;
+        }
+
+        // Everyone else can only view their own department's record
+        return $authUser->hasAccessToDepartment($complyingOffice->department_code);
     }
 
     public function create(AuthUser $authUser): bool
@@ -27,9 +46,25 @@ class ComplyingOfficePolicy
         return $authUser->can('Create:ComplyingOffice');
     }
 
+    // public function update(AuthUser $authUser, ComplyingOffice $complyingOffice): bool
+    // {
+    //     return $authUser->can('Update:ComplyingOffice');
+    // }
     public function update(AuthUser $authUser, ComplyingOffice $complyingOffice): bool
     {
-        return $authUser->can('Update:ComplyingOffice');
+        if (!$authUser->can('Update:ComplyingOffice')) {
+            return false;
+        }
+
+        if ($authUser->hasRoleSafe('super_admin')) {
+            return true;
+        }
+
+        if ($authUser->hasRoleSafe('requiring_agency')) {
+            return $complyingOffice->requiredDocument?->agency_name === $authUser->agency_name;
+        }
+
+        return $authUser->hasAccessToDepartment($complyingOffice->department_code);
     }
 
     public function delete(AuthUser $authUser, ComplyingOffice $complyingOffice): bool

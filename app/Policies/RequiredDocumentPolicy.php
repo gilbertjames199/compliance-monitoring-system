@@ -17,9 +17,33 @@ class RequiredDocumentPolicy
         return $authUser->can('ViewAny:RequiredDocument');
     }
 
+    // public function view(AuthUser $authUser, RequiredDocument $requiredDocument): bool
+    // {
+    //     return $authUser->can('View:RequiredDocument');
+    // }
     public function view(AuthUser $authUser, RequiredDocument $requiredDocument): bool
     {
-        return $authUser->can('View:RequiredDocument');
+        if (!$authUser->can('View:RequiredDocument')) {
+            return false;
+        }
+
+        if ($authUser->hasRoleSafe('super_admin')) {
+            return true;
+        }
+
+        // Requiring agency can view their own requirements
+        $agencyDeptCode = \App\Models\Office::on('mysql2')
+            ->where('office', $requiredDocument->agency_name)
+            ->value('department_code');
+
+        if ($authUser->department_code === $agencyDeptCode) {
+            return true;
+        }
+
+        // Complying offices can view requirements assigned to them
+        return $requiredDocument->complyingOffices()
+            ->where('department_code', $authUser->department_code)
+            ->exists();
     }
 
     public function create(AuthUser $authUser): bool
@@ -27,9 +51,26 @@ class RequiredDocumentPolicy
         return $authUser->can('Create:RequiredDocument');
     }
 
+    // public function update(AuthUser $authUser, RequiredDocument $requiredDocument): bool
+    // {
+    //     return $authUser->can('Update:RequiredDocument');
+    // }
     public function update(AuthUser $authUser, RequiredDocument $requiredDocument): bool
     {
-        return $authUser->can('Update:RequiredDocument');
+        if (!$authUser->can('Update:RequiredDocument')) {
+            return false;
+        }
+
+        if ($authUser->hasRoleSafe('super_admin')) {
+            return true;
+        }
+
+        // Only the requiring agency can edit
+        $agencyDeptCode = \App\Models\Office::on('mysql2')
+            ->where('office', $requiredDocument->agency_name)
+            ->value('department_code');
+
+        return $authUser->department_code === $agencyDeptCode;
     }
 
     public function delete(AuthUser $authUser, RequiredDocument $requiredDocument): bool
