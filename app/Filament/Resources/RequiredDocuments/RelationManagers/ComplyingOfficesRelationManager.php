@@ -573,6 +573,7 @@ class ComplyingOfficesRelationManager extends RelationManager
                     ->icon('heroicon-o-envelope'),
 
                 EditAction::make()
+
                     ->mutateRecordDataUsing(function (array $data): array {
                         $data['attachment_remark_drafts'] = [];
 

@@ -60,12 +60,23 @@ class ComplyingOfficePolicy
             return true;
         }
 
-        if ($authUser->hasRoleSafe('requiring_agency')) {
-            return $complyingOffice->requiredDocument?->agency_name === $authUser->agency_name;
+        // if ($authUser->hasRoleSafe('requiring_agency')) {
+        //     return $complyingOffice->requiredDocument?->agency_name === $authUser->agency_name;
+        // }
+
+        // return $authUser->hasAccessToDepartment($complyingOffice->department_code);
+         // Check if user is the requiring agency of this requirement
+        $agencyDeptCode = \App\Models\Office::on('mysql2')
+            ->where('office', $complyingOffice->requiredDocument?->agency_name)
+            ->value('department_code');
+
+        if ($authUser->department_code === $agencyDeptCode) {
+            return true;
         }
 
+        // Complying office can only edit their own record
         return $authUser->hasAccessToDepartment($complyingOffice->department_code);
-    }
+        }
 
     public function delete(AuthUser $authUser, ComplyingOffice $complyingOffice): bool
     {
