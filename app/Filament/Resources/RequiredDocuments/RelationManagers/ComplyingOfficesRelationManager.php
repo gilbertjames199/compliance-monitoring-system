@@ -424,7 +424,6 @@ class ComplyingOfficesRelationManager extends RelationManager
                         'returned'       => 'Returned',
                         'validated'      => 'Validated',
                     ]),
-
             ], 
             )
             
@@ -441,121 +440,121 @@ class ComplyingOfficesRelationManager extends RelationManager
                 // AssociateAction::make(),
             ])
             ->recordActions([
-                    Action::make('notify_office')
-                        ->label(fn () => $this->getOwnerRecord()->fresh()->last_notified_at
-                            ? 'Notified'
-                            : 'Notify Office')
-                        ->color(fn () => $this->getOwnerRecord()->fresh()->last_notified_at
-                            ? 'success'
-                            : 'warning')
-                        ->icon(fn () => $this->getOwnerRecord()->fresh()->last_notified_at
-                            ? 'heroicon-o-check-circle'
-                            : 'heroicon-o-envelope')
-                        ->disabled(fn () => (bool) $this->getOwnerRecord()->fresh()->last_notified_at)
-                        
-                        ->action(function () {
-                            $user = auth()->user();
-                            $requirement = $this->getOwnerRecord();
+                Action::make('notify_office')
+                    ->label(fn () => $this->getOwnerRecord()->fresh()->last_notified_at
+                        ? 'Notified'
+                        : 'Notify Office')
+                    ->color(fn () => $this->getOwnerRecord()->fresh()->last_notified_at
+                        ? 'success'
+                        : 'warning')
+                    ->icon(fn () => $this->getOwnerRecord()->fresh()->last_notified_at
+                        ? 'heroicon-o-check-circle'
+                        : 'heroicon-o-envelope')
+                    ->disabled(fn () => (bool) $this->getOwnerRecord()->fresh()->last_notified_at)
+                    
+                    ->action(function () {
+                        $user = auth()->user();
+                        $requirement = $this->getOwnerRecord();
 
-                            Log::info("Notify Office button clicked", [
-                                'triggered_by'             => $user->name,
-                                'triggered_by_email'       => $user->email,
-                                'triggered_by_department'  => $user->department_code,
-                                'requirement_id'           => $requirement->id,
-                                'requirement_name'         => $requirement->requirement,
-                                'due_date'                 => $requirement->due_date,
-                                'timestamp'                => now()
-                            ]);
+                        Log::info("Notify Office button clicked", [
+                            'triggered_by'             => $user->name,
+                            'triggered_by_email'       => $user->email,
+                            'triggered_by_department'  => $user->department_code,
+                            'requirement_id'           => $requirement->id,
+                            'requirement_name'         => $requirement->requirement,
+                            'due_date'                 => $requirement->due_date,
+                            'timestamp'                => now()
+                        ]);
 
-                            $complyingOffices = ComplyingOffice::where('required_document_id', $requirement->id)
-                                ->where('status', '!=', 1)
-                                ->get();
+                        $complyingOffices = ComplyingOffice::where('required_document_id', $requirement->id)
+                            ->where('status', '!=', 1)
+                            ->get();
 
-                            $totalOfficesNotified = 0;
-                            $totalEmailsSent = 0;
-                            $skippedUsers = [];
+                        $totalOfficesNotified = 0;
+                        $totalEmailsSent = 0;
+                        $skippedUsers = [];
 
-                            $departmentCodes = $complyingOffices->pluck('department_code')->unique();
-                            $officeMap = Office::whereIn('department_code', $departmentCodes)
-                                ->pluck('office', 'department_code');
+                        $departmentCodes = $complyingOffices->pluck('department_code')->unique();
+                        $officeMap = Office::whereIn('department_code', $departmentCodes)
+                            ->pluck('office', 'department_code');
 
-                            foreach ($complyingOffices as $office) {
-                                $users = User::where('department_code', $office->department_code)->get();
-                                $officeName = $officeMap[$office->department_code] ?? $office->department_code;
+                        foreach ($complyingOffices as $office) {
+                            $users = User::where('department_code', $office->department_code)->get();
+                            $officeName = $officeMap[$office->department_code] ?? $office->department_code;
 
-                                foreach ($users as $targetUser) {
-                                    if ($targetUser->roles->isEmpty()) {
-                                        $skippedUsers[] = ['user' => $targetUser->name, 'email' => $targetUser->email, 'reason' => 'No roles assigned'];
-                                        continue;
-                                    }
-
-                                    if (empty($targetUser->email) || !filter_var($targetUser->email, FILTER_VALIDATE_EMAIL)) {
-                                        $skippedUsers[] = ['user' => $targetUser->name, 'email' => $targetUser->email, 'reason' => 'Invalid or empty email'];
-                                        continue;
-                                    }
-
-                                    if ($requirement->is_confidential && !$targetUser->can('ViewConfidential:RequiredDocument')) {
-                                        $skippedUsers[] = ['user' => $targetUser->name, 'email' => $targetUser->email, 'reason' => 'No permission for confidential document'];
-                                        continue;
-                                    }
-
-                                    $officeName = $officeMap[$targetUser->department_code] ?? $targetUser->department_code;
-
-                                    Mail::to($targetUser->email)
-                                        ->send(new DueDateReminderMail($requirement, $targetUser, $officeName));
-
-                                    AuditLog::create([
-                                        'event'                 => 'requirement notification sent 1',
-                                        'user_id'               => $targetUser->recid,
-                                        'acted_by'              => $user->recid ?? $user->id,
-                                        'action_at'             => now(),
-                                        'requirement_id'        => $requirement->id,
-                                        'requirement_name'      => $requirement->requirement,
-                                        'complying_office_id'   => $office->id,
-                                        'office_name'           => $officeName,
-                                        'requiring_agency_name' => $requirement->agency_name,
-                                        'remarks'               => "Manual notification sent to {$targetUser->email} by {$user->name}",
-                                    ]);
-
-                                    $totalEmailsSent++;
-                                    sleep(1);
+                            foreach ($users as $targetUser) {
+                                if ($targetUser->roles->isEmpty()) {
+                                    $skippedUsers[] = ['user' => $targetUser->name, 'email' => $targetUser->email, 'reason' => 'No roles assigned'];
+                                    continue;
                                 }
 
-                                if ($users->count() > 0) {
-                                    $totalOfficesNotified++;
+                                if (empty($targetUser->email) || !filter_var($targetUser->email, FILTER_VALIDATE_EMAIL)) {
+                                    $skippedUsers[] = ['user' => $targetUser->name, 'email' => $targetUser->email, 'reason' => 'Invalid or empty email'];
+                                    continue;
                                 }
+
+                                if ($requirement->is_confidential && !$targetUser->can('ViewConfidential:RequiredDocument')) {
+                                    $skippedUsers[] = ['user' => $targetUser->name, 'email' => $targetUser->email, 'reason' => 'No permission for confidential document'];
+                                    continue;
+                                }
+
+                                $officeName = $officeMap[$targetUser->department_code] ?? $targetUser->department_code;
+
+                                Mail::to($targetUser->email)
+                                    ->send(new DueDateReminderMail($requirement, $targetUser, $officeName));
+
+                                AuditLog::create([
+                                    'event'                 => 'requirement notification sent 1',
+                                    'user_id'               => $targetUser->recid,
+                                    'acted_by'              => $user->recid ?? $user->id,
+                                    'action_at'             => now(),
+                                    'requirement_id'        => $requirement->id,
+                                    'requirement_name'      => $requirement->requirement,
+                                    'complying_office_id'   => $office->id,
+                                    'office_name'           => $officeName,
+                                    'requiring_agency_name' => $requirement->agency_name,
+                                    'remarks'               => "Manual notification sent to {$targetUser->email} by {$user->name}",
+                                ]);
+
+                                $totalEmailsSent++;
+                                sleep(1);
                             }
 
-                            Log::info("Notify Office notification completed", [
-                                'requirement_id'           => $requirement->id,
-                                'requirement_name'         => $requirement->requirement,
-                                'offices_notified'         => $totalOfficesNotified,
-                                'total_offices_processed'  => $complyingOffices->count(),
-                                'emails_sent'              => $totalEmailsSent,
-                                'users_skipped'            => $skippedUsers,
-                                'triggered_by'             => $user->name,
-                                'triggered_by_email'       => $user->email,
-                                'timestamp'                => now()
-                            ]);
-
-                            if ($totalEmailsSent > 0) {
-                                $requirement->update(['last_notified_at' => now()]);
-
-                                Notification::make()
-                                    ->title("Notification Sent")
-                                    ->body("Successfully sent {$totalEmailsSent} email(s) to {$totalOfficesNotified} office(s).")
-                                    ->success()
-                                    ->send();
-
-                                 $this->dispatch('$refresh');
-                            } else {
-                                Notification::make()
-                                    ->title("No Notifications Sent")
-                                    ->body("No eligible offices or users found to notify.")
-                                    ->warning()
-                                    ->send();
+                            if ($users->count() > 0) {
+                                $totalOfficesNotified++;
                             }
-                        }),
+                        }
+
+                        Log::info("Notify Office notification completed", [
+                            'requirement_id'           => $requirement->id,
+                            'requirement_name'         => $requirement->requirement,
+                            'offices_notified'         => $totalOfficesNotified,
+                            'total_offices_processed'  => $complyingOffices->count(),
+                            'emails_sent'              => $totalEmailsSent,
+                            'users_skipped'            => $skippedUsers,
+                            'triggered_by'             => $user->name,
+                            'triggered_by_email'       => $user->email,
+                            'timestamp'                => now()
+                        ]);
+
+                        if ($totalEmailsSent > 0) {
+                            $requirement->update(['last_notified_at' => now()]);
+
+                            Notification::make()
+                                ->title("Notification Sent")
+                                ->body("Successfully sent {$totalEmailsSent} email(s) to {$totalOfficesNotified} office(s).")
+                                ->success()
+                                ->send();
+
+                                $this->dispatch('$refresh');
+                        } else {
+                            Notification::make()
+                                ->title("No Notifications Sent")
+                                ->body("No eligible offices or users found to notify.")
+                                ->warning()
+                                ->send();
+                        }
+                    }),
 
                 EditAction::make()
                     ->mutateRecordDataUsing(function (array $data): array {
