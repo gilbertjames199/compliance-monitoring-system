@@ -327,7 +327,7 @@
                         </div>
                     </template>
 
-                    <div class="{{ $uid }}__remark-card">
+                    {{-- <div class="{{ $uid }}__remark-card">
                         <div class="{{ $uid }}__remark-header">
                             <div>
                                 <p class="{{ $uid }}__file-label">File conversation</p>
@@ -386,7 +386,7 @@
                                 </div>
                             </label>
                         </template>
-                    </div>
+                    </div> --}}
                 </div>
             </div>
         </div>
