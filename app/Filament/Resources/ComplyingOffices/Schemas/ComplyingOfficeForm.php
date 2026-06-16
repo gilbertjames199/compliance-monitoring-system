@@ -383,8 +383,8 @@ class ComplyingOfficeForm
                             ->imagePreviewHeight(200)
                             ->required()
                             ->reorderable()
-                            // ->maxFiles(3)
-                            ->maxSize(10240) //5mb
+                            ->maxFiles(18)
+                            ->maxSize(2048) //3mb
                             // ->panelLayout('grid')
                             ->reactive()
                             ->acceptedFileTypes([
@@ -397,7 +397,7 @@ class ComplyingOfficeForm
                                 'application/vnd.ms-excel',                                          // .xls
                                 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
                             ])
-                            ->helperText('Accepted file types: PDF, JPG, JPEG, PNG, XLS, XLSX, CSV. Maximum file size: 3MB.')
+                            ->helperText('Accepted file types: PDF, JPG, JPEG, PNG, XLS, XLSX, CSV. Maximum file size: 2MB.')
                             ->rules([
                                     fn () => function (string $attribute, $value, $fail) {
                                         $originalName = strtolower($value->getClientOriginalName());
@@ -411,6 +411,11 @@ class ComplyingOfficeForm
                                         $extension = $value->getClientOriginalExtension();
                                         if (in_array(strtolower($extension), ['php', 'php5', 'phtml', 'phar'])) {
                                             $fail("Direct PHP extension uploads are strictly prohibited.");
+                                        }
+
+                                        // 3. Server-side file size check (3MB = 3145728 bytes)
+                                        if ($value->getSize() > 2 * 1024 * 1024) {
+                                            $fail("Each file must not exceed 3MB.");
                                         }
                                     },
                                 ])
