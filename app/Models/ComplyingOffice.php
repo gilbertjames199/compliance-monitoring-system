@@ -23,6 +23,7 @@ class ComplyingOffice extends Model
         'attachment_remarks' => 'array',
         'attachment_annotations' => 'array',
         'attachment_view_states' => 'array',
+        'last_notified_at' => 'datetime',
     ];
 
     // Add this to store snapshot data before deletion

@@ -29,3 +29,5 @@ Schedule::call(function () {
 ->everyFiveSeconds()
 ->name('create-recurring-documents')
 ->withoutOverlapping();
+
+Schedule::command('compliance:send-reminders')->dailyAt('08:00');
