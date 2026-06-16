@@ -31,7 +31,9 @@ class SendComplianceReminders extends Command
             ->where(function ($q) {
                 $q->where('status', -1)->orWhereNull('status');
             })
-            ->whereHas('requiredDocument')
+            ->whereHas('requiredDocument', function ($q) {
+                $q->whereDate('due_date', '<', today()); // ✅ only overdue
+            })
             ->get();
 
         if ($pending->isEmpty()) {
