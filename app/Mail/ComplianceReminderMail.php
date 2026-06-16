@@ -38,7 +38,7 @@ class ComplianceReminderMail extends Mailable
     public function content(): Content
     {
         return new Content(
-            markdown: 'emails.compliance-reminder',
+            view: 'emails.compliance-reminder',
         );
     }
 
