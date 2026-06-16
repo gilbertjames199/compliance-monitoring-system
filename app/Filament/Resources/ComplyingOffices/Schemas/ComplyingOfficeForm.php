@@ -383,7 +383,15 @@ class ComplyingOfficeForm
                             ->imagePreviewHeight(200)
                             ->required()
                             ->reorderable()
-                            ->maxFiles(18)
+                            ->maxFiles(function ($record) {
+                                $existing = $record?->attachments ?? [];
+                                return max(3, count($existing)); // never less than what they already have
+                            })
+                            ->helperText(function ($record) {
+                                $existing = $record?->attachments ?? [];
+                                $limit = max(3, count($existing));
+                                return "Maximum {$limit} files allowed. Accepted: PDF, JPG, PNG, XLS, XLSX, CSV. Max 2MB each.";
+                            })
                             ->maxSize(2048) //2mb
                             // ->panelLayout('grid')
                             ->reactive()
@@ -397,7 +405,6 @@ class ComplyingOfficeForm
                                 'application/vnd.ms-excel',                                          // .xls
                                 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
                             ])
-                            ->helperText('Accepted file types: PDF, JPG, JPEG, PNG, XLS, XLSX, CSV. Maximum file size: 2MB.')
                             ->rules([
                                     fn () => function (string $attribute, $value, $fail) {
                                         $originalName = strtolower($value->getClientOriginalName());
