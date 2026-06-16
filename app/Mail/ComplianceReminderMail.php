@@ -28,7 +28,7 @@ class ComplianceReminderMail extends Mailable
     public function envelope(): Envelope
     {
         return new Envelope(
-            subject: '[Reminder] Pending Compliance: ' . $this->document->requirement,
+            subject: '[Reminder] Overdue Requirement: ' . $this->document->requirement,
         );
     }
 
