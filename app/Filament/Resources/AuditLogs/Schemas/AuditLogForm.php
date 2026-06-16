@@ -16,6 +16,12 @@ class AuditLogForm
             ->components([
                 TextInput::make('event')
                     ->label('Event')
+                    ->formatStateUsing(fn ($state) => match ($state) {
+                        'reminder_sent'    => '📧 Reminder Sent',
+                        'reminder_skipped' => '⚠️ Reminder Skipped',
+                        'reminder_failed'  => '❌ Reminder Failed',
+                        default            => ucfirst(str_replace('_', ' ', $state ?? '-')),
+                    })
                     ->disabled(),
 
                 TextInput::make('requirement_name')
