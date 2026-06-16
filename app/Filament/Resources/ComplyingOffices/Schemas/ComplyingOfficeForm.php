@@ -384,7 +384,7 @@ class ComplyingOfficeForm
                             ->required()
                             ->reorderable()
                             ->maxFiles(18)
-                            ->maxSize(2048) //3mb
+                            ->maxSize(2048) //2mb
                             // ->panelLayout('grid')
                             ->reactive()
                             ->acceptedFileTypes([
