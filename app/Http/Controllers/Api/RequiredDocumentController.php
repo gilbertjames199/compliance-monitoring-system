@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\RequiredDocument;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 
 class RequiredDocumentController extends Controller
@@ -60,6 +61,10 @@ class RequiredDocumentController extends Controller
                     'confidentiality' => $document->is_confidential ? 'Confidential' : 'Not Confidential',
                     'start_date'      => $document->date_from?->format('Y-m-d'),
                     'deadline'        => $document->due_date?->format('Y-m-d'),
+
+                    'submission_date' => $office->submitted_at ? Carbon::parse($office->submitted_at)->format('Y-m-d') : null,
+                    'validation_date' => $office->validated_at ? Carbon::parse($office->validated_at)->format('Y-m-d') : null,
+
                     'attachments'     => $office->attachments
                         ? collect((array) $office->attachments)
                             ->map(fn($path) => url('storage/' . $path))

@@ -55,7 +55,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [AuthController::class, 'logout']);
 });
 
-
+//http://172.31.102.215:8001/api/required-documents?department_code=26
 Route::get('/required-documents', [RequiredDocumentController::class, 'show']);
 // Route::get('/compliance-monitoring-system', [ComplianceController::class, 'index']);
 
