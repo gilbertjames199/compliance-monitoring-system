@@ -141,24 +141,44 @@ class AuditLogger
     /**
      * Get the FMS office name as a string
      */
+    // private static function getFmsOfficeName(ComplyingOffice $office): string
+    // {
+    //     // Try to get from required document's agency
+    //     if ($office->requiredDocument && $office->requiredDocument->agency_name) {
+    //         $officeModel = Office::on('mysql2')
+    //             ->where('office', $office->requiredDocument->agency_name)
+    //             ->first();
+           
+    //         if ($officeModel) {
+    //             return self::extractStringValue($officeModel->office);
+    //         }
+    //     }
+       
+    //     // Try through the office relationship
+    //     if ($office->office) {
+    //         return self::extractStringValue($office->office->office);
+    //     }
+       
+    //     return 'Unknown FMS Office';
+    // }
+
     private static function getFmsOfficeName(ComplyingOffice $office): string
     {
-        // Try to get from required document's agency
-        if ($office->requiredDocument && $office->requiredDocument->agency_name) {
+        // ✅ First: use the complying office's own relationship
+        if ($office->office) {
+            return self::extractStringValue($office->office->office);
+        }
+
+        // Fallback: try department_code or other identifiers
+        if ($office->department_code) {
             $officeModel = Office::on('mysql2')
-                ->where('office', $office->requiredDocument->agency_name)
+                ->where('department_code', $office->department_code)
                 ->first();
-           
             if ($officeModel) {
                 return self::extractStringValue($officeModel->office);
             }
         }
-       
-        // Try through the office relationship
-        if ($office->office) {
-            return self::extractStringValue($office->office->office);
-        }
-       
+
         return 'Unknown FMS Office';
     }
    
