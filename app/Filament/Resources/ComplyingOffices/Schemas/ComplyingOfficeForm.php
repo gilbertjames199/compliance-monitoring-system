@@ -383,10 +383,10 @@ class ComplyingOfficeForm
                             ->imagePreviewHeight(200)
                             ->required()
                             ->reorderable()
-                            ->maxFiles(function ($record) {
-                                $existing = $record?->attachments ?? [];
-                                return max(3, count($existing)); // never less than what they already have
-                            })
+                            // ->maxFiles(function ($record) {
+                            //     $existing = $record?->attachments ?? [];
+                            //     return max(3, count($existing)); // never less than what they already have
+                            // })
                             ->helperText(function ($record) {
                                 $existing = $record?->attachments ?? [];
                                 $limit = max(3, count($existing));
