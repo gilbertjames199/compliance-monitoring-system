@@ -390,7 +390,7 @@ class ComplyingOfficeForm
                             ->helperText(function ($record) {
                                 $existing = $record?->attachments ?? [];
                                 $limit = max(3, count($existing));
-                                return "Maximum {$limit} files allowed. Accepted: PDF, JPG, PNG, XLS, XLSX, CSV. Max 2MB each.";
+                                return "Accepted: PDF, JPG, PNG, XLS, XLSX, CSV. Max 2MB each.";
                             })
                             ->maxSize(2048) //2mb
                             // ->panelLayout('grid')
