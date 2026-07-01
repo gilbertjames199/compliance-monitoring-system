@@ -424,9 +424,9 @@ class ComplyingOfficeForm
                                         }
 
                                         // 3. Server-side file size check (3MB = 3145728 bytes)
-                                        // if ($value->getSize() > 3 * 1024 * 1024) {
-                                        //     $fail("Each file must not exceed 2MB.");
-                                        // }
+                                        if ($value->getSize() > 3 * 1024 * 1024) {
+                                            $fail("Each file must not exceed 2MB.");
+                                        }
                                     },
                                 ])
                             ->afterStateUpdated(function ($state, $set, $get, $record) {
