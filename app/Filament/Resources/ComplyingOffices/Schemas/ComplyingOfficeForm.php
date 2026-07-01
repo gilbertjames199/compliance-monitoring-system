@@ -404,6 +404,9 @@ class ComplyingOfficeForm
                                 'text/comma-separated-values',
                                 'application/vnd.ms-excel',                                          // .xls
                                 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
+                                'application/octet-stream',        // ← add this (some browsers send xlsx as this)
+                                'application/zip',                 // ← add this (xlsx is technically a zip)
+                                'application/x-zip-compressed',   // ← add this
                             ])
                             ->rules([
                                     fn () => function (string $attribute, $value, $fail) {
