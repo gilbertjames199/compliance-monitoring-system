@@ -392,7 +392,7 @@ class ComplyingOfficeForm
                                 $limit = max(3, count($existing));
                                 return "Accepted: PDF, JPG, PNG, XLS, XLSX, CSV. Max 2MB each.";
                             })
-                            ->maxSize(2048) //2mb
+                            ->maxSize(3072) //2mb
                             // ->panelLayout('grid')
                             ->reactive()
                             ->acceptedFileTypes([
@@ -424,8 +424,8 @@ class ComplyingOfficeForm
                                         }
 
                                         // 3. Server-side file size check (3MB = 3145728 bytes)
-                                        if ($value->getSize() > 2 * 1024 * 1024) {
-                                            $fail("Each file must not exceed 3MB.");
+                                        if ($value->getSize() > 3 * 1024 * 1024) {
+                                            $fail("Each file must not exceed 2MB.");
                                         }
                                     },
                                 ])
