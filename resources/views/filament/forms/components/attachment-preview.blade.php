@@ -127,21 +127,34 @@
                                             >
                                                 <template x-for="annotation in annotationsForPage(1)" :key="annotation.id">
                                                     <div
-                                                        class="{{ $uid }}__annotation-pin"
-                                                        :class="{ 'is-own': isOwnAnnotation(annotation), 'is-dragging': isDraggingAnnotation(annotation.id) }"
+                                                        class="{{ $uid }}__annotation-marker"
+                                                        :class="{ 'is-own': isOwnAnnotation(annotation), 'is-active': isAnnotationActive(annotation.id) }"
                                                         :style="annotationStyle(annotation)"
                                                         @mousedown.stop="startAnnotationDrag(annotation.id, 1, $event)"
+                                                        @click.stop="toggleAnnotationActive(annotation.id)"
+                                                        @mouseenter="hoverAnnotation(annotation.id)"
+                                                        @mouseleave="unhoverAnnotation(annotation.id)"
                                                     >
-                                                        <button
-                                                            type="button"
-                                                            class="{{ $uid }}__annotation-delete"
-                                                            x-show="canDeleteAnnotation(annotation)"
-                                                            @click.stop="removeAnnotation(annotation.id)"
+                                                        <span class="{{ $uid }}__annotation-dot" :style="'--annotation-accent:' + (annotation.color || '#f97316')"></span>
+
+                                                        <div
+                                                            class="{{ $uid }}__annotation-popover"
+                                                            x-show="isAnnotationActive(annotation.id)"
+                                                            x-cloak
+                                                            :class="{ 'is-own': isOwnAnnotation(annotation), 'flip-left': shouldFlipAnnotation(annotation) }"
+                                                            @mousedown.stop
                                                         >
-                                                            x
-                                                        </button>
-                                                        <p class="{{ $uid }}__annotation-text" x-text="annotation.text"></p>
-                                                        <p class="{{ $uid }}__annotation-meta" x-text="formatAnnotationMeta(annotation)"></p>
+                                                            <button
+                                                                type="button"
+                                                                class="{{ $uid }}__annotation-delete"
+                                                                x-show="canDeleteAnnotation(annotation)"
+                                                                @click.stop="removeAnnotation(annotation.id)"
+                                                            >
+                                                                x
+                                                            </button>
+                                                            <p class="{{ $uid }}__annotation-text" x-text="annotation.text"></p>
+                                                            <p class="{{ $uid }}__annotation-meta" x-text="formatAnnotationMeta(annotation)"></p>
+                                                        </div>
                                                     </div>
                                                 </template>
                                             </div>
@@ -171,21 +184,34 @@
                                             >
                                                 <template x-for="annotation in annotationsForPage(page.pageNumber)" :key="annotation.id">
                                                 <div
-                                                    class="{{ $uid }}__annotation-pin"
-                                                    :class="{ 'is-own': isOwnAnnotation(annotation), 'is-dragging': isDraggingAnnotation(annotation.id) }"
+                                                    class="{{ $uid }}__annotation-marker"
+                                                    :class="{ 'is-own': isOwnAnnotation(annotation), 'is-active': isAnnotationActive(annotation.id) }"
                                                     :style="annotationStyle(annotation, page.pageNumber)"
                                                     @mousedown.stop="startAnnotationDrag(annotation.id, page.pageNumber, $event)"
+                                                    @click.stop="toggleAnnotationActive(annotation.id)"
+                                                    @mouseenter="hoverAnnotation(annotation.id)"
+                                                    @mouseleave="unhoverAnnotation(annotation.id)"
                                                 >
-                                                        <button
-                                                            type="button"
-                                                            class="{{ $uid }}__annotation-delete"
-                                                            x-show="canDeleteAnnotation(annotation)"
-                                                            @click.stop="removeAnnotation(annotation.id)"
+                                                        <span class="{{ $uid }}__annotation-dot" :style="'--annotation-accent:' + (annotation.color || '#f97316')"></span>
+
+                                                        <div
+                                                            class="{{ $uid }}__annotation-popover"
+                                                            x-show="isAnnotationActive(annotation.id)"
+                                                            x-cloak
+                                                            :class="{ 'is-own': isOwnAnnotation(annotation), 'flip-left': shouldFlipAnnotation(annotation) }"
+                                                            @mousedown.stop
                                                         >
-                                                            x
-                                                        </button>
-                                                        <p class="{{ $uid }}__annotation-text" x-text="annotation.text"></p>
-                                                        <p class="{{ $uid }}__annotation-meta" x-text="formatAnnotationMeta(annotation)"></p>
+                                                            <button
+                                                                type="button"
+                                                                class="{{ $uid }}__annotation-delete"
+                                                                x-show="canDeleteAnnotation(annotation)"
+                                                                @click.stop="removeAnnotation(annotation.id)"
+                                                            >
+                                                                x
+                                                            </button>
+                                                            <p class="{{ $uid }}__annotation-text" x-text="annotation.text"></p>
+                                                            <p class="{{ $uid }}__annotation-meta" x-text="formatAnnotationMeta(annotation)"></p>
+                                                        </div>
                                                     </div>
                                                 </template>
                                             </div>
@@ -212,21 +238,34 @@
                                         >
                                             <template x-for="annotation in annotationsForPage(1)" :key="annotation.id">
                                                 <div
-                                                    class="{{ $uid }}__annotation-pin"
-                                                    :class="{ 'is-own': isOwnAnnotation(annotation), 'is-dragging': isDraggingAnnotation(annotation.id) }"
+                                                    class="{{ $uid }}__annotation-marker"
+                                                    :class="{ 'is-own': isOwnAnnotation(annotation), 'is-active': isAnnotationActive(annotation.id) }"
                                                     :style="annotationStyle(annotation)"
                                                     @mousedown.stop="startAnnotationDrag(annotation.id, 1, $event)"
+                                                    @click.stop="toggleAnnotationActive(annotation.id)"
+                                                    @mouseenter="hoverAnnotation(annotation.id)"
+                                                    @mouseleave="unhoverAnnotation(annotation.id)"
                                                 >
-                                                    <button
-                                                        type="button"
-                                                        class="{{ $uid }}__annotation-delete"
-                                                        x-show="canDeleteAnnotation(annotation)"
-                                                        @click.stop="removeAnnotation(annotation.id)"
+                                                    <span class="{{ $uid }}__annotation-dot" :style="'--annotation-accent:' + (annotation.color || '#f97316')"></span>
+
+                                                    <div
+                                                        class="{{ $uid }}__annotation-popover"
+                                                        x-show="isAnnotationActive(annotation.id)"
+                                                        x-cloak
+                                                        :class="{ 'is-own': isOwnAnnotation(annotation), 'flip-left': shouldFlipAnnotation(annotation) }"
+                                                        @mousedown.stop
                                                     >
-                                                        x
-                                                    </button>
-                                                    <p class="{{ $uid }}__annotation-text" x-text="annotation.text"></p>
-                                                    <p class="{{ $uid }}__annotation-meta" x-text="formatAnnotationMeta(annotation)"></p>
+                                                        <button
+                                                            type="button"
+                                                            class="{{ $uid }}__annotation-delete"
+                                                            x-show="canDeleteAnnotation(annotation)"
+                                                            @click.stop="removeAnnotation(annotation.id)"
+                                                        >
+                                                            x
+                                                        </button>
+                                                        <p class="{{ $uid }}__annotation-text" x-text="annotation.text"></p>
+                                                        <p class="{{ $uid }}__annotation-meta" x-text="formatAnnotationMeta(annotation)"></p>
+                                                    </div>
                                                 </div>
                                             </template>
                                         </div>
@@ -250,21 +289,34 @@
                                                     >
                                                         <template x-for="annotation in annotationsForPage(1)" :key="annotation.id">
                                                             <div
-                                                                class="{{ $uid }}__annotation-pin"
-                                                                :class="{ 'is-own': isOwnAnnotation(annotation), 'is-dragging': isDraggingAnnotation(annotation.id) }"
+                                                                class="{{ $uid }}__annotation-marker"
+                                                                :class="{ 'is-own': isOwnAnnotation(annotation), 'is-active': isAnnotationActive(annotation.id) }"
                                                                 :style="annotationStyle(annotation)"
                                                                 @mousedown.stop="startAnnotationDrag(annotation.id, 1, $event)"
+                                                                @click.stop="toggleAnnotationActive(annotation.id)"
+                                                                @mouseenter="hoverAnnotation(annotation.id)"
+                                                                @mouseleave="unhoverAnnotation(annotation.id)"
                                                             >
-                                                                <button
-                                                                    type="button"
-                                                                    class="{{ $uid }}__annotation-delete"
-                                                                    x-show="canDeleteAnnotation(annotation)"
-                                                                    @click.stop="removeAnnotation(annotation.id)"
+                                                                <span class="{{ $uid }}__annotation-dot" :style="'--annotation-accent:' + (annotation.color || '#f97316')"></span>
+
+                                                                <div
+                                                                    class="{{ $uid }}__annotation-popover"
+                                                                    x-show="isAnnotationActive(annotation.id)"
+                                                                    x-cloak
+                                                                    :class="{ 'is-own': isOwnAnnotation(annotation), 'flip-left': shouldFlipAnnotation(annotation) }"
+                                                                    @mousedown.stop
                                                                 >
-                                                                    x
-                                                                </button>
-                                                                <p class="{{ $uid }}__annotation-text" x-text="annotation.text"></p>
-                                                                <p class="{{ $uid }}__annotation-meta" x-text="formatAnnotationMeta(annotation)"></p>
+                                                                    <button
+                                                                        type="button"
+                                                                        class="{{ $uid }}__annotation-delete"
+                                                                        x-show="canDeleteAnnotation(annotation)"
+                                                                        @click.stop="removeAnnotation(annotation.id)"
+                                                                    >
+                                                                        x
+                                                                    </button>
+                                                                    <p class="{{ $uid }}__annotation-text" x-text="annotation.text"></p>
+                                                                    <p class="{{ $uid }}__annotation-meta" x-text="formatAnnotationMeta(annotation)"></p>
+                                                                </div>
                                                             </div>
                                                         </template>
                                                     </div>
@@ -726,32 +778,78 @@
                 pointer-events: auto;
             }
 
-            #{{ $uid }} .{{ $uid }}__annotation-pin {
+           #{{ $uid }} .{{ $uid }}__annotation-marker {
                 position: absolute;
-                transform: translate(-10%, -100%);
-                min-width: 180px;
-                max-width: 240px;
+                width: 18px;
+                height: 18px;
+                transform: translate(-50%, -50%);
+                pointer-events: auto;
+                cursor: pointer;
+                z-index: 5;
+            }
+
+            #{{ $uid }} .{{ $uid }}__annotation-dot {
+                display: block;
+                width: 100%;
+                height: 100%;
+                border-radius: 50%;
+                background: var(--annotation-accent, #f97316);
+                border: 2px solid #ffffff;
+                box-shadow: 0 2px 6px rgba(15, 23, 42, 0.35);
+                transition: transform 0.12s ease;
+            }
+
+            #{{ $uid }} .{{ $uid }}__annotation-marker:hover .{{ $uid }}__annotation-dot,
+            #{{ $uid }} .{{ $uid }}__annotation-marker.is-active .{{ $uid }}__annotation-dot {
+                transform: scale(1.25);
+            }
+
+            #{{ $uid }} .{{ $uid }}__annotation-popover {
+                position: absolute;
+                top: 50%;
+                left: calc(100% + 12px);
+                transform: translateY(-50%);
+                min-width: 200px;
+                max-width: 260px;
                 padding: 12px 14px;
                 border-radius: 14px;
                 background: color-mix(in srgb, var(--annotation-accent, #f97316) 12%, #ffffff);
                 border: 1px solid var(--annotation-accent, #fdba74);
                 color: #7c2d12;
-                box-shadow: 0 16px 32px rgba(124, 45, 18, 0.16);
-                cursor: grab;
-                user-select: none;
+                box-shadow: 0 16px 32px rgba(124, 45, 18, 0.18);
+                z-index: 20;
                 pointer-events: auto;
             }
 
-            #{{ $uid }} .{{ $uid }}__annotation-pin.is-own {
+            #{{ $uid }} .{{ $uid }}__annotation-popover.is-own {
                 background: #eff6ff;
                 border-color: #93c5fd;
                 color: #1e3a8a;
-                box-shadow: 0 16px 32px rgba(30, 64, 175, 0.16);
             }
 
-            #{{ $uid }} .{{ $uid }}__annotation-pin.is-dragging {
-                cursor: grabbing;
-                box-shadow: 0 20px 40px rgba(15, 23, 42, 0.24);
+            #{{ $uid }} .{{ $uid }}__annotation-popover.flip-left {
+                left: auto;
+                right: calc(100% + 12px);
+            }
+
+            #{{ $uid }} .{{ $uid }}__annotation-popover::before {
+                content: '';
+                position: absolute;
+                top: 50%;
+                left: -6px;
+                transform: translateY(-50%);
+                width: 0;
+                height: 0;
+                border-top: 6px solid transparent;
+                border-bottom: 6px solid transparent;
+                border-right: 6px solid var(--annotation-accent, #fdba74);
+            }
+
+            #{{ $uid }} .{{ $uid }}__annotation-popover.flip-left::before {
+                left: auto;
+                right: -6px;
+                border-right: none;
+                border-left: 6px solid var(--annotation-accent, #fdba74);
             }
 
             #{{ $uid }} .{{ $uid }}__annotation-text,

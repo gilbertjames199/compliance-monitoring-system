@@ -2,9 +2,10 @@
 
 namespace App\Jobs;
 
-use Carbon\Carbon;
-use App\Models\RequiredDocument;
 use App\Models\ComplyingOffice;
+use App\Models\RequiredDocument;
+use App\Models\RequiredDocumentDivision;
+use Carbon\Carbon;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -133,6 +134,27 @@ class CreateRecurringDocuments implements ShouldQueue
                 'department_code' => $office->department_code,
                 'required_document_id'  => $duplicate->id,
                 'status'          => -1,
+            ]);
+        }
+
+        /**
+         * 🏫 STEP 5b: Copy division tracking (if this requirement tracks by division)
+         */
+        if ($latest->requires_division_tracking) {
+            $divisions = $latest->requiredDocumentDivisions;
+
+            foreach ($divisions as $division) {
+                RequiredDocumentDivision::create([
+                    'required_document_id' => $duplicate->id,
+                    'department_code'      => $division->department_code,
+                    'division_code'        => $division->division_code,
+                ]);
+            }
+
+            Log::info('Recurring: division tracking copied', [
+                'from_id' => $latest->id,
+                'to_id'   => $duplicate->id,
+                'count'   => $divisions->count(),
             ]);
         }
 

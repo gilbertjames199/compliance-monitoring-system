@@ -20,6 +20,7 @@ use Filament\Forms\Components\ViewField;
 use Filament\Schemas\Components\Actions;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class ComplyingOfficeForm
@@ -371,6 +372,67 @@ class ComplyingOfficeForm
                         return 'Upload required documents and add submission notes.';
                     })
                     ->schema([ 
+
+                        // Select::make('division_code')
+                        //     ->label('Submitting Division')
+                        //     ->options(function ($record) {
+                        //         if (!$record) return [];
+
+                        //         return DB::connection('mysql2')
+                        //             ->table('fms.divisions')
+                        //             ->where('department_code', $record->department_code)
+                        //             ->orderBy('division_name1')
+                        //             ->get()
+                        //             ->mapWithKeys(fn ($d) => [
+                        //                 $d->division_code =>
+                        //                     $d->division_name1 .
+                        //                     (!empty($d->division_short_name) ? ' (' . $d->division_short_name . ')' : '')
+                        //             ])
+                        //             ->toArray();
+                        //     })
+                        //     ->searchable()
+                        //     ->required(fn ($record) =>
+                        //         $record?->requiredDocument?->requires_division_tracking ?? false
+                        //     )
+                        //     ->visible(fn ($record) =>
+                        //         $record?->requiredDocument?->requires_division_tracking ?? false
+                        //     )
+                        //     ->helperText('Select which division of your office is submitting.')
+                        //     ->disabled(function ($record, $get) {
+                        //         $user = auth()->user();
+                        //         if ($user->hasRoleSafe('super_admin')) return false;
+                        //         if (!$user->hasAccessToDepartment($record?->department_code)) return true;
+
+                        //         $validationStatus = $get('validation_status') ?? $record?->validation_status;
+                        //         if ($validationStatus === 'validated') return true;
+
+                        //         $isComplied = (int) $record?->status === 1;
+                        //         return $isComplied && $validationStatus !== 'returned';
+                        //     })
+                        //     ->dehydrated()
+                        //     ->columnSpanFull(),
+
+                        TextInput::make('division_name')
+                            ->label('Division')
+                            ->disabled()
+                            ->dehydrated(false)
+                            ->visible(fn ($record) =>
+                                $record?->requiredDocument?->requires_division_tracking ?? false
+                            )
+                            ->formatStateUsing(function ($record) {
+                                if (!$record?->division_code) return '—';
+
+                                $division = DB::connection('mysql2')
+                                    ->table('fms.divisions')
+                                    ->where('division_code', $record->division_code)
+                                    ->first();
+
+                                return $division
+                                    ? $division->division_name1 . (!empty($division->division_short_name) ? ' (' . $division->division_short_name . ')' : '')
+                                    : $record->division_code;
+                            })
+                            ->columnSpanFull(),
+
                         FileUpload::make('attachments')
                             ->label('Upload Required Documents')
                             ->multiple()
@@ -425,7 +487,7 @@ class ComplyingOfficeForm
 
                                         // 3. Server-side file size check (3MB = 3145728 bytes)
                                         if ($value->getSize() > 3 * 1024 * 1024) {
-                                            $fail("Each file must not exceed 2MB.");
+                                            $fail("Each file must not exceed 3MB.");
                                         }
                                     },
                                 ])
@@ -583,6 +645,11 @@ class ComplyingOfficeForm
                                 }
 
                                 $user = auth()->user();
+
+                                // Super Admin can always edit
+                                if ($user->hasRole('super_admin')) {
+                                    return false;
+                                }
 
                                 // Must belong to same office
                                 if (! $user->hasAccessToDepartment($record->department_code)) {

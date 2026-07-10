@@ -15,6 +15,7 @@ class RequiredDocument extends Model
         'date_from' => 'date',
         'is_confidential' => 'boolean',
         'is_recurring' => 'boolean',
+        'requires_division_tracking' => 'boolean',
     ];
 
     public function category()
@@ -60,6 +61,11 @@ class RequiredDocument extends Model
         // Note: We CANNOT send email notifications here because 
         // complyingOffices are created AFTER this model is saved
         // The email notifications should be sent in the Resource's afterCreate() method
+    }
+
+    public function requiredDocumentDivisions()
+    {
+        return $this->hasMany(RequiredDocumentDivision::class);
     }
 
 }

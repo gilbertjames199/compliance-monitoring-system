@@ -2,12 +2,15 @@
 
 namespace App\Filament\Resources\RequiredDocuments\Schemas;
 
+use App\Jobs\CreateRecurringDocuments;
 use App\Models\ComplyingOffice;
 use App\Models\DocumentCategory;
 use App\Models\Office;
+use App\Models\RequiredDocumentDivision;
 use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -28,7 +31,6 @@ class RequiredDocumentForm
                 
                 Section::make('Document Details')
                     ->schema([
-                        
                         TextInput::make('requirement')
                             ->required()
                             ->disabled(fn ($record) => self::isNotRequiringAgency($record)),
@@ -95,6 +97,7 @@ class RequiredDocumentForm
                                 
                                 return null;
                             }),
+
                         DatePicker::make('due_date')
                             ->label('Deadline')
                             ->required()
@@ -334,7 +337,11 @@ class RequiredDocumentForm
                                     ->afterStateHydrated(function ($component, $state, $record) {
                                         if ($record?->exists) {
                                             $component->state(
-                                                $record->complyingOffices()->pluck('department_code')->toArray()
+                                                $record->complyingOffices()
+                                                    ->pluck('department_code')
+                                                    ->unique()      // ← deduplicate
+                                                    ->values()
+                                                    ->toArray()
                                             );
                                         }
                                     })
@@ -343,29 +350,26 @@ class RequiredDocumentForm
 
                                         $user = auth()->user();
 
-                                        // ✅ super_admin bypass
                                         if ($user?->hasRole('super_admin')) {
-                                            return $state;
+                                            return collect($state)->unique()->values()->toArray();
                                         }
 
                                         if (!$record?->exists) return $state;
 
+                                        // Get locked dept codes (deduplicated — division rows have same dept_code)
                                         $lockedOffices = $record->complyingOffices()
                                             ->whereIn('status', [0, 1])
-                                            ->get();
+                                            ->get()
+                                            ->unique('department_code'); // ← deduplicate by dept_code
 
                                         $lockedCodes = $lockedOffices->pluck('department_code')->toArray();
 
                                         $removedLocked = array_diff($lockedCodes, $state ?? []);
 
-                                        // 🚫 Prevent multiple notifications
                                         if (!empty($removedLocked) && !$notified) {
-
                                             $names = $lockedOffices
                                                 ->whereIn('department_code', $removedLocked)
-                                                ->map(function ($office) {
-                                                    return $office->office?->office ?? $office->department_code;
-                                                })
+                                                ->map(fn ($office) => $office->office?->office ?? $office->department_code)
                                                 ->toArray();
 
                                             Notification::make()
@@ -374,10 +378,14 @@ class RequiredDocumentForm
                                                 ->danger()
                                                 ->send();
 
-                                            $notified = true; // ✅ only once
+                                            $notified = true;
                                         }
 
-                                        return array_unique(array_merge($state ?? [], $lockedCodes));
+                                        // Merge and deduplicate before returning
+                                        return collect(array_merge($state ?? [], $lockedCodes))
+                                            ->unique()
+                                            ->values()
+                                            ->toArray();
                                     })
                                     ->helperText('Select one or more offices that must comply with this requirement.')
                                     ->suffixActions([
@@ -399,40 +407,146 @@ class RequiredDocumentForm
                                             ->disabled(fn ($record) => self::isNotRequiringAgency($record)),
                                         ]),
 
-                        // Select::make('divisions')
-                        //             ->label('Divisions within Office')
-                        //             ->multiple()
-                        //             ->options(function (Get $get) {
-                        //                 $selectedOffices = $get('complying_offices') ?? [];
-                                        
-                        //                 if (empty($selectedOffices)) {
-                        //                     return [];
-                        //                 }
+                        Toggle::make('requires_division_tracking')
+                            ->label('Track by Division?')
+                            ->helperText('Enable if specific divisions within an office must comply separately.')
+                            ->reactive()
+                            ->disabled(fn ($record) => self::isNotRequiringAgency($record))
+                            ->afterStateUpdated(function ($state, Set $set) {
+                                if (!$state) {
+                                    $set('required_divisions', []);
+                                }
+                            }),
 
-                        //                 return \DB::connection('mysql2')
-                        //                     ->table('fms.divisions')
-                        //                     ->whereIn('department_code', $selectedOffices)
-                        //                     ->orderBy('division_name1')
-                        //                     ->get()
-                        //                     ->mapWithKeys(function ($division) {
-                        //                         $label = $division->division_name1;
+                        Select::make('required_divisions')
+                            ->label('Required Divisions (optional)')
+                            ->multiple()
+                            ->options(function (Get $get) {
+                                $selectedOffices = $get('complying_offices') ?? [];
+                                if (empty($selectedOffices)) return [];
 
-                        //                         if (!empty($division->division_short_name)) {
-                        //                             $label .= ' (' . $division->division_short_name . ')';
-                        //                         }
+                                return DB::connection('mysql2')
+                                    ->table('fms.divisions')
+                                    ->whereIn('department_code', $selectedOffices)
+                                    ->orderBy('division_name1')
+                                    ->get()
+                                    ->mapWithKeys(fn ($d) => [
+                                        $d->department_code . '|' . $d->division_code =>
+                                            $d->division_name1 .
+                                            (!empty($d->division_short_name) ? ' (' . $d->division_short_name . ')' : '')
+                                    ])
+                                    ->toArray();
+                            })
+                            ->searchable()
+                            ->live()
+                            ->visible(fn (Get $get) => $get('requires_division_tracking') && !empty($get('complying_offices')))
+                            ->helperText('Select specific divisions. Leave empty to require the whole office.')
+                            ->disabled(fn ($record) => self::isNotRequiringAgency($record))
+                            ->afterStateHydrated(function ($component, $record) {
+                                if ($record?->exists) {
+                                    $divisions = $record->requiredDocumentDivisions()
+                                        ->get()
+                                        ->map(fn ($d) => $d->department_code . '|' . $d->division_code)
+                                        ->toArray();
+                                    $component->state($divisions);
+                                }
+                            })
+                            ->dehydrateStateUsing(function ($state, $record) {
+                                static $notified = false;
 
-                        //                         return [$division->division_code => $label];
-                        //                     })
-                        //                     ->toArray();
-                        //             })
-                        //             ->preload()
-                        //             ->searchable()
-                        //             ->reactive()
-                        //             ->live()
-                        //             ->visible(fn (Get $get) => !empty($get('complying_offices')))
-                        //             ->disabled(fn ($record) => self::isNotRequiringAgency($record))
-                        //             ->helperText('Select specific divisions within the selected office(s).'),
-                                    
+                                $user = auth()->user();
+
+                                if ($user?->hasRole('super_admin')) {
+                                    return collect($state ?? [])->unique()->values()->toArray();
+                                }
+
+                                if (!$record?->exists) {
+                                    return $state ?? [];
+                                }
+
+                                $lockedDivisions = $record->complyingOffices()
+                                    ->whereNotNull('division_code')
+                                    ->whereIn('status', [0, 1])
+                                    ->get();
+
+                                $lockedKeys = $lockedDivisions
+                                    ->map(fn ($co) => "{$co->department_code}|{$co->division_code}")
+                                    ->unique()
+                                    ->values();
+
+                                $removedLocked = $lockedKeys->diff($state ?? []);
+
+                                if ($removedLocked->isNotEmpty() && !$notified) {
+                                    $labels = collect();
+
+                                    foreach ($removedLocked as $entry) {
+                                        [$deptCode, $divCode] = explode('|', $entry);
+
+                                        $division = DB::connection('mysql2')
+                                            ->table('fms.divisions')
+                                            ->where('department_code', $deptCode)
+                                            ->where('division_code', $divCode)
+                                            ->first();
+
+                                        if ($division) {
+                                            $labels->push(
+                                                $division->division_name1 .
+                                                (!empty($division->division_short_name)
+                                                    ? " ({$division->division_short_name})"
+                                                    : '')
+                                            );
+                                        } else {
+                                            $labels->push($entry);
+                                        }
+                                    }
+
+                                    $labels = $labels->implode(', ');
+
+                                    Notification::make()
+                                        ->title('Cannot remove some divisions')
+                                        ->body('Already complied: ' . $labels)
+                                        ->danger()
+                                        ->send();
+
+                                    $notified = true;
+                                }
+
+                                return collect($state ?? [])
+                                    ->merge($lockedKeys)
+                                    ->unique()
+                                    ->values()
+                                    ->toArray();
+                            })
+                            ->dehydrated(true),
+
+
+                            // Placeholder::make('saved_divisions_display')
+                            //     ->label('Currently Saved Divisions')
+                            //     ->content(function ($record) {
+                            //         if (!$record?->exists) return 'None';
+
+                            //         $divisions = $record->requiredDocumentDivisions()->get();
+
+                            //         if ($divisions->isEmpty()) return 'None';
+
+                            //         return $divisions->map(function ($d) {
+                            //             $division = DB::connection('mysql2')
+                            //                 ->table('fms.divisions')
+                            //                 ->where('division_code', $d->division_code)
+                            //                 ->first();
+
+                            //             $name = $division
+                            //                 ? ($division->division_name1 . (!empty($division->division_short_name) ? ' (' . $division->division_short_name . ')' : ''))
+                            //                 : $d->division_code;
+
+                            //             return "• {$name}";
+                            //         })->implode("\n");
+                            //     })
+                            //     ->visible(fn ($record) =>
+                            //         $record?->exists && $record->requires_division_tracking &&
+                            //         $record->requiredDocumentDivisions()->exists()
+                            //     )
+                            //     ->columnSpanFull(),
 
                          ])->columnSpanFull(),
 
@@ -457,24 +571,19 @@ class RequiredDocumentForm
 
     public static function mutateFormDataBeforeCreate(array $data): array
     {
-        $data['_selected_offices'] = $data['complying_offices'] ?? [];
-        
-        $data['created_by'] = auth()->id(); // returns recid value
+        $data['_selected_offices'] = collect($data['complying_offices'] ?? [])
+            ->unique()
+            ->values()
+            ->toArray();
 
-        // Keep these for the model - don't unset them!
-        // They should be saved to the required_documents table
-        if (!isset($data['is_recurring'])) {
-            $data['is_recurring'] = false;
-        }
+        $data['_selected_divisions'] = $data['required_divisions'] ?? [];
+        $data['created_by'] = auth()->id();
 
-        if (!isset($data['recurrence_type'])) {
-            $data['recurrence_type'] = null;
-        }
-        if (!isset($data['recurrence_interval'])) {
-            $data['recurrence_interval'] = null;
-        }
+        if (!isset($data['is_recurring'])) $data['is_recurring'] = false;
+        if (!isset($data['recurrence_type'])) $data['recurrence_type'] = null;
+        if (!isset($data['recurrence_interval'])) $data['recurrence_interval'] = null;
 
-        unset($data['complying_offices'], $data['divisions']);
+        unset($data['complying_offices'], $data['divisions'], $data['required_divisions']);
 
         return $data;
     }
@@ -485,25 +594,34 @@ class RequiredDocumentForm
     public static function afterCreate($record, array $data): void
     {
         $selectedOffices = $data['_selected_offices'] ?? [];
+        $selectedDivisions = $data['_selected_divisions'] ?? [];
         $status = $data['_status'] ?? -1;
 
+        // ✅ Always one row per office regardless of division tracking
         foreach ($selectedOffices as $deptCode) {
             ComplyingOffice::create([
-                'department_code' => $deptCode,
-                'required_document_id'  => $record->id,
-                'status'          => $status,
-                'due_date'        => $record->due_date, // original due date
+                'department_code'      => $deptCode,
+                'required_document_id' => $record->id,
+                'status'               => $status,
             ]);
         }
 
-        // 🔥 IMPORTANT: Dispatch the job with a delay to ensure 
-        // complying offices are fully saved before the job runs
+        // Save divisions pivot for filtering reference
+        foreach ($selectedDivisions as $entry) {
+            [$deptCode, $divCode] = explode('|', $entry);
+            RequiredDocumentDivision::create([
+                'required_document_id' => $record->id,
+                'department_code'      => $deptCode,
+                'division_code'        => $divCode,
+            ]);
+        }
+
         if ($record->is_recurring && $record->recurrence_type) {
             \App\Jobs\CreateRecurringDocuments::dispatch(
                 $record->fresh(),
                 $record->recurrence_type,
                 $record->recurrence_interval
-            )->afterCommit(); // Small delay to ensure DB consistency
+            )->afterCommit();
         }
     }
 
@@ -511,15 +629,13 @@ class RequiredDocumentForm
     public static function afterSave($record, array $data): void
     {
         $selected = $data['_selected_offices'] ?? [];
+        $selectedDivisions = $data['_selected_divisions'] ?? []; 
 
-        $existing = $record->complyingOffices()
-            ->pluck('department_code')
-            ->toArray();
+        $existing = $record->complyingOffices()->pluck('department_code')->toArray();
 
-        // New offices to add — observer will log "added office" for each
         $toAdd = array_diff($selected, $existing);
         foreach ($toAdd as $deptCode) {
-            \App\Models\ComplyingOffice::create([
+            ComplyingOffice::create([
                 'department_code'      => $deptCode,
                 'required_document_id' => $record->id,
                 'status'               => -1,
@@ -527,13 +643,23 @@ class RequiredDocumentForm
             ]);
         }
 
-        // Removed offices — observer will log "deleted" for each
         $toRemove = array_diff($existing, $selected);
         foreach ($toRemove as $deptCode) {
             $record->complyingOffices()
                 ->where('department_code', $deptCode)
                 ->first()
                 ?->delete();
+        }
+
+        // 👇 add this block — sync divisions
+        $record->requiredDocumentDivisions()->delete();
+        foreach ($selectedDivisions as $entry) {
+            [$deptCode, $divCode] = explode('|', $entry);
+            RequiredDocumentDivision::create([
+                'required_document_id' => $record->id,
+                'department_code'      => $deptCode,
+                'division_code'        => $divCode,
+            ]);
         }
     }
 

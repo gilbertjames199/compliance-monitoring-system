@@ -2,59 +2,67 @@
 
 namespace App\Filament\Resources\ComplyingOffices\Tables;
 
-use Filament\Tables\Table;
-use Filament\Actions\EditAction;
-use Filament\Tables\Filters\Filter;
+use App\Models\Office;
 use Filament\Actions\BulkActionGroup;
+use Filament\Actions\EditAction;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Set;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\FiltersLayout;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 
 class ComplyingOfficesTable
 {
     public static function configure(Table $table): Table
     {
-        // dd(auth()->user()->department_code);
-        return $table
-               
-                ->modifyQueryUsing(function (Builder $query) {
-                    $user = auth()->user();
+         $user = auth()->user();
 
-                    if (! $user) {
-                        return;
-                    }
+            return $table
+                ->modifyQueryUsing(function (Builder $query) use ($user) {
+                    if (! $user) return;
 
-                    $accessibleDepartmentCodes = $user->accessibleDepartmentCodes();
+                    if ($user->hasRoleSafe('super_admin')) return;
 
-                    /**
-                     * GLOBAL RULE:
-                     * Everyone (including superadmin) can ONLY see records
-                     * where their office is the complying office.
-                     */
-                    $query->whereIn('complying_offices.department_code', $accessibleDepartmentCodes);
+                    if ($user->can('ViewAllOffices:RequiredDocument')) return;
 
-                    /**
-                     * EXTRA RULES PER ROLE
-                     */
-                    // if ($user->hasRoleSafe('AO', 'admin')) {
                     if (! $user->can('ViewConfidential:RequiredDocument')) {
-                        // AO/Admin cannot see confidential requirements
-                        $query
-                            ->join(
-                                'required_documents',
-                                'required_documents.id',
-                                '=',
-                                'complying_offices.required_document_id'
-                            )
-                            ->where('required_documents.is_confidential', false)
-                            ->select('complying_offices.*');
+                        $query->whereHas('requiredDocument', fn ($q) =>
+                            $q->where('is_confidential', false)
+                        );
                     }
 
-                    // superadmin & department_head:
-                    // - still limited to their office
-                    // - but no confidentiality restriction
+                    $userDivisionCodes = $user->divisionCodes();
+
+                    $query->where('department_code', $user->department_code)
+                        ->where(function ($q) use ($user, $userDivisionCodes) {
+
+                            // Case 1: Document does NOT use division tracking
+                            // → show the office-level row (division_code is null) to everyone in the office
+                            // $q->where(function ($noTracking) use ($user) {
+                            //     $noTracking->whereNull('division_code')
+                            //         ->whereHas('requiredDocument', fn ($rd) =>
+                            //             $rd->where('requires_division_tracking', false)
+                            //         );
+                            // });
+                            $q->whereNull('division_code');
+
+                            // Case 2: Document DOES use division tracking
+                            // → only show rows where division_code matches user's assigned divisions
+                            if (!empty($userDivisionCodes)) {
+                                $q->orWhere(function ($withTracking) use ($userDivisionCodes) {
+                                    $withTracking->whereNotNull('division_code')
+                                        ->whereIn('division_code', $userDivisionCodes)
+                                        ->whereHas('requiredDocument', fn ($rd) =>
+                                            $rd->where('requires_division_tracking', true)
+                                        );
+                                });
+                            }
+                        });
                 })
                 ->defaultGroup('requiredDocument.category.category')
                 ->columns([
@@ -89,12 +97,32 @@ class ComplyingOfficesTable
                         ->searchable() 
                         ->wrap()
                         ->extraCellAttributes(['class' => 'align-top']),
+
                     TextColumn::make('office.office')
                         ->label('Complying Office')
                         ->sortable()
                         ->searchable()
                         ->wrap()
                         ->extraCellAttributes(['class' => 'align-top']),
+
+                    TextColumn::make('division_code')
+                        ->label('Division')
+                        ->getStateUsing(function ($record) {
+                            if (!$record->division_code) return '—';
+
+                            $division = DB::connection('mysql2')
+                                ->table('fms.divisions')
+                                ->where('division_code', $record->division_code)
+                                ->first();
+
+                            return $division
+                                ? ($division->division_name1 . (!empty($division->division_short_name) ? ' (' . $division->division_short_name . ')' : ''))
+                                : $record->division_code;
+                        })
+                        ->placeholder('—')
+                        ->wrap()
+                        ->extraCellAttributes(['class' => 'align-top']),
+
                     IconColumn::make('requiredDocument.is_confidential')
                         ->label('Confidential')
                         ->boolean()
@@ -215,6 +243,85 @@ class ComplyingOfficesTable
                                 $q->whereDate('due_date', '<', now())
                             )
                         ),
+
+                    Filter::make('has_division')
+                        ->label('Division Submissions Only')
+                        ->query(fn (Builder $query) =>
+                            $query->whereNotNull('division_code')
+                        ),
+
+                    // --- New: Office filter ---
+                    // Only shown to super_admin. Everyone else is already hard-scoped
+                    // to their own department_code/division via modifyQueryUsing above,
+                    // so the filter UI would be redundant (and misleading, since it
+                    // couldn't actually widen what they see).
+                    SelectFilter::make('department_code')
+                        ->label('Office')
+                        ->options(fn () => Office::query()->pluck('office', 'department_code'))
+                        ->searchable()
+                        ->visible(fn () => $user && $user->hasRoleSafe('super_admin'))
+                        ->modifyFormFieldUsing(fn (Select $field) => $field
+                            ->live()
+                            ->afterStateUpdated(fn (Set $set) => $set('division_code', null))
+                        )
+                        ->query(fn (Builder $query, array $data) =>
+                            isset($data['value']) && $data['value'] !== ''
+                                ? $query->where('department_code', $data['value'])
+                                : null
+                        )
+                        ->default(fn () => static::resolveSelectedDepartmentCode($user)),
+
+                    // --- New: Division filter ---
+                    // Also super_admin-only (see note above). Options are scoped to
+                    // whichever office is currently selected in the Office filter. We
+                    // deliberately avoid Filament's Get $get injection here — in this
+                    // Filament version, using Get inside a SelectFilter's options()
+                    // closure throws "Component::$container must not be accessed
+                    // before initialization" because the closure runs before the
+                    // filter's schema container is attached. Instead we read the
+                    // selected office straight out of the request's filters query
+                    // array (the same place Filament persists it — visible in the URL
+                    // as filters[department_code][value]=...), via
+                    // resolveSelectedDepartmentCode(), falling back to the same
+                    // default used by the department_code filter above when nothing's
+                    // been submitted yet.
+                    //
+                    // NOTE: department_code on the `mysql` connection (Office) and on
+                    // `mysql2`'s fms.divisions have previously mismatched due to
+                    // zero-padding/type differences (same issue fixed in the PPA
+                    // reporting feature). We normalize both sides to a zero-padded
+                    // string before comparing — adjust the pad length below if your
+                    // codes use a different width.
+                    SelectFilter::make('division_code')
+                        ->label('Division')
+                        ->options(function () use ($user) {
+                            $departmentCode = static::resolveSelectedDepartmentCode($user);
+
+                            $query = DB::connection('mysql2')
+                                ->table('fms.divisions')
+                                ->orderBy('division_name1');
+
+                            if ($departmentCode) {
+                                // Normalize to match fms.divisions.department_code format.
+                                // Adjust the pad length (currently 3) to your actual code width.
+                                $normalized = str_pad((string) $departmentCode, 3, '0', STR_PAD_LEFT);
+
+                                $query->where(DB::raw("LPAD(department_code, 3, '0')"), $normalized);
+                            }
+
+                            return $query->pluck('division_name1', 'division_code');
+                        })
+                        ->searchable()
+                        ->visible(fn () => $user && $user->hasRoleSafe('super_admin'))
+                        ->default(function () use ($user) {
+                            if (! $user) return null;
+
+                            $userDivisionCodes = $user->divisionCodes();
+
+                            return count($userDivisionCodes) === 1
+                                ? $userDivisionCodes[0]
+                                : null;
+                        }),
                 ],
                 layout: FiltersLayout::AboveContentCollapsible)
 
@@ -228,5 +335,29 @@ class ComplyingOfficesTable
                         // DeleteBulkAction::make(),
                     ]),
                 ]);
+    }
+
+    /**
+     * Resolves which department_code (office) is currently in effect for the
+     * filters form: whatever the user has selected in the Office filter, or —
+     * if nothing's been submitted yet — the same default the Office filter
+     * itself falls back to.
+     *
+     * Reads directly from the request's filters query array instead of using
+     * Filament's Get $get injection, since Get isn't safely usable inside a
+     * SelectFilter's options() closure in this Filament version (throws
+     * "Component::$container must not be accessed before initialization").
+     */
+    protected static function resolveSelectedDepartmentCode($user): ?string
+    {
+        $requested = request()->input('filters.department_code.value');
+
+        if (filled($requested)) {
+            return (string) $requested;
+        }
+
+        if (! $user) return null;
+
+        return $user->department_code;
     }
 }

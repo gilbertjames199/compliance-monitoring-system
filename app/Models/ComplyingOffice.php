@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Office;
+use App\Models\Pis\Division;
 use App\Models\RequiredDocument;
 use App\Traits\HasAuditLog;
 use Filament\Actions\Action;
@@ -176,5 +177,10 @@ class ComplyingOffice extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function division()
+    {
+        return $this->belongsTo(Division::class, 'division_code', 'division_code');
     }
 }

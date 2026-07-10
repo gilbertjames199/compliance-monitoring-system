@@ -2,23 +2,27 @@
 
 namespace App\Filament\Resources\DocumentCategories\Schemas;
 
-use App\Models\Office;
-use Filament\Actions\Action;
-use Filament\Schemas\Schema;
 use App\Models\ComplyingOffice;
-use Filament\Forms\Components\Select;
-use Filament\Forms\Components\Toggle;
-use Filament\Schemas\Components\Grid;
-use Filament\Schemas\Components\View;
-use Illuminate\Support\Facades\Blade;
-use Filament\Forms\Components\Repeater;
-use Filament\Forms\Components\TextInput;
-use Filament\Schemas\Components\Actions;
-use Filament\Schemas\Components\Section;
+use App\Models\Office;
+use App\Models\Pis\Division;
+use App\Models\RequiredDocumentDivision;
+use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\MultiSelect;
+use Filament\Forms\Components\Repeater;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
+use Filament\Notifications\Notification;
+use Filament\Schemas\Components\Actions;
+use Filament\Schemas\Components\Grid;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Components\Utilities\Set;
+use Filament\Schemas\Components\View;
+use Filament\Schemas\Schema;
+use Illuminate\Support\Facades\Blade;
+use Illuminate\Support\Facades\DB;
 
 class DocumentCategoryForm
 {
@@ -26,11 +30,9 @@ class DocumentCategoryForm
     {
         return $schema
             ->components([
-                //     TextInput::make('category')
-                //         ->required()
                 View::make('forms.components.sticky-category')
                     ->schema([
-                        Section::make('Category Information') // Add a section title
+                        Section::make('Category Information')
                             ->schema([
                                 TextInput::make('category')
                                     ->label('Category')
@@ -41,7 +43,7 @@ class DocumentCategoryForm
 
                 Repeater::make('requiredDocuments')
                     ->label('Required Documents')
-                    ->relationship('requiredDocuments') // 🔑 must match the model method exactly
+                    ->relationship('requiredDocuments')
                     ->columnSpanFull()
                     ->reorderable()
                     ->collapsible()
@@ -56,7 +58,7 @@ class DocumentCategoryForm
                                 ->required(),
                             TextInput::make('year')
                                 ->numeric()
-                                ->default(date('Y')) // automatically sets the current year
+                                ->default(date('Y'))
                                 ->readOnly(),
 
                             Select::make('agency_type')
@@ -68,57 +70,17 @@ class DocumentCategoryForm
                                 ->reactive()
                                 ->required(),
 
-                            // Select::make('agency_name')
-                            //     ->label('Requiring Agency')
-                            //     ->searchable()
-                            //     ->reactive()
-                            //     ->options(function ($get) {
-                            //         $type = $get('agency_type');
-
-                            //         if ($type === 'internal') {
-                            //             return Office::on('mysql2')
-                            //                 ->whereBetween('id', [1, 26]) // adjust your range if needed
-                            //                 ->pluck('office', 'office'); // key and value are the name itself
-                            //         }
-
-                            //         if ($type === 'external') {
-                            //             return Office::on('mysql2')
-                            //                 ->where('id', '>=', 27)
-                            //                 ->pluck('office', 'office');
-                            //         }
-
-                            //         return [];
-                            //     })
-                            //     ->required()
-                            //     ->afterStateHydrated(function ($component, $get, $state) {
-                            //         if (!$state) return;
-                            //         // If editing, pre-select agency name
-                            //         $component->state($state);
-                            //     })
-                            //     ->createOptionForm([
-                            //         TextInput::make('agency_name')
-                            //             ->label('New External Agency Name')
-                            //             ->required(),
-                            //     ])
-                            //     ->createOptionUsing(function (array $data) {
-                            //         // Save new external agency to FMS database
-                            //         return Office::on('mysql2')->create([
-                            //             'office' => $data['agency_name'],
-                            //         ])->office; // return the office name so it gets saved in required_documents
-                                     
-                            //     }),
-
                             Select::make('agency_name')
                                 ->label('Requiring Agency')
                                 ->searchable()
                                 ->reactive()
                                 ->options(function ($get) {
                                     $type = $get('agency_type');
-                                    
+
                                     if (!$type) {
                                         return [];
                                     }
-                                    
+
                                     $query = Office::on('mysql2');
 
                                     if ($type === 'internal') {
@@ -147,7 +109,6 @@ class DocumentCategoryForm
 
                                         $user = auth()->user();
 
-                                        // Superadmin is never disabled
                                         if ($user->hasRoleSafe('super_admin')) {
                                             return false;
                                         }
@@ -156,25 +117,24 @@ class DocumentCategoryForm
                                             ->value('department_code');
 
                                         return $user->department_code !== $agencyDepartmentCode;
-                                    }), 
+                                    }),
 
-                            DatePicker::make('date_from')  
+                            DatePicker::make('date_from')
                                 ->label('Start Date')
                                 ->required()
-                                ->live() // Make it reactive
-                                ->locale('en-US') // Force US format
-                                ->native(false)   // Use JS picker instead of browser native
-                                ->displayFormat('m/d/Y') 
-                                ->placeholder('mm/dd/yyyy') 
+                                ->live()
+                                ->locale('en-US')
+                                ->native(false)
+                                ->displayFormat('m/d/Y')
+                                ->placeholder('mm/dd/yyyy')
                                 ->afterStateUpdated(function (Set $set) {
-                                    $set('due_date', null); // Optional: clear due_date when date_from changes
+                                    $set('due_date', null);
                                 })
                                 ->disabled(function ($record) {
                                     if (!$record) return false;
 
                                     $user = auth()->user();
 
-                                    // Superadmin is never disabled
                                     if ($user->hasRoleSafe('super_admin')) {
                                         return false;
                                     }
@@ -182,12 +142,10 @@ class DocumentCategoryForm
                                     $agencyDepartmentCode = \App\Models\Office::where('office', $record->agency_name)
                                         ->value('department_code');
 
-                                    // Disable if the user is NOT from the requiring agency
                                     if ($user->department_code !== $agencyDepartmentCode) {
                                         return true;
                                     }
 
-                                    // Disable if any complying office has status 0 (Partially Complied) or 1 (Complied)
                                     return $record->complyingOffices()
                                                 ->whereIn('status', [0, 1])
                                                 ->exists();
@@ -218,18 +176,17 @@ class DocumentCategoryForm
                             DatePicker::make('due_date')
                                 ->label('Deadline')
                                 ->required()
-                                ->locale('en-US') // Force US format
-                                ->native(false)   // Use JS picker instead of browser native
-                                ->displayFormat('m/d/Y') 
-                                ->placeholder('mm/dd/yyyy') 
-                                ->afterOrEqual('date_from') // Validation rule
-                                ->minDate(fn (Get $get) => $get('date_from')) // Disables dates before date_from in picker
+                                ->locale('en-US')
+                                ->native(false)
+                                ->displayFormat('m/d/Y')
+                                ->placeholder('mm/dd/yyyy')
+                                ->afterOrEqual('date_from')
+                                ->minDate(fn (Get $get) => $get('date_from'))
                                 ->disabled(function ($record) {
                                     if (!$record) return false;
 
                                     $user = auth()->user();
 
-                                    // Superadmin is never disabled
                                     if ($user->hasRoleSafe('super_admin')) {
                                         return false;
                                     }
@@ -237,12 +194,10 @@ class DocumentCategoryForm
                                     $agencyDepartmentCode = \App\Models\Office::where('office', $record->agency_name)
                                         ->value('department_code');
 
-                                    // Disable if the user is NOT from the requiring agency
                                     if ($user->department_code !== $agencyDepartmentCode) {
                                         return true;
                                     }
 
-                                    // Disable if any complying office has status 0 (Partially Complied) or 1 (Complied)
                                     return $record->complyingOffices()
                                                 ->whereIn('status', [0, 1])
                                                 ->exists();
@@ -272,27 +227,23 @@ class DocumentCategoryForm
 
                             Toggle::make('is_confidential')
                                 ->label('Confidential'),
-                            
-                            Grid::make(1) // parent grid: 1 column 
-                                ->schema([ 
-                                    // Toggle for recurring
-                                    Toggle::make('is_recurring') 
-                                        ->label('Recurring?') 
-                                        ->reactive() 
-                                        // ->required() 
-                                        ->afterStateUpdated(function ($state, $set) { 
-                                            if (!$state) { 
-                                                // Clear recurrence fields when toggle is off 
-                                                $set('recurrence_type', null); 
-                                                $set('recurrence_interval', null); 
-                                            } 
+
+                            Grid::make(1)
+                                ->schema([
+                                    Toggle::make('is_recurring')
+                                        ->label('Recurring?')
+                                        ->reactive()
+                                        ->afterStateUpdated(function ($state, $set) {
+                                            if (!$state) {
+                                                $set('recurrence_type', null);
+                                                $set('recurrence_interval', null);
+                                            }
                                         })
                                         ->disabled(function ($record) {
                                             if (!$record) return false;
 
                                             $user = auth()->user();
 
-                                            // Superadmin is never disabled
                                             if ($user->hasRoleSafe('super_admin')) {
                                                 return false;
                                             }
@@ -301,36 +252,33 @@ class DocumentCategoryForm
                                                 ->value('department_code');
 
                                             return $user->department_code !== $agencyDepartmentCode;
-                                        }), 
+                                        }),
 
-                                    // Nested grid for recurrence fields
-                                    Grid::make(2) // one column grid to stack the fields vertically 
-                                        ->schema([ 
-                                            Select::make('recurrence_type') 
-                                                ->label('Recurrence Type') 
-                                                ->options([ 
-                                                    'yearly' => 'Yearly', 
-                                                    'quarterly' => 'Quarterly', 
-                                                    'semester' => 'Per Semester (Jan-June, July-Dec)', 
-                                                    'custom' => 'Custom (Days)', 
-                                                ]) 
-                                                ->reactive() 
-                                                ->visible(fn($get) => $get('is_recurring')) 
-                                                ->required(fn($get) => $get('is_recurring')) 
-                                                ->afterStateUpdated(function ($state, $set) { 
-                                                    // Reset recurrence_interval if not custom 
-                                                    if ($state !== 'custom') { 
-                                                        $set('recurrence_interval', null); 
-                                                    } 
-                                                }) 
-                                                ->dehydrated(true) 
+                                    Grid::make(2)
+                                        ->schema([
+                                            Select::make('recurrence_type')
+                                                ->label('Recurrence Type')
+                                                ->options([
+                                                    'yearly' => 'Yearly',
+                                                    'quarterly' => 'Quarterly',
+                                                    'semester' => 'Per Semester (Jan-June, July-Dec)',
+                                                    'custom' => 'Custom (Days)',
+                                                ])
+                                                ->reactive()
+                                                ->visible(fn($get) => $get('is_recurring'))
+                                                ->required(fn($get) => $get('is_recurring'))
+                                                ->afterStateUpdated(function ($state, $set) {
+                                                    if ($state !== 'custom') {
+                                                        $set('recurrence_interval', null);
+                                                    }
+                                                })
+                                                ->dehydrated(true)
                                                 ->dehydrateStateUsing(fn($state, $get) => $get('is_recurring') ? $state : null)
                                                 ->disabled(function ($record) {
                                                     if (!$record) return false;
 
                                                     $user = auth()->user();
 
-                                                    // Superadmin is never disabled
                                                     if ($user->hasRoleSafe('super_admin')) {
                                                         return false;
                                                     }
@@ -339,20 +287,20 @@ class DocumentCategoryForm
                                                         ->value('department_code');
 
                                                     return $user->department_code !== $agencyDepartmentCode;
-                                                }), 
+                                                }),
 
-                                            TextInput::make('recurrence_interval') 
-                                                ->label('Custom Interval (days)') 
-                                                ->numeric() 
-                                                ->minValue(1) 
+                                            TextInput::make('recurrence_interval')
+                                                ->label('Custom Interval (days)')
+                                                ->numeric()
+                                                ->minValue(1)
                                                 ->suffix('days')
-                                                ->visible(fn($get) => $get('is_recurring') && $get('recurrence_type') === 'custom') 
-                                                ->required(fn($get) => $get('is_recurring') && $get('recurrence_type') === 'custom') 
-                                                ->dehydrated(true) 
-                                                ->dehydrateStateUsing(fn($state, $get) =>  
-                                                    ($get('is_recurring') && $get('recurrence_type') === 'custom') ? $state : null 
-                                                ), 
-                                        ]), 
+                                                ->visible(fn($get) => $get('is_recurring') && $get('recurrence_type') === 'custom')
+                                                ->required(fn($get) => $get('is_recurring') && $get('recurrence_type') === 'custom')
+                                                ->dehydrated(true)
+                                                ->dehydrateStateUsing(fn($state, $get) =>
+                                                    ($get('is_recurring') && $get('recurrence_type') === 'custom') ? $state : null
+                                                ),
+                                        ]),
                             ]),
                         ])
                         ->visible(function ($record) {
@@ -362,7 +310,6 @@ class DocumentCategoryForm
 
                             $user = auth()->user();
 
-                            // Superadmin can always see
                             if ($user->hasRoleSafe('super_admin')) {
                                 return true;
                             }
@@ -374,9 +321,7 @@ class DocumentCategoryForm
                         }),
 
                     Section::make('Complying Offices')
-                        // ->columns(2)
                         ->schema([
- 
                             Select::make('complying_offices')
                                 ->label('Complying Offices')
                                 ->multiple()
@@ -397,36 +342,55 @@ class DocumentCategoryForm
                                 )
                                 ->preload()
                                 ->searchable()
+                                ->live()
                                 ->disabled(function ($record) {
                                     if (!$record) return false;
 
                                     $user = auth()->user();
+                                    if ($user->hasRoleSafe('super_admin')) return false;
 
-                                    // Superadmin is never disabled
-                                    if ($user->hasRoleSafe('super_admin')) {
-                                        return false;
-                                    }
-
-                                    $agencyDepartmentCode = \App\Models\Office::where('office', $record->agency_name)
+                                    $agencyDepartmentCode = Office::where('office', $record->agency_name)
                                         ->value('department_code');
 
                                     return $user->department_code !== $agencyDepartmentCode;
                                 })
                                 ->loadStateFromRelationshipsUsing(fn ($component, $record) =>
                                     $component->state(
-                                        $record->complyingOffices
+                                        $record?->complyingOffices
                                             ->pluck('department_code')
-                                            ->toArray()
+                                            ->toBase()
+                                            ->unique()
+                                            ->toArray() ?? []
                                     )
                                 )
                                 ->saveRelationshipsUsing(function ($component, $record, $state) {
-                                    $record->complyingOffices()->delete();
+                                    if ($record->requires_division_tracking) {
+                                        return;
+                                    }
 
-                                    foreach ($state ?? [] as $departmentCode) {
+                                    $state = collect($state ?? [])->unique()->values();
+
+                                    $existing = $record->complyingOffices()->whereNull('division_code')->get();
+                                    $existingCodes = $existing->pluck('department_code')->toBase();
+                                    $lockedCodes = $existing->whereIn('status', [0, 1])->pluck('department_code')->toBase();
+
+                                    $removedLocked = $lockedCodes->diff($state);
+
+                                    $toAdd = $state->diff($existingCodes);
+                                    $toRemove = $existingCodes->diff($state);
+
+                                    if ($toRemove->isNotEmpty()) {
+                                        $record->complyingOffices()
+                                            ->whereNull('division_code')
+                                            ->whereIn('department_code', $toRemove)
+                                            ->delete();
+                                    }
+
+                                    foreach ($toAdd as $departmentCode) {
                                         ComplyingOffice::create([
-                                            'required_document_id'  => $record->id,
-                                            'department_code' => $departmentCode,
-                                            'status'          => -1,
+                                            'required_document_id' => $record->id,
+                                            'department_code'      => $departmentCode,
+                                            'status'                => -1,
                                         ]);
                                     }
                                 })
@@ -435,63 +399,202 @@ class DocumentCategoryForm
                                         ->icon('heroicon-o-check-circle')
                                         ->action(fn (callable $set) =>
                                             $set('complying_offices', Office::pluck('department_code')->toArray())
-                                        )
-                                        ->disabled(function ($record) {
-                                            if (!$record) return false;
-
-                                            $user = auth()->user();
-
-                                            // Superadmin is never disabled
-                                            if ($user->hasRoleSafe('super_admin')) {
-                                                return false;
-                                            }
-
-                                            $agencyDepartmentCode = \App\Models\Office::where('office', $record->agency_name)
-                                                ->value('department_code');
-
-                                            return $user->department_code !== $agencyDepartmentCode;
-                                        }),
+                                        ),
 
                                     Action::make('clear')
                                         ->icon('heroicon-o-x-circle')
                                         ->color('danger')
                                         ->action(fn (callable $set) =>
                                             $set('complying_offices', [])
-                                        )
-                                        ->disabled(function ($record) {
-                                            if (!$record) return false;
+                                        ),
+                                ]),
 
-                                            $user = auth()->user();
-
-                                            // Superadmin is never disabled
-                                            if ($user->hasRoleSafe('super_admin')) {
-                                                return false;
-                                            }
-
-                                            $agencyDepartmentCode = \App\Models\Office::where('office', $record->agency_name)
-                                                ->value('department_code');
-
-                                            return $user->department_code !== $agencyDepartmentCode;
-                                        }),
-                                    ])
-                                ])
-                                ->visible(function ($record) {
-                                    if (!$record) {
-                                        return true;
+                            Toggle::make('requires_division_tracking')
+                                ->label('Track by Division?')
+                                ->reactive()
+                                ->afterStateUpdated(function ($state, $set) {
+                                    if (!$state) {
+                                        $set('required_divisions', []);
                                     }
+                                })
+                                ->disabled(function ($record) {
+                                    if (!$record) return false;
 
                                     $user = auth()->user();
+                                    if ($user->hasRoleSafe('super_admin')) return false;
 
-                                    // Superadmin can always see
-                                    if ($user->hasRoleSafe('super_admin')) {
-                                        return true;
-                                    }
-
-                                    $agencyDepartmentCode = \App\Models\Office::where('office', $record->agency_name)
+                                    $agencyDepartmentCode = Office::where('office', $record->agency_name)
                                         ->value('department_code');
 
-                                    return $user->department_code === $agencyDepartmentCode;
+                                    return $user->department_code !== $agencyDepartmentCode;
                                 }),
+
+                            Select::make('required_divisions')
+                                ->label('Required Divisions (optional)')
+                                ->multiple()
+                                ->live()
+                                ->options(function (Get $get) {
+                                    $departmentCodes = $get('complying_offices') ?? [];
+
+                                    if (empty($departmentCodes)) {
+                                        return [];
+                                    }
+
+                                    return DB::connection('mysql2')
+                                        ->table('fms.divisions')
+                                        ->whereIn('department_code', $departmentCodes)
+                                        ->orderBy('division_name1')
+                                        ->get()
+                                        ->mapWithKeys(function ($d) {
+                                            $label = $d->division_name1
+                                                . (!empty($d->division_short_name) ? ' (' . $d->division_short_name . ')' : '');
+
+                                            return ["{$d->department_code}|{$d->division_code}" => $label];
+                                        })
+                                        ->toArray();
+                                })
+                                ->visible(fn (Get $get) => (bool) $get('requires_division_tracking'))
+                                ->required(fn (Get $get) => (bool) $get('requires_division_tracking'))
+                                ->helperText('Select specific divisions that must comply separately.')
+                                ->dehydrated(false)
+                                ->loadStateFromRelationshipsUsing(function ($component, $record) {
+                                    if (!$record) {
+                                        return;
+                                    }
+
+                                    $component->state(
+                                        $record->requiredDocumentDivisions()
+                                            ->get()
+                                            ->map(fn ($d) => "{$d->department_code}|{$d->division_code}")
+                                            ->toArray()
+                                    );
+                                })
+                                ->saveRelationshipsUsing(function ($component, $record, $state) {
+                                    $state = collect($state ?? [])->unique()->values();
+
+                                    $existingDivisions = $record->requiredDocumentDivisions()->get();
+                                    $existingKeys = $existingDivisions
+                                        ->map(fn ($d) => "{$d->department_code}|{$d->division_code}")
+                                        ->toBase();
+
+                                    $lockedKeys = $record->complyingOffices()
+                                        ->whereNotNull('division_code')
+                                        ->whereIn('status', [0, 1])
+                                        ->get()
+                                        ->map(fn ($co) => "{$co->department_code}|{$co->division_code}")
+                                        ->toBase();
+
+                                    $removedLocked = $lockedKeys->diff($state);
+
+                                    
+
+                                    if ($removedLocked->isNotEmpty()) {
+
+                                        $names = $record->complyingOffices()
+                                            ->whereNotNull('division_code')
+                                            ->whereIn('status', [0, 1])
+                                            ->where(function ($query) use ($removedLocked) {
+                                                foreach ($removedLocked as $key) {
+                                                    [$deptCode, $divCode] = explode('|', $key);
+
+                                                    $query->orWhere(function ($q) use ($deptCode, $divCode) {
+                                                        $q->where('department_code', $deptCode)
+                                                        ->where('division_code', $divCode);
+                                                    });
+                                                }
+                                            })
+                                            ->get()
+                                            // ->map(function ($office) {
+                                            //     $division = Division::where('department_code', $office->department_code)
+                                            //         ->where('division_code', $office->division_code)
+                                            //         ->first();
+
+                                            //     return $division
+                                            //         ? $division->division_name1 .
+                                            //             ($division->division_short_name
+                                            //                 ? " ({$division->division_short_name})"
+                                            //                 : '')
+                                            //         : "{$office->department_code}|{$office->division_code}";
+                                            // })
+                                            ->map(function ($office) {
+
+                                                return DB::connection('mysql2')
+                                                    ->table('fms.divisions')
+                                                    ->where('department_code', $office->department_code)
+                                                    ->where('division_code', $office->division_code)
+                                                    ->value('division_name1')
+                                                    ?? "{$office->department_code}|{$office->division_code}";
+                                            })
+                                            ->implode(', ');
+
+                                        Notification::make()
+                                            ->title('Cannot remove some divisions')
+                                            ->body('Already complied: ' . $names)
+                                            ->danger()
+                                            ->send();
+
+                                        $state = $state->merge($lockedKeys)->unique()->values();
+                                    }
+
+                                    if (!$record->requires_division_tracking) {
+                                        $record->requiredDocumentDivisions()->delete();
+                                        $record->complyingOffices()->whereNotNull('division_code')->delete();
+                                        return;
+                                    }
+
+                                    $toAdd = $state->diff($existingKeys);
+                                    $toRemove = $existingKeys->diff($state);
+
+                                    foreach ($toRemove as $entry) {
+                                        [$deptCode, $divCode] = explode('|', $entry);
+
+                                        RequiredDocumentDivision::where('required_document_id', $record->id)
+                                            ->where('department_code', $deptCode)
+                                            ->where('division_code', $divCode)
+                                            ->delete();
+
+                                        ComplyingOffice::where('required_document_id', $record->id)
+                                            ->where('department_code', $deptCode)
+                                            ->where('division_code', $divCode)
+                                            ->delete();
+                                    }
+
+                                    foreach ($toAdd as $entry) {
+                                        [$deptCode, $divCode] = explode('|', $entry);
+
+                                        RequiredDocumentDivision::create([
+                                            'required_document_id' => $record->id,
+                                            'department_code'      => $deptCode,
+                                            'division_code'        => $divCode,
+                                        ]);
+
+                                        ComplyingOffice::firstOrCreate(
+                                            [
+                                                'required_document_id' => $record->id,
+                                                'department_code'      => $deptCode,
+                                                'division_code'        => $divCode,
+                                            ],
+                                            ['status' => -1]
+                                        );
+                                    }
+                                })
+                                ->columnSpanFull(),
+                        ])
+                        ->visible(function ($record) {
+                            if (!$record) {
+                                return true;
+                            }
+
+                            $user = auth()->user();
+                            if ($user->hasRoleSafe('super_admin')) {
+                                return true;
+                            }
+
+                            $agencyDepartmentCode = Office::where('office', $record->agency_name)
+                                ->value('department_code');
+
+                            return $user->department_code === $agencyDepartmentCode;
+                        }),
                             ])
                 ]);
     }

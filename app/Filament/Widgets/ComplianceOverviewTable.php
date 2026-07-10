@@ -5,8 +5,7 @@ namespace App\Filament\Widgets;
 use Filament\Tables\Table;
 use Filament\Actions\Action;
 use App\Models\ComplyingOffice;
-use App\Models\RequiredDocument;
-use Filament\Actions\EditAction;
+use Illuminate\Support\Facades\DB;
 use Filament\Widgets\TableWidget;
 use Filament\Tables\Filters\Filter;
 use Filament\Actions\BulkActionGroup;
@@ -16,12 +15,32 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Enums\FiltersLayout;
 use Filament\Tables\Filters\SelectFilter;
 use Illuminate\Database\Eloquent\Builder;
-use App\Filament\Resources\ComplyingOffices\ComplyingOfficeResource;
+use Illuminate\Support\Collection;
 
 class ComplianceOverviewTable extends TableWidget
 {
     protected static ?int $sort = 4;
     protected int|string|array $columnSpan = 'full';
+
+    /**
+     * Cache of divisions keyed by "department_code|division_code" => stdClass row.
+     * Queried directly against fms.divisions on the mysql2 connection,
+     * matching the convention used elsewhere in the app.
+     */
+    protected static ?Collection $divisionsCache = null;
+
+    protected static function divisionsMap(): Collection
+    {
+        if (static::$divisionsCache === null) {
+            static::$divisionsCache = DB::connection('mysql2')
+                ->table('fms.divisions')
+                ->whereNotNull('division_code')
+                ->get()
+                ->keyBy(fn ($division) => $division->department_code . '|' . $division->division_code);
+        }
+
+        return static::$divisionsCache;
+    }
 
     public function table(Table $table): Table
     {
@@ -59,6 +78,27 @@ class ComplianceOverviewTable extends TableWidget
                 // ✅ ONLY super_admin can see all
                 if (! $user->hasRoleSafe('super_admin')) {
                     $query->whereIn('complying_offices.department_code', $accessibleDepartmentCodes);
+
+                    // 🔒 DIVISION SCOPING
+                    // For requirements that are division-tracked, non-super_admin users
+                    // should only see complying offices for divisions assigned to them,
+                    // using the same User::divisionCodes() helper used elsewhere in the app.
+                    $userDivisionCodes = collect(
+                        method_exists($user, 'divisionCodes') ? $user->divisionCodes() : []
+                    )->filter()->values();
+
+                    $query->where(function (Builder $q) use ($userDivisionCodes) {
+                        // Always allow non-division-tracked requirements
+                        $q->where(function (Builder $q2) {
+                            $q2->where('required_documents.requires_division_tracking', false)
+                                ->orWhereNull('required_documents.requires_division_tracking');
+                        });
+
+                        // For division-tracked requirements, only allow the user's assigned divisions
+                        if ($userDivisionCodes->isNotEmpty()) {
+                            $q->orWhereIn('complying_offices.division_code', $userDivisionCodes->toArray());
+                        }
+                    });
                 }
 
                 // 🔒 CONFIDENTIAL CONTROL
@@ -79,7 +119,8 @@ class ComplianceOverviewTable extends TableWidget
                         $record->requiredDocument?->is_confidential
                             ? 'warning'
                             : null
-                    ),
+                    )
+                    ->extraCellAttributes(['class' => 'align-top']),
 
                 TextColumn::make('office.office')
                     ->label('Complying Office')
@@ -90,7 +131,26 @@ class ComplianceOverviewTable extends TableWidget
                         $record->requiredDocument?->is_confidential
                             ? 'warning'
                             : null
-                    ),
+                    )
+                    ->extraCellAttributes(['class' => 'align-top']),
+
+                TextColumn::make('division_code')
+                    ->label('Division')
+                    ->getStateUsing(function ($record) {
+                        if (blank($record->division_code)) {
+                            return null;
+                        }
+
+                        $key = $record->department_code . '|' . $record->division_code;
+                        $division = static::divisionsMap()->get($key);
+
+                        return $division?->division_name1 ?: $record->division_code;
+                    })
+                    ->badge()
+                    ->color('gray')
+                    ->placeholder('—')
+                    ->toggleable()
+                    ->extraCellAttributes(['class' => 'align-top']),
 
                 TextColumn::make('requiredDocument.agency_name')
                     ->label('Requiring Agency')
@@ -100,7 +160,8 @@ class ComplianceOverviewTable extends TableWidget
                         $record->requiredDocument?->is_confidential
                             ? 'warning'
                             : null
-                    ),
+                    )
+                    ->extraCellAttributes(['class' => 'align-top']),
 
                 IconColumn::make('requiredDocument.is_confidential')
                     ->label('Confidential')
@@ -108,7 +169,8 @@ class ComplianceOverviewTable extends TableWidget
                     ->trueColor('warning')   // yellow
                     ->falseColor('gray')     // dark / black-ish
                     ->trueIcon('heroicon-o-lock-closed')
-                    ->falseIcon('heroicon-o-lock-open'),
+                    ->falseIcon('heroicon-o-lock-open')
+                    ->extraCellAttributes(['class' => 'align-top']),
 
                 TextColumn::make('status')
                     ->label('Compliance Status')
@@ -128,7 +190,8 @@ class ComplianceOverviewTable extends TableWidget
                     ])
                     ->html()
                     ->sortable()
-                    ->searchable(),
+                    ->searchable()
+                    ->extraCellAttributes(['class' => 'align-top']),
 
                 TextColumn::make('validation_status')
                     ->label('Validation Status')
@@ -148,7 +211,8 @@ class ComplianceOverviewTable extends TableWidget
                     ])
                     ->html()
                     ->sortable()
-                    ->searchable(),
+                    ->searchable()
+                    ->extraCellAttributes(['class' => 'align-top']),
 
                 TextColumn::make('requiredDocument.due_date')
                     ->label('Deadline')
@@ -160,7 +224,8 @@ class ComplianceOverviewTable extends TableWidget
                         ($record->status != 1 && $record->status != 'complied' && now()->gt($record->requiredDocument->due_date))
                             ? 'danger'
                             : null // Default color
-                    ),
+                    )
+                    ->extraCellAttributes(['class' => 'align-top']),
             ])
             ->filters([
                 SelectFilter::make('status')
@@ -190,6 +255,24 @@ class ComplianceOverviewTable extends TableWidget
                             ? $query->whereHas('requiredDocument', fn ($q) =>
                                 $q->where('is_confidential', $data['value'])
                             )
+                            : null
+                    ),
+
+                SelectFilter::make('division_code')
+                    ->label('Division')
+                    ->options(function () {
+                        return static::divisionsMap()
+                            ->values()
+                            ->unique('division_code')
+                            ->sortBy('division_name1')
+                            ->mapWithKeys(fn ($division) => [
+                                $division->division_code => $division->division_name1 ?: $division->division_code,
+                            ])
+                            ->toArray();
+                    })
+                    ->query(fn (Builder $query, array $data) =>
+                        isset($data['value']) && $data['value'] !== ''
+                            ? $query->where('complying_offices.division_code', $data['value'])
                             : null
                     ),
 

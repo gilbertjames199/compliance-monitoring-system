@@ -3,14 +3,15 @@
 namespace App\Models;
 
 use App\Models\DatabaseNotification;
+use App\Models\UserDivision;
 use Filament\Models\Contracts\FilamentUser;
 use Filament\Panel;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -187,6 +188,22 @@ class User extends Authenticatable implements FilamentUser
         ->whereIn('id', $roleIds)
         ->whereIn('name', $roles)
         ->exists();
+    }
+
+    public function userDivisions()
+    {
+        return $this->hasMany(UserDivision::class, 'user_id', 'recid')
+            ->on('mysql'); // 👈 force main DB connection
+    }
+
+    public function divisionCodes(): array
+    {
+        // Use DB facade directly to avoid cross-connection relationship issues
+        return DB::connection('mysql')
+            ->table('user_divisions')
+            ->where('user_id', $this->recid)
+            ->pluck('division_code')
+            ->toArray();
     }
 
 }

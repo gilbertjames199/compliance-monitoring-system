@@ -44,11 +44,31 @@ class StatsOverview extends BaseWidget
         $requiredDocsQuery = RequiredDocument::query();
         $accessibleDepartmentCodes = $user->accessibleDepartmentCodes();
 
+        // Divisions assigned to this user (same helper used elsewhere in the app,
+        // e.g. CreateRequiredDocument / ComplianceOverviewTable).
+        $userDivisionCodes = collect(
+            method_exists($user, 'divisionCodes') ? $user->divisionCodes() : []
+        )->filter()->values();
+
         // 🔒 OFFICE SCOPE
         if (! $user->hasRoleSafe('super_admin')) {
             $requiredDocsQuery->whereHas('complyingOffices', fn ($q) =>
                 $q->whereIn('department_code', $accessibleDepartmentCodes)
             );
+
+            // 🔒 DIVISION SCOPING
+            // A division-tracked document only counts for this user if at least
+            // one of its complying offices matches a division they're assigned to.
+            $requiredDocsQuery->where(function ($q) use ($userDivisionCodes) {
+                $q->where('requires_division_tracking', false)
+                    ->orWhereNull('requires_division_tracking');
+
+                if ($userDivisionCodes->isNotEmpty()) {
+                    $q->orWhereHas('complyingOffices', function ($q2) use ($userDivisionCodes) {
+                        $q2->whereIn('division_code', $userDivisionCodes->toArray());
+                    });
+                }
+            });
         }
         // 🔒 CONFIDENTIAL CONTROL
         if (! $user->can('ViewConfidential:RequiredDocument')) {
@@ -73,24 +93,23 @@ class StatsOverview extends BaseWidget
         foreach ($statuses as $label => $options) {
             $query = ComplyingOffice::where('status', $options['status']);
 
-            // if ($user->hasRoleSafe('super_admin')) {
-            //     // Sees all - no filters
-            // } 
-            // elseif ($user->hasRoleSafe('department_head')) {
-            //     $query->where('department_code', $user->department_code);
-            // } 
-            // elseif ($user->hasRoleSafe('AO', 'admin')) {
-            //     $query->where('department_code', $user->department_code)
-            //           ->whereHas('requiredDocument', fn ($q) => 
-            //               $q->where('is_confidential', 0)
-            //           );
-            // } 
-            // else {
-            //     $query->whereRaw('1 = 0');
-            // }
             // 🔒 OFFICE SCOPE
             if (! $user->hasRoleSafe('super_admin')) {
                 $query->whereIn('department_code', $accessibleDepartmentCodes);
+
+                // 🔒 DIVISION SCOPING
+                // Allow rows belonging to non-division-tracked requirements,
+                // OR rows whose division_code matches one assigned to this user.
+                $query->where(function ($q) use ($userDivisionCodes) {
+                    $q->whereHas('requiredDocument', fn ($rq) =>
+                        $rq->where('requires_division_tracking', false)
+                            ->orWhereNull('requires_division_tracking')
+                    );
+
+                    if ($userDivisionCodes->isNotEmpty()) {
+                        $q->orWhereIn('division_code', $userDivisionCodes->toArray());
+                    }
+                });
             }
 
             // 🔒 CONFIDENTIAL CONTROL

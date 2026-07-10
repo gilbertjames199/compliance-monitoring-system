@@ -2,11 +2,15 @@
 
 namespace App\Filament\Resources\AuditLogs\Schemas;
 
+use App\Models\ComplyingOffice;
+use App\Models\User;
 use Carbon\Carbon;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Grid;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Facades\DB;
 
 class AuditLogForm
 {
@@ -32,7 +36,7 @@ class AuditLogForm
                 TextInput::make('user_id')
                     ->label('Action By')
                     ->formatStateUsing(function ($state) {
-                        $user = \App\Models\User::find($state);
+                        $user = User::find($state);
                         return $user?->FullName ?? $user?->UserName ?? "User #{$state}";
                     })
                     ->disabled(),
@@ -55,15 +59,45 @@ class AuditLogForm
                     )
                     ->disabled(),
 
+                Grid::make(2)
+                    ->columnSpanFull()
+                    ->schema([
+                        TextInput::make('office_name')
+                            ->label('Complying Office')
+                            ->disabled(),
 
-                TextInput::make('office_name')
-                    ->label('Complying Office')
-                    ->disabled(),
+                        TextInput::make('division_name')
+                            ->label('Division')
+                            ->disabled()
+                            ->dehydrated(false)
+                            ->formatStateUsing(function ($state, $record) {
+                                if (!$record?->complying_office_id) {
+                                    return '—';
+                                }
 
-                TextInput::make('requiring_agency_name')
-                    ->label('Requiring Agency')
-                    ->default(fn ($record) => $record->requiring_agency_name ?? '-')
-                    ->disabled(),
+                                $complyingOffice = ComplyingOffice::find($record->complying_office_id);
+
+                                if (!$complyingOffice || blank($complyingOffice->division_code)) {
+                                    return '—';
+                                }
+
+                                $division = DB::connection('mysql2')
+                                    ->table('fms.divisions')
+                                    ->where('department_code', $complyingOffice->department_code)
+                                    ->where('division_code', $complyingOffice->division_code)
+                                    ->first();
+
+                                return $division
+                                    ? $division->division_name1 . (!empty($division->division_short_name) ? ' (' . $division->division_short_name . ')' : '')
+                                    : $complyingOffice->division_code;
+                            })
+                            ->visible(fn ($record) => filled($record?->complying_office_id)),
+
+                        TextInput::make('requiring_agency_name')
+                            ->label('Requiring Agency')
+                            ->default(fn ($record) => $record->requiring_agency_name ?? '-')
+                            ->disabled(),
+                    ]),
 
                 TextInput::make('old_status')
                     ->label('Old Compliance Status')

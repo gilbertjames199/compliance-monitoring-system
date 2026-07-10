@@ -6,7 +6,9 @@ use App\Mail\DueDateReminderMail;
 use App\Models\AuditLog;
 use App\Models\ComplyingOffice;
 use App\Models\Office;
+use App\Models\RequiredDocumentDivision;
 use App\Models\User;
+use App\Services\AuditLogger;
 use App\Support\FilamentAttachmentPreview;
 use Carbon\Carbon;
 use Filament\Actions\Action;
@@ -27,7 +29,9 @@ use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Grouping\Group;
 use Filament\Tables\Table;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Validation\Rule;
@@ -35,33 +39,73 @@ use Illuminate\Validation\Rule;
 class ComplyingOfficesRelationManager extends RelationManager
 {
     protected static string $relationship = 'complyingOffices';
-
-
+   
     public function form(Schema $schema): Schema
     {
         return $schema
             ->components([
                 // TextInput::make('department_code')
                 //     ->required(),
+                // Select::make('department_code')
+                //     ->label('Office')
+                //     ->options(Office::all()->pluck('office', 'department_code'))
+                //     ->searchable()
+                //     ->rules(function (callable $get) {
+                //         // Get the current requirement ID from the parent record
+                //         $requirementId = $this->getOwnerRecord()->id;
+
+                //         return [
+                //             Rule::unique('complying_offices', 'department_code')
+                //                 ->where(fn($query) =>
+                //                     $query->where('required_document_id', $requirementId)
+                //                 )
+                //                 ->ignore($get('id')) // ignore self when editing
+                //         ];
+                //     })
+                //     ->disabled(fn (string $operation): bool => $operation === 'edit')
+                //     ->helperText('Each office can only be added once per requirement.'),
                 Select::make('department_code')
                     ->label('Office')
                     ->options(Office::all()->pluck('office', 'department_code'))
                     ->searchable()
                     ->rules(function (callable $get) {
-                        // Get the current requirement ID from the parent record
-                        $requirementId = $this->getOwnerRecord()->id;
+                        $requirement = $this->getOwnerRecord();
+                        $requirementId = $requirement->id;
 
                         return [
                             Rule::unique('complying_offices', 'department_code')
-                                ->where(fn($query) =>
-                                    $query->where('required_document_id', $requirementId)
-                                )
-                                ->ignore($get('id')) // ignore self when editing
+                                ->where(function ($query) use ($requirementId, $requirement, $get) {
+                                    $query->where('required_document_id', $requirementId);
+
+                                    if ($requirement->requires_division_tracking) {
+                                        // Scope uniqueness per division too
+                                        $query->where('division_code', $get('division_code'));
+                                    }
+                                })
+                                ->ignore($get('id'))
                         ];
                     })
                     ->disabled(fn (string $operation): bool => $operation === 'edit')
-                    ->helperText('Each office can only be added once per requirement.')
-                    ,
+                    ->helperText('Each office can only be added once per requirement.'),
+
+
+                TextInput::make('division_name')
+                    ->label('Submitting Division')
+                    ->disabled()
+                    ->dehydrated(false)
+                    ->formatStateUsing(function ($record) {
+                        if (!$record?->division_code) return '—';
+
+                        $division = DB::connection('mysql2')
+                            ->table('fms.divisions')
+                            ->where('division_code', $record->division_code)
+                            ->first();
+
+                        return $division
+                            ? ($division->division_name1 . (!empty($division->division_short_name) ? ' (' . $division->division_short_name . ')' : ''))
+                            : $record->division_code;
+                    })
+                    ->visible(fn ($record) => filled($record?->division_code)),
 
 
                 Select::make('status')
@@ -343,10 +387,45 @@ class ComplyingOfficesRelationManager extends RelationManager
     {
         return $table
             ->recordTitleAttribute('department_code')
+            ->groups(
+                $this->getOwnerRecord()->requires_division_tracking
+                    ? [
+                        Group::make('office.office')
+                            ->label('Office')
+                            ->collapsible(),
+                    ]
+                    : []
+            )
+            ->defaultGroup(
+                $this->getOwnerRecord()->requires_division_tracking
+                    ? 'office.office'
+                    : null
+            )
             ->columns([
                 TextColumn::make('office.office')
                     ->label('Office Name')
-                    ->searchable(),
+                    ->searchable()
+                    ->wrap()
+                    ->extraCellAttributes(['class' => 'align-top']),
+
+                TextColumn::make('division_code')
+                    ->label('Division')
+                    ->getStateUsing(function ($record) {
+                        if (!$record->division_code) return '—';
+
+                        $division = DB::connection('mysql2')
+                            ->table('fms.divisions')
+                            ->where('division_code', $record->division_code)
+                            ->first();
+
+                        return $division
+                            ? ($division->division_name1 . (!empty($division->division_short_name) ? ' (' . $division->division_short_name . ')' : ''))
+                            : $record->division_code;
+                    })
+                    ->placeholder('—')
+                    ->searchable()
+                    ->wrap()
+                    ->extraCellAttributes(['class' => 'align-top']),
 
                 TextColumn::make('submitted_at')
                     ->label('Submission Date')
@@ -354,7 +433,9 @@ class ComplyingOfficesRelationManager extends RelationManager
                         return $state ? Carbon::parse($state)->format('M d, Y') : 'Not Submitted';
                     })
                     ->sortable()
-                    ->searchable(),
+                    ->searchable()
+                    ->extraCellAttributes(['class' => 'align-top']),
+
                 TextColumn::make('status')
                     ->label('Compliance Status')
                     ->formatStateUsing(function ($state) {
@@ -370,7 +451,8 @@ class ComplyingOfficesRelationManager extends RelationManager
                         'danger' => '-1',
                         'warning' => '0',
                         'success' => '1',
-                    ]),
+                    ])
+                    ->extraCellAttributes(['class' => 'align-top']),
 
                 TextColumn::make('validation_status')
                     ->label('Validation Status')
@@ -390,20 +472,26 @@ class ComplyingOfficesRelationManager extends RelationManager
                     ])
                     ->html()
                     ->sortable()
-                    ->searchable(),
+                    ->searchable()
+                    ->extraCellAttributes(['class' => 'align-top']),
 
                 TextColumn::make('validated_at')
                     ->label('Validation Date & Time')
                     ->dateTime('M d, Y h:i A')
-                    ->sortable(),
+                    ->sortable()
+                    ->extraCellAttributes(['class' => 'align-top']),
+
                 TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->extraCellAttributes(['class' => 'align-top']),
+
                 TextColumn::make('updated_at')
                     ->dateTime()
                     ->sortable()
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->extraCellAttributes(['class' => 'align-top']),
             ])
             ->defaultSort('created_at', 'desc')
             ->filters([
@@ -424,6 +512,33 @@ class ComplyingOfficesRelationManager extends RelationManager
                         'returned'       => 'Returned',
                         'validated'      => 'Validated',
                     ]),
+
+                SelectFilter::make('division_code')
+                    ->label('Division')
+                    ->options(function () {
+                        $record = $this->getOwnerRecord();
+
+                        // Get all division_codes used in this requirement's complying offices
+                        $divisionCodes = ComplyingOffice::where('required_document_id', $record->id)
+                            ->whereNotNull('division_code')
+                            ->pluck('division_code')
+                            ->unique()
+                            ->toArray();
+
+                        if (empty($divisionCodes)) return [];
+
+                        return DB::connection('mysql2')
+                            ->table('fms.divisions')
+                            ->whereIn('division_code', $divisionCodes)
+                            ->orderBy('division_name1')
+                            ->get()
+                            ->mapWithKeys(fn ($d) => [
+                                $d->division_code => $d->division_name1 .
+                                    (!empty($d->division_short_name) ? ' (' . $d->division_short_name . ')' : '')
+                            ])
+                            ->toArray();
+                    })
+                    ->visible(fn () => $this->getOwnerRecord()->requires_division_tracking),
             ], 
             )
             
@@ -440,117 +555,305 @@ class ComplyingOfficesRelationManager extends RelationManager
                 // AssociateAction::make(),
             ])
             ->recordActions([
-                Action::make('notify_office')
-                    ->label(fn () => $this->getOwnerRecord()->fresh()->last_notified_at
-                        ? 'Notified'
-                        : 'Notify Office')
-                    ->color(fn () => $this->getOwnerRecord()->fresh()->last_notified_at
-                        ? 'success'
-                        : 'warning')
-                    ->icon(fn () => $this->getOwnerRecord()->fresh()->last_notified_at
-                        ? 'heroicon-o-check-circle'
-                        : 'heroicon-o-envelope')
-                    ->disabled(fn () => (bool) $this->getOwnerRecord()->fresh()->last_notified_at)
+                // Action::make('notify_office')
+                //     ->label(fn () => $this->getOwnerRecord()->fresh()->last_notified_at
+                //         ? 'Notified'
+                //         : 'Notify Office')
+                //     ->color(fn () => $this->getOwnerRecord()->fresh()->last_notified_at
+                //         ? 'success'
+                //         : 'warning')
+                //     ->icon(fn () => $this->getOwnerRecord()->fresh()->last_notified_at
+                //         ? 'heroicon-o-check-circle'
+                //         : 'heroicon-o-envelope')
+                //     ->disabled(fn () => (bool) $this->getOwnerRecord()->fresh()->last_notified_at)
                     
-                    ->action(function () {
+                //     ->action(function () {
+                //         $user = auth()->user();
+                //         $requirement = $this->getOwnerRecord();
+
+                //         Log::info("Notify Office button clicked", [
+                //             'triggered_by'             => $user->name,
+                //             'triggered_by_email'       => $user->email,
+                //             'triggered_by_department'  => $user->department_code,
+                //             'requirement_id'           => $requirement->id,
+                //             'requirement_name'         => $requirement->requirement,
+                //             'due_date'                 => $requirement->due_date,
+                //             'timestamp'                => now()
+                //         ]);
+
+                //         $complyingOffices = ComplyingOffice::where('required_document_id', $requirement->id)
+                //             ->where('status', '!=', 1)
+                //             ->get();
+
+                //         $totalOfficesNotified = 0;
+                //         $totalEmailsSent = 0;
+                //         $skippedUsers = [];
+
+                //         $departmentCodes = $complyingOffices->pluck('department_code')->unique();
+                //         $officeMap = Office::whereIn('department_code', $departmentCodes)
+                //             ->pluck('office', 'department_code');
+
+                //         foreach ($complyingOffices as $office) {
+                //             $users = User::where('department_code', $office->department_code)->get();
+                //             $officeName = $officeMap[$office->department_code] ?? $office->department_code;
+
+                //             foreach ($users as $targetUser) {
+                //                 if ($targetUser->roles->isEmpty()) {
+                //                     $skippedUsers[] = ['user' => $targetUser->name, 'email' => $targetUser->email, 'reason' => 'No roles assigned'];
+                //                     continue;
+                //                 }
+
+                //                 if (empty($targetUser->email) || !filter_var($targetUser->email, FILTER_VALIDATE_EMAIL)) {
+                //                     $skippedUsers[] = ['user' => $targetUser->name, 'email' => $targetUser->email, 'reason' => 'Invalid or empty email'];
+                //                     continue;
+                //                 }
+
+                //                 if ($requirement->is_confidential && !$targetUser->can('ViewConfidential:RequiredDocument')) {
+                //                     $skippedUsers[] = ['user' => $targetUser->name, 'email' => $targetUser->email, 'reason' => 'No permission for confidential document'];
+                //                     continue;
+                //                 }
+
+                //                 $officeName = $officeMap[$targetUser->department_code] ?? $targetUser->department_code;
+
+                //                 Mail::to($targetUser->email)
+                //                     ->send(new DueDateReminderMail($requirement, $targetUser, $officeName));
+
+                //                 AuditLog::create([
+                //                     'event'                 => 'requirement notification sent 1',
+                //                     'user_id'               => $targetUser->recid,
+                //                     'acted_by'              => $user->recid ?? $user->id,
+                //                     'action_at'             => now(),
+                //                     'requirement_id'        => $requirement->id,
+                //                     'requirement_name'      => $requirement->requirement,
+                //                     'complying_office_id'   => $office->id,
+                //                     ...AuditLogger::resolveDivisionData($office),
+                //                     'office_name'           => $officeName,
+                //                     'requiring_agency_name' => $requirement->agency_name,
+                //                     'remarks'               => "Manual notification sent to {$targetUser->email} by {$user->name}",
+                //                 ]);
+
+                //                 $totalEmailsSent++;
+                //                 sleep(1);
+                //             }
+
+                //             if ($users->count() > 0) {
+                //                 $totalOfficesNotified++;
+                //             }
+                //         }
+                //         foreach ($complyingOffices as $office) {
+                //             // Look up which divisions (if any) are required for THIS office
+                //             // on THIS requirement, via the required_document_divisions pivot.
+                //             $requiredDivisionCodes = RequiredDocumentDivision::where('required_document_id', $requirement->id)
+                //                 ->where('department_code', $office->department_code)
+                //                 ->pluck('division_code');
+
+                //             $usersQuery = User::where('department_code', $office->department_code);
+
+                //             if ($requiredDivisionCodes->isNotEmpty()) {
+                //                 // Division-scoped: only notify users assigned to one of these divisions
+                //                 $eligibleUserIds = DB::connection('mysql')
+                //                     ->table('user_divisions')
+                //                     ->where('department_code', $office->department_code)
+                //                     ->whereIn('division_code', $requiredDivisionCodes)
+                //                     ->pluck('user_id');
+
+                //                 $usersQuery->whereIn('recid', $eligibleUserIds);
+                //             }
+                //             // else: whole-office requirement, notify entire department as before
+
+                //             $users = $usersQuery->get();
+                //             $officeName = $officeMap[$office->department_code] ?? $office->department_code;
+
+                //             foreach ($users as $targetUser) {
+                //                 if ($targetUser->roles->isEmpty()) {
+                //                     $skippedUsers[] = ['user' => $targetUser->name, 'email' => $targetUser->email, 'reason' => 'No roles assigned'];
+                //                     continue;
+                //                 }
+
+                //                 if (empty($targetUser->email) || !filter_var($targetUser->email, FILTER_VALIDATE_EMAIL)) {
+                //                     $skippedUsers[] = ['user' => $targetUser->name, 'email' => $targetUser->email, 'reason' => 'Invalid or empty email'];
+                //                     continue;
+                //                 }
+
+                //                 if ($requirement->is_confidential && !$targetUser->can('ViewConfidential:RequiredDocument')) {
+                //                     $skippedUsers[] = ['user' => $targetUser->name, 'email' => $targetUser->email, 'reason' => 'No permission for confidential document'];
+                //                     continue;
+                //                 }
+
+                //                 $officeName = $officeMap[$targetUser->department_code] ?? $targetUser->department_code;
+
+                //                 Mail::to($targetUser->email)
+                //                     ->send(new DueDateReminderMail($requirement, $targetUser, $officeName));
+
+                //                 AuditLog::create([
+                //                     'event'                 => 'requirement notification sent 1',
+                //                     'user_id'               => $targetUser->recid,
+                //                     'acted_by'              => $user->recid ?? $user->id,
+                //                     'action_at'             => now(),
+                //                     'requirement_id'        => $requirement->id,
+                //                     'requirement_name'      => $requirement->requirement,
+                //                     'complying_office_id'   => $office->id,
+                //                     ...AuditLogger::resolveDivisionData($office),
+                //                     'office_name'           => $officeName,
+                //                     'requiring_agency_name' => $requirement->agency_name,
+                //                     'remarks'               => "Manual notification sent to {$targetUser->email} by {$user->name}",
+                //                 ]);
+
+                //                 $totalEmailsSent++;
+                //                 sleep(1);
+                //             }
+
+                //             if ($users->count() > 0) {
+                //                 $totalOfficesNotified++;
+                //             }
+                //         }
+
+                //         Log::info("Notify Office notification completed", [
+                //             'requirement_id'           => $requirement->id,
+                //             'requirement_name'         => $requirement->requirement,
+                //             'offices_notified'         => $totalOfficesNotified,
+                //             'total_offices_processed'  => $complyingOffices->count(),
+                //             'emails_sent'              => $totalEmailsSent,
+                //             'users_skipped'            => $skippedUsers,
+                //             'triggered_by'             => $user->name,
+                //             'triggered_by_email'       => $user->email,
+                //             'timestamp'                => now()
+                //         ]);
+
+                //         if ($totalEmailsSent > 0) {
+                //             $requirement->update(['last_notified_at' => now()]);
+
+                //             Notification::make()
+                //                 ->title("Notification Sent")
+                //                 ->body("Successfully sent {$totalEmailsSent} email(s) to {$totalOfficesNotified} office(s).")
+                //                 ->success()
+                //                 ->send();
+
+                //                 $this->dispatch('$refresh');
+                //         } else {
+                //             Notification::make()
+                //                 ->title("No Notifications Sent")
+                //                 ->body("No eligible offices or users found to notify.")
+                //                 ->warning()
+                //                 ->send();
+                //         }
+                //     }),
+                Action::make('notify_office')
+                    ->label(fn ($record) => $record->last_notified_at ? 'Notified' : 'Notify Office')
+                    ->color(fn ($record) => $record->last_notified_at ? 'success' : 'warning')
+                    ->icon(fn ($record) => $record->last_notified_at ? 'heroicon-o-check-circle' : 'heroicon-o-envelope')
+                    ->disabled(fn ($record) => (bool) $record->last_notified_at)
+
+                    ->action(function ($record) {
                         $user = auth()->user();
-                        $requirement = $this->getOwnerRecord();
+                        $requirement = $this->getOwnerRecord(); // used only for requirement-level data
+                        $office = $record; // the specific ComplyingOffice row (this office/division)
 
                         Log::info("Notify Office button clicked", [
-                            'triggered_by'             => $user->name,
-                            'triggered_by_email'       => $user->email,
-                            'triggered_by_department'  => $user->department_code,
-                            'requirement_id'           => $requirement->id,
-                            'requirement_name'         => $requirement->requirement,
-                            'due_date'                 => $requirement->due_date,
-                            'timestamp'                => now()
+                            'triggered_by'            => $user->name,
+                            'triggered_by_email'      => $user->email,
+                            'triggered_by_department' => $user->department_code,
+                            'requirement_id'          => $requirement->id,
+                            'requirement_name'        => $requirement->requirement,
+                            'complying_office_id'     => $office->id,
+                            'due_date'                => $requirement->due_date,
+                            'timestamp'               => now(),
                         ]);
 
-                        $complyingOffices = ComplyingOffice::where('required_document_id', $requirement->id)
-                            ->where('status', '!=', 1)
-                            ->get();
+                        // Division scoping: pull required divisions for THIS office's department
+                        $requiredDivisionCodes = RequiredDocumentDivision::where('required_document_id', $requirement->id)
+                            ->where('department_code', $office->department_code)
+                            ->pluck('division_code');
 
-                        $totalOfficesNotified = 0;
+                        $usersQuery = User::where('department_code', $office->department_code);
+
+                        // If this row itself is division-tagged, narrow to that division specifically.
+                        // Otherwise fall back to the requirement's full division list (if any),
+                        // else notify the whole department.
+                        if (!empty($office->division_code)) {
+                            $eligibleUserIds = DB::connection('mysql')
+                                ->table('user_divisions')
+                                ->where('department_code', $office->department_code)
+                                ->where('division_code', $office->division_code)
+                                ->pluck('user_id');
+
+                            $usersQuery->whereIn('recid', $eligibleUserIds);
+                        } elseif ($requiredDivisionCodes->isNotEmpty()) {
+                            $eligibleUserIds = DB::connection('mysql')
+                                ->table('user_divisions')
+                                ->where('department_code', $office->department_code)
+                                ->whereIn('division_code', $requiredDivisionCodes)
+                                ->pluck('user_id');
+
+                            $usersQuery->whereIn('recid', $eligibleUserIds);
+                        }
+
+                        $users = $usersQuery->get();
+                        $officeName = Office::where('department_code', $office->department_code)->value('office') ?? $office->department_code;
+
                         $totalEmailsSent = 0;
                         $skippedUsers = [];
 
-                        $departmentCodes = $complyingOffices->pluck('department_code')->unique();
-                        $officeMap = Office::whereIn('department_code', $departmentCodes)
-                            ->pluck('office', 'department_code');
-
-                        foreach ($complyingOffices as $office) {
-                            $users = User::where('department_code', $office->department_code)->get();
-                            $officeName = $officeMap[$office->department_code] ?? $office->department_code;
-
-                            foreach ($users as $targetUser) {
-                                if ($targetUser->roles->isEmpty()) {
-                                    $skippedUsers[] = ['user' => $targetUser->name, 'email' => $targetUser->email, 'reason' => 'No roles assigned'];
-                                    continue;
-                                }
-
-                                if (empty($targetUser->email) || !filter_var($targetUser->email, FILTER_VALIDATE_EMAIL)) {
-                                    $skippedUsers[] = ['user' => $targetUser->name, 'email' => $targetUser->email, 'reason' => 'Invalid or empty email'];
-                                    continue;
-                                }
-
-                                if ($requirement->is_confidential && !$targetUser->can('ViewConfidential:RequiredDocument')) {
-                                    $skippedUsers[] = ['user' => $targetUser->name, 'email' => $targetUser->email, 'reason' => 'No permission for confidential document'];
-                                    continue;
-                                }
-
-                                $officeName = $officeMap[$targetUser->department_code] ?? $targetUser->department_code;
-
-                                Mail::to($targetUser->email)
-                                    ->send(new DueDateReminderMail($requirement, $targetUser, $officeName));
-
-                                AuditLog::create([
-                                    'event'                 => 'requirement notification sent 1',
-                                    'user_id'               => $targetUser->recid,
-                                    'acted_by'              => $user->recid ?? $user->id,
-                                    'action_at'             => now(),
-                                    'requirement_id'        => $requirement->id,
-                                    'requirement_name'      => $requirement->requirement,
-                                    'complying_office_id'   => $office->id,
-                                    'office_name'           => $officeName,
-                                    'requiring_agency_name' => $requirement->agency_name,
-                                    'remarks'               => "Manual notification sent to {$targetUser->email} by {$user->name}",
-                                ]);
-
-                                $totalEmailsSent++;
-                                sleep(1);
+                        foreach ($users as $targetUser) {
+                            if ($targetUser->roles->isEmpty()) {
+                                $skippedUsers[] = ['user' => $targetUser->name, 'email' => $targetUser->email, 'reason' => 'No roles assigned'];
+                                continue;
                             }
 
-                            if ($users->count() > 0) {
-                                $totalOfficesNotified++;
+                            if (empty($targetUser->email) || !filter_var($targetUser->email, FILTER_VALIDATE_EMAIL)) {
+                                $skippedUsers[] = ['user' => $targetUser->name, 'email' => $targetUser->email, 'reason' => 'Invalid or empty email'];
+                                continue;
                             }
+
+                            if ($requirement->is_confidential && !$targetUser->can('ViewConfidential:RequiredDocument')) {
+                                $skippedUsers[] = ['user' => $targetUser->name, 'email' => $targetUser->email, 'reason' => 'No permission for confidential document'];
+                                continue;
+                            }
+
+                            Mail::to($targetUser->email)
+                                ->send(new DueDateReminderMail($requirement, $targetUser, $officeName));
+
+                            AuditLog::create([
+                                'event'                 => 'requirement notification sent 1',
+                                'user_id'               => $targetUser->recid,
+                                'acted_by'              => $user->recid ?? $user->id,
+                                'action_at'             => now(),
+                                'requirement_id'        => $requirement->id,
+                                'requirement_name'      => $requirement->requirement,
+                                'complying_office_id'   => $office->id,
+                                ...AuditLogger::resolveDivisionData($office),
+                                'office_name'           => $officeName,
+                                'requiring_agency_name' => $requirement->agency_name,
+                                'remarks'               => "Manual notification sent to {$targetUser->email} by {$user->name}",
+                            ]);
+
+                            $totalEmailsSent++;
+                            sleep(1);
                         }
 
                         Log::info("Notify Office notification completed", [
-                            'requirement_id'           => $requirement->id,
-                            'requirement_name'         => $requirement->requirement,
-                            'offices_notified'         => $totalOfficesNotified,
-                            'total_offices_processed'  => $complyingOffices->count(),
-                            'emails_sent'              => $totalEmailsSent,
-                            'users_skipped'            => $skippedUsers,
-                            'triggered_by'             => $user->name,
-                            'triggered_by_email'       => $user->email,
-                            'timestamp'                => now()
+                            'requirement_id'      => $requirement->id,
+                            'complying_office_id' => $office->id,
+                            'emails_sent'         => $totalEmailsSent,
+                            'users_skipped'       => $skippedUsers,
+                            'triggered_by'        => $user->name,
+                            'timestamp'           => now(),
                         ]);
 
                         if ($totalEmailsSent > 0) {
-                            $requirement->update(['last_notified_at' => now()]);
+                            $office->update(['last_notified_at' => now()]); // ← updates THIS row only
 
                             Notification::make()
                                 ->title("Notification Sent")
-                                ->body("Successfully sent {$totalEmailsSent} email(s) to {$totalOfficesNotified} office(s).")
+                                ->body("Successfully sent {$totalEmailsSent} email(s).")
                                 ->success()
                                 ->send();
 
-                                $this->dispatch('$refresh');
+                            $this->dispatch('$refresh');
                         } else {
                             Notification::make()
                                 ->title("No Notifications Sent")
-                                ->body("No eligible offices or users found to notify.")
+                                ->body("No eligible users found to notify.")
                                 ->warning()
                                 ->send();
                         }

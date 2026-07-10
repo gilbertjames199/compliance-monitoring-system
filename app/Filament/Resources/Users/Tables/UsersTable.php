@@ -3,6 +3,8 @@
 namespace App\Filament\Resources\Users\Tables;
 
 use App\Models\Office;
+use App\Models\Pis\Division;
+use App\Models\UserDivision;
 use Dom\Text;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
@@ -74,10 +76,49 @@ class UsersTable
                             : $state;
                     })
                     ->extraCellAttributes(['class' => 'align-top']),
-                TextColumn::make('Designation')
-                    ->label('Designation')
-                    ->searchable()
-                    ->extraCellAttributes(['class' => 'align-top']),
+                    
+                // TextColumn::make('Designation')
+                //     ->label('Designation')
+                //     ->searchable()
+                //     ->extraCellAttributes(['class' => 'align-top']),
+                TextColumn::make('divisions')
+                    ->label('Division(s)')
+                    ->badge()
+                    ->state(function ($record) {
+                        $divisionCodes = UserDivision::where('user_id', $record->recid)
+                            ->pluck('division_code')
+                            ->toArray();
+
+                        if (empty($divisionCodes)) {
+                            return [];
+                        }
+
+                        return Division::whereIn('division_code', $divisionCodes)
+                            ->get()
+                            ->map(fn ($d) => $d->division_name1 . (!empty($d->division_short_name) ? " ({$d->division_short_name})" : ''))
+                            ->toArray(); // array, not imploded string
+                    })
+                    ->limitList(2) // shows first 2 badges + "+N more" expandable
+                    ->expandableLimitedList()
+                    ->searchable(query: function (Builder $query, string $search) {
+                        $divisionCodes = Division::where('division_name1', 'like', "%{$search}%")
+                            ->orWhere('division_short_name', 'like', "%{$search}%")
+                            ->pluck('division_code')
+                            ->toArray();
+
+                        if (empty($divisionCodes)) {
+                            return $query->whereRaw('1 = 0');
+                        }
+
+                        $userIds = UserDivision::whereIn('division_code', $divisionCodes)
+                            ->pluck('user_id')
+                            ->toArray();
+
+                        return $query->whereIn('recid', $userIds);
+                    })
+                    ->extraCellAttributes(['class' => 'align-top'])
+                    ->wrap(),
+
                 TextColumn::make('roles.name')
                     ->label('Role')
                     ->badge()
@@ -118,6 +159,25 @@ class UsersTable
                             ->toArray()
                     )
                     ->searchable(),
+
+                SelectFilter::make('division')
+                    ->label('Division')
+                    ->options(fn () => Division::orderBy('division_name1')
+                        ->get()
+                        ->mapWithKeys(fn ($d) => [
+                            $d->division_code => $d->division_name1 . (!empty($d->division_short_name) ? " ({$d->division_short_name})" : ''),
+                        ])
+                        ->toArray())
+                    ->searchable()
+                    ->query(function (Builder $query, array $data) {
+                        if (empty($data['value'])) return;
+
+                        $userIds = UserDivision::where('division_code', $data['value'])
+                            ->pluck('user_id')
+                            ->toArray();
+
+                        $query->whereIn('recid', $userIds);
+                    }),
 
                 // Designation filter
                 SelectFilter::make('Designation')

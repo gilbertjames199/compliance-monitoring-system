@@ -5,17 +5,19 @@ namespace App\Jobs;
 use App\Mail\DueDateReminderMail;
 use App\Models\AuditLog;
 use App\Models\ComplyingOffice;
+use App\Models\Office;
 use App\Models\RequiredDocument;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
+use App\Services\AuditLogger;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Facades\Cache;
 
 class SendRequirementNotification implements ShouldQueue
 {
@@ -144,6 +146,7 @@ class SendRequirementNotification implements ShouldQueue
                     'requirement_id'         => $record->id,
                     'requirement_name'       => $record->requirement,
                     'complying_office_id'    => $complyingOffice?->id,
+                    ...AuditLogger::resolveDivisionData($complyingOffice),
                     'office_name'            => $officeMap[$user->department_code] ?? $user->department_code,
                     'requiring_agency_name'  => $record->agency_name,
                     'remarks'                => "Notification email sent to {$user->email}",
@@ -187,7 +190,7 @@ class SendRequirementNotification implements ShouldQueue
                 ->pluck('department_code')
                 ->unique();
 
-            $officeNames = \App\Models\Office::whereIn('department_code', $departmentCodes)
+            $officeNames = Office::whereIn('department_code', $departmentCodes)
                 ->pluck('office', 'department_code');
 
             $complyingOfficeMap = $document->complyingOffices->keyBy('department_code');
@@ -282,6 +285,7 @@ class SendRequirementNotification implements ShouldQueue
                         'requirement_id'         => $document->id,
                         'requirement_name'       => $document->requirement,
                         'complying_office_id'    => $complyingOffice?->id,
+                        ...AuditLogger::resolveDivisionData($complyingOffice),
                         'office_name'            => $officeName,
                         'requiring_agency_name'  => $document->agency_name,
                         'remarks'                => "Due date reminder sent to {$user->email}. Due on {$document->due_date->format('M d, Y')}.",

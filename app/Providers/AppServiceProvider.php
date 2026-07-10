@@ -81,6 +81,9 @@ class AppServiceProvider extends ServiceProvider
             annotationColor: '#f97316',
             annotationMode: false,
             draggingAnnotation: null,
+            activeAnnotationId: null,
+            hoveredAnnotationId: null,
+            annotationDragMoved: false,
             previewMode: 'fallback',
             init(filesJson, threadsJson, draftsJson, annotationsJson, viewStatesJson) {
                 window.__attachmentPreviewState = window.__attachmentPreviewState || {};
@@ -409,6 +412,33 @@ class AppServiceProvider extends ServiceProvider
             isDraggingAnnotation(annotationId) {
                 return this.draggingAnnotation?.id === annotationId;
             },
+
+            isAnnotationActive(annotationId) {
+                return this.activeAnnotationId === annotationId || this.hoveredAnnotationId === annotationId;
+            },
+            toggleAnnotationActive(annotationId) {
+                // A click fires right after mouseup even when the user was dragging.
+                // Swallow that one click so a drag doesn't also toggle the popover.
+                if (this.annotationDragMoved) {
+                    this.annotationDragMoved = false;
+                    return;
+                }
+
+                this.activeAnnotationId = this.activeAnnotationId === annotationId ? null : annotationId;
+            },
+            hoverAnnotation(annotationId) {
+                this.hoveredAnnotationId = annotationId;
+            },
+            unhoverAnnotation(annotationId) {
+                if (this.hoveredAnnotationId === annotationId) {
+                    this.hoveredAnnotationId = null;
+                }
+            },
+            shouldFlipAnnotation(annotation) {
+                return this.clampPercent(annotation?.x) > 70;
+            },
+
+
             canDeleteAnnotation(annotation) {
                 if (!this.annotationEditable) {
                     return false;
@@ -431,6 +461,7 @@ class AppServiceProvider extends ServiceProvider
                     return;
                 }
 
+                this.annotationDragMoved = false;
                 this.draggingAnnotation = {
                     id: annotationId,
                     page: Math.max(1, Number(pageNumber || 1)),
@@ -449,6 +480,8 @@ class AppServiceProvider extends ServiceProvider
                 if (!rect.width || !rect.height) {
                     return;
                 }
+
+                this.annotationDragMoved = true;
 
                 const nextX = this.clampPercent(((event.clientX - rect.left) / rect.width) * 100);
                 const nextY = this.clampPercent(((event.clientY - rect.top) / rect.height) * 100);
@@ -552,6 +585,8 @@ class AppServiceProvider extends ServiceProvider
                 this.annotationMode = false;
                 this.annotationDraft = '';
                 this.draggingAnnotation = null;
+                this.activeAnnotationId = null;
+                this.hoveredAnnotationId = null;
                 this.applyActiveViewState();
                 await this.loadActiveFile();
             },

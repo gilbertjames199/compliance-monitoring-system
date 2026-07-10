@@ -15,19 +15,19 @@ Artisan::command('inspire', function () {
 //     ->withoutOverlapping();
 // Handled by supervisor due-date-reminders
 
-Schedule::call(function () {
-    RequiredDocument::where('is_recurring', true)
-        ->whereNotNull('recurrence_type')
-        ->each(function ($record) {
-            CreateRecurringDocuments::dispatch(
-                $record,
-                $record->recurrence_type,
-                $record->recurrence_interval
-            );
-        });
-})
-->everyFiveSeconds()
-->name('create-recurring-documents')
-->withoutOverlapping();
+// Schedule::call(function () {
+//     RequiredDocument::where('is_recurring', true)
+//         ->whereNotNull('recurrence_type')
+//         ->each(function ($record) {
+//             CreateRecurringDocuments::dispatch(
+//                 $record,
+//                 $record->recurrence_type,
+//                 $record->recurrence_interval
+//             );
+//         });
+// })
+// ->everyFiveSeconds()
+// ->name('create-recurring-documents')
+// ->withoutOverlapping();
 
 Schedule::command('compliance:send-reminders')->dailyAt('08:00');

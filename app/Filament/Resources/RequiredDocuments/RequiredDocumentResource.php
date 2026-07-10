@@ -112,7 +112,7 @@ class RequiredDocumentResource extends Resource
 
     public static function getModel(): string
     {
-        return \App\Models\RequiredDocument::class;
+        return RequiredDocument::class;
     }
 
 }

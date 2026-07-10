@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Models\ComplyingOffice;
 use App\Models\Office;
 use App\Models\User;
+use App\Services\AuditLogger;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -181,6 +182,7 @@ class SendComplianceReminders extends Command
                         'requirement_id'        => $complyingOffice->required_document_id,
                         'requirement_name'      => $document->requirement,
                         'complying_office_id'   => $complyingOffice->id,
+                        ...(array) AuditLogger::resolveDivisionData($complyingOffice),
                         'office_name'           => $officeName,
                         'requiring_agency_name' => $document->agency_name,
                         'user_id'               => $recipient->recid,

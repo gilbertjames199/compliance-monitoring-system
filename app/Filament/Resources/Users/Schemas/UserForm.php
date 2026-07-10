@@ -4,14 +4,15 @@ namespace App\Filament\Resources\Users\Schemas;
 
 use App\Models\Office;
 use App\Models\Permission;
+use App\Models\UserDivision;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
-
-//FILAMENT
 use Filament\Schemas\Components\Form;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Facades\DB;
 
 class UserForm
 {
@@ -68,6 +69,7 @@ class UserForm
                     ->searchable()
                     ->preload(),
 
+
                 Select::make('accessible_department_codes')
                     ->label('Additional Office Access')
                     ->options(
@@ -101,6 +103,38 @@ class UserForm
                                 ->toArray()
                         );
                     }),
+
+                Select::make('division_codes')
+                    ->label('Division(s)')
+                    ->multiple()
+                    ->options(function (Get $get) {
+                        $deptCode = $get('department_code');
+                        if (!$deptCode) return [];
+
+                        return DB::connection('mysql2')
+                            ->table('fms.divisions')
+                            ->where('department_code', $deptCode)
+                            ->orderBy('division_name1')
+                            ->get()
+                            ->mapWithKeys(fn ($d) => [
+                                $d->division_code => $d->division_name1 .
+                                    (!empty($d->division_short_name) ? ' (' . $d->division_short_name . ')' : '')
+                            ])
+                            ->toArray();
+                    })
+                    ->searchable()
+                    ->live()
+                    ->helperText('Assign which division(s) this user belongs to.')
+                    ->afterStateHydrated(function ($component, $record) {
+                        if (!$record) return;
+                        $component->state(
+                            UserDivision::where('user_id', $record->recid)
+                                ->pluck('division_code')
+                                ->toArray()
+                        );
+                    })
+                    ->dehydrated(true)
+                    ->columnSpanFull(),
 
                 TextInput::make('UserName')
                     ->required(fn ($livewire, $record) => !$record),

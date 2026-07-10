@@ -2,7 +2,6 @@
 
 namespace App\Filament\Resources\RequiredDocuments\Tables;
 
-use App\Models\DocumentCategory;
 use App\Models\Office;
 use App\Models\RequiredDocument;
 use App\Support\FilamentAttachmentPreview;
@@ -26,6 +25,7 @@ use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Grouping\Group;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 
 
 class RequiredDocumentsTable 
@@ -57,32 +57,51 @@ class RequiredDocumentsTable
                     return;
                 }
 
-                // if ($user->department_code == 25 && $user->hasRoleSafe('department_head')) {
-                //     return;
-                // }
-                 // ✅ 2. Users with permission → see everything
+                // ✅ 2. Users with ViewAllOffices permission → see everything
                 if ($user->can('ViewAllOffices:RequiredDocument')) {
                     return;
                 }
 
-                // Only show records where the requiring agency matches the user's office name
-                // $query->where('agency_name', $user->office->office);
-                // ✅ 3. Others → ONLY see their own requiring agency
-                $officeName = Office::on('mysql2') // if cross-database
+                $officeName = Office::on('mysql2')
                     ->where('department_code', $user->department_code)
-                    ->value('office'); // just get the office name as string
+                    ->value('office');
 
-                // $query->where('agency_name', $officeName);
+                $userDivisionCode = $user->division_code ?? null;
 
-                // ✅ ONLY filter by requiring agency
-                $query->where('agency_name', $officeName);
-                
-                // ✅ 4. Apply confidentiality restriction if the user cannot view confidential
-                // Only show non-confidential if the user cannot view confidential documents
+                // ✅ 3. Apply confidentiality restriction
                 if (! $user->can('ViewConfidential:RequiredDocument')) {
                     $query->where('is_confidential', false);
                 }
-                
+
+                // ✅ 4. Show documents where:
+                //    (a) user's office is the REQUIRING AGENCY, OR
+                //    (b) user's office is a COMPLYING OFFICE and passes division check
+                $query->where(function ($q) use ($user, $officeName, $userDivisionCode) {
+
+                    // (a) Requiring agency sees their own documents
+                    $q->where('agency_name', $officeName)
+
+                    // (b) OR assigned as a complying office
+                    ->orWhere(function ($q2) use ($user, $userDivisionCode) {
+                        $q2->whereHas('complyingOffices', function ($coq) use ($user) {
+                            $coq->where('department_code', $user->department_code);
+                        })
+                        ->where(function ($divQ) use ($user, $userDivisionCode) {
+                            // No divisions specified for this office → whole office sees it
+                            $divQ->where(function ($noDiv) use ($user) {
+                                $noDiv->where('requires_division_tracking', false)
+                                    ->orWhereDoesntHave('requiredDocumentDivisions', function ($dq) use ($user) {
+                                        $dq->where('department_code', $user->department_code);
+                                    });
+                            })
+                            // OR divisions specified → user must be in one
+                            ->orWhereHas('requiredDocumentDivisions', function ($dq) use ($user, $userDivisionCode) {
+                                $dq->where('department_code', $user->department_code)
+                                ->where('division_code', $userDivisionCode);
+                            });
+                        });
+                    });
+                });
             })
             // ->defaultGroup('agency_name')
             // 🔹 Add grouping by requiring agency (optional but helpful)
@@ -154,6 +173,30 @@ class RequiredDocumentsTable
                             ->implode('');
                     })
                     ->extraAttributes(['class' => 'whitespace-normal']),
+
+                TextColumn::make('requiredDocumentDivisions.division_code')
+                    ->label('Required Divisions')
+                    ->badge()
+                    ->separator(',')
+                    ->getStateUsing(function ($record) {
+                        return $record->requiredDocumentDivisions
+                            ->map(function ($d) {
+                                // Try to get the division name from mysql2
+                                $division = DB::connection('mysql2')
+                                    ->table('fms.divisions')
+                                    ->where('division_code', $d->division_code)
+                                    ->first();
+
+                                return $division
+                                    ? ($division->division_short_name ?? $division->division_name1)
+                                    : $d->division_code;
+                            })
+                            ->toArray();
+                    })
+                    ->visible(fn () => true)
+                    ->toggleable(isToggledHiddenByDefault: true)
+                    ->extraCellAttributes(['class' => 'align-top']),
+                    
                 IconColumn::make('is_confidential')
                     ->label('Confidential')
                     ->boolean()
@@ -188,8 +231,18 @@ class RequiredDocumentsTable
                     ->alignCenter()
                     ->extraCellAttributes(['class' => 'align-top'])
                     ->getStateUsing(function ($record) {
-                        $total = $record->complyingOffices()->count();
-                        $complied = $record->complyingOffices()
+
+                        $query = $record->complyingOffices();
+
+                        if ($record->requires_division_tracking) {
+                            $query->whereNotNull('division_code');
+                        } else {
+                            $query->whereNull('division_code');
+                        }
+
+                        $total = (clone $query)->count();
+
+                        $complied = (clone $query)
                             ->where('status', 1)
                             ->count();
 
@@ -209,8 +262,18 @@ class RequiredDocumentsTable
                     ->alignCenter()
                     ->extraCellAttributes(['class' => 'align-top'])
                     ->getStateUsing(function ($record) {
-                        $total = $record->complyingOffices()->count();
-                        $validated = $record->complyingOffices()
+
+                        $query = $record->complyingOffices();
+
+                        if ($record->requires_division_tracking) {
+                            $query->whereNotNull('division_code');
+                        } else {
+                            $query->whereNull('division_code');
+                        }
+
+                        $total = (clone $query)->count();
+
+                        $validated = (clone $query)
                             ->where('validation_status', 'validated')
                             ->count();
 
@@ -313,28 +376,6 @@ class RequiredDocumentsTable
                     ]))
                     ->slideOver(),
                 EditAction::make(),
-                // DeleteAction::make()
-                //     ->visible(function ($record) {
-                //         $user = auth()->user();
-
-                //         if ($user->hasRoleSafe('super_admin')) {
-                //             return true;
-                //         }
-
-                //         if ($user->hasRoleSafe('department_head')) {
-                //             $officeName = Office::on('mysql2')
-                //                 ->where('department_code', $user->department_code)
-                //                 ->value('office');
-
-                //             $hasCompliance = $record->complyingOffices()
-                //                 ->whereIn('status', [0, 1])
-                //                 ->exists();
-
-                //             return $record->agency_name === $officeName && !$hasCompliance;
-                //         }
-
-                //         return false;
-                //     }),
                 DeleteAction::make()
                     ->visible(function ($record) {
                         $user = auth()->user();
@@ -734,19 +775,19 @@ class RequiredDocumentsTable
             ]);
     }
     
-    public static function getTableQuery(): Builder
-    {
-        // $query = parent::getTableQuery();
+    // public static function getTableQuery(): Builder
+    // {
+    //     // $query = parent::getTableQuery();
 
-        $user = auth()->user();
-        $departmentCode = $user->department_code ?? null;
-        // dd($user);
-        if ($departmentCode == 25) {
-            return $query; // show all
-        }
+    //     $user = auth()->user();
+    //     $departmentCode = $user->department_code ?? null;
+    //     // dd($user);
+    //     if ($departmentCode == 25) {
+    //         return $query; // show all
+    //     }
 
-        return $query->whereHas('complyingOffices', function ($q) use ($departmentCode) {
-            $q->where('department_code', $departmentCode);
-        });
-    }
+    //     return $query->whereHas('complyingOffices', function ($q) use ($departmentCode) {
+    //         $q->where('department_code', $departmentCode);
+    //     });
+    // }
 }

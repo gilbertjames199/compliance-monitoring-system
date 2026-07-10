@@ -31,10 +31,29 @@ class ValidationStatusChart extends ChartWidget
 
         $query = ComplyingOffice::query();
         $accessibleDepartmentCodes = $user->accessibleDepartmentCodes();
+
+        // Divisions assigned to this user (same helper used in the other compliance widgets)
+        $userDivisionCodes = collect(
+            method_exists($user, 'divisionCodes') ? $user->divisionCodes() : []
+        )->filter()->values();
         
         // 🔒 OFFICE SCOPE
         if (! $user->hasRoleSafe('super_admin')) {
             $query->whereIn('department_code', $accessibleDepartmentCodes);
+
+            // 🔒 DIVISION SCOPING
+            // Only count rows for non-division-tracked requirements, or rows
+            // whose division_code matches one this user is assigned to.
+            $query->where(function ($q) use ($userDivisionCodes) {
+                $q->whereHas('requiredDocument', fn ($rq) =>
+                    $rq->where('requires_division_tracking', false)
+                        ->orWhereNull('requires_division_tracking')
+                );
+
+                if ($userDivisionCodes->isNotEmpty()) {
+                    $q->orWhereIn('division_code', $userDivisionCodes->toArray());
+                }
+            });
         }
 
         // 🔒 CONFIDENTIAL CONTROL

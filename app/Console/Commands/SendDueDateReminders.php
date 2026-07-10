@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Models\Office;
 use App\Models\RequiredDocument;
 use App\Models\User;
+use App\Services\AuditLogger;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
@@ -123,6 +124,7 @@ class SendDueDateReminders extends Command
                                 'requirement_id'        => $document->id,
                                 'requirement_name'      => $document->requirement,
                                 'complying_office_id'   => $complyingOffice?->id,
+                                ...AuditLogger::resolveDivisionData($complyingOffice),
                                 'office_name'           => $officeName,
                                 'requiring_agency_name' => $document->agency_name,
                                 'remarks'               => "Due date reminder sent to {$user->email}. Due on {$document->due_date->format('M d, Y')}.",

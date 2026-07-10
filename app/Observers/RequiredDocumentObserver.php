@@ -24,6 +24,16 @@ class RequiredDocumentObserver
     /**
      * Handle the RequiredDocument "created" event.
      */
+    // public function created(RequiredDocument $requiredDocument): void
+    // {
+    //     $complyingOfficeCodes = $requiredDocument->complyingOffices()->pluck('department_code');
+    //     if ($complyingOfficeCodes->isEmpty()) return;
+
+    //     // Get eligible users (with roles + confidential check)
+    //     $usersQuery = User::whereIn('department_code', $complyingOfficeCodes)
+    //         ->whereHas('roles'); // only users with roles
+
+
     public function created(RequiredDocument $requiredDocument): void
     {
         $complyingOfficeCodes = $requiredDocument->complyingOffices()->pluck('department_code');
@@ -56,6 +66,26 @@ class RequiredDocumentObserver
         }
 
         $users = $usersQuery->get();
+
+        // 🔒 DIVISION SCOPING
+        // For division-tracked requirements, only keep users whose assigned
+        // division actually matches one of this document's complying offices —
+        // same rule CreateRequiredDocument::afterCreate() applies.
+        if ($requiredDocument->requires_division_tracking) {
+            $users = $users->filter(function ($user) use ($requiredDocument) {
+                $userDivisionCodes = method_exists($user, 'divisionCodes') ? $user->divisionCodes() : [];
+
+                if (empty($userDivisionCodes)) {
+                    return false;
+                }
+
+                return $requiredDocument->complyingOffices()
+                    ->where('department_code', $user->department_code)
+                    ->whereIn('division_code', $userDivisionCodes)
+                    ->exists();
+            });
+        }
+
         $actor = auth()->user();
         $actorName = $actor?->FullName ?? $actor?->name ?? 'System';
 

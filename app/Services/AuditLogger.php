@@ -5,6 +5,9 @@ namespace App\Services;
 use App\Models\AuditLog;
 use App\Models\ComplyingOffice;
 use App\Models\Office;
+use App\Models\RequiredDocument;
+use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 class AuditLogger
 {
@@ -53,8 +56,13 @@ class AuditLogger
         }
 
         // Prepare data for audit log
+        $divisionData = self::resolveDivisionData($isDeletion && $hasSnapshot ? null : $office);
+
+        // Prepare data for audit log
         $data = [
             'event'                 => $event,
+            'division_code'         => $divisionData['division_code'],
+            'division_name'         => $divisionData['division_name'],
             'user_id'               => $actor['user_id'],
             'acted_by'              => $actor['acted_by'],
             'action_at'             => now(),
@@ -78,7 +86,7 @@ class AuditLogger
 
     public static function logDocument(
         string $event,
-        \App\Models\RequiredDocument $document,
+        RequiredDocument $document,
         array $old = [],
         array $new = [],
         ?string $remarks = null
@@ -87,6 +95,8 @@ class AuditLogger
 
         AuditLog::create([
             'event'                 => $event,
+            'division_code'         => null,
+            'division_name'         => null,
             'user_id'               => $actor['user_id'],
             'acted_by'              => $actor['acted_by'],
             'action_at'             => now(),
@@ -122,7 +132,7 @@ class AuditLogger
         // Check for impersonation or system user
         $impersonator = session()->get('impersonator_id');
         if ($impersonator) {
-            $impersonatorUser = \App\Models\User::find($impersonator);
+            $impersonatorUser = User::find($impersonator);
             if ($impersonatorUser) {
                 return [
                     'user_id' => $impersonatorUser->recid ?? $impersonatorUser->id,
@@ -137,30 +147,6 @@ class AuditLogger
             'acted_by' => 'System',
         ];
     }
-   
-    /**
-     * Get the FMS office name as a string
-     */
-    // private static function getFmsOfficeName(ComplyingOffice $office): string
-    // {
-    //     // Try to get from required document's agency
-    //     if ($office->requiredDocument && $office->requiredDocument->agency_name) {
-    //         $officeModel = Office::on('mysql2')
-    //             ->where('office', $office->requiredDocument->agency_name)
-    //             ->first();
-           
-    //         if ($officeModel) {
-    //             return self::extractStringValue($officeModel->office);
-    //         }
-    //     }
-       
-    //     // Try through the office relationship
-    //     if ($office->office) {
-    //         return self::extractStringValue($office->office->office);
-    //     }
-       
-    //     return 'Unknown FMS Office';
-    // }
 
     private static function getFmsOfficeName(ComplyingOffice $office): string
     {
@@ -219,5 +205,30 @@ class AuditLogger
         }
        
         return (string) $value;
+    }
+
+    /**
+     * Resolve division_code + a display-ready division_name for a ComplyingOffice,
+     * for denormalized storage on audit_logs (so history doesn't shift if
+     * division names/codes change later).
+     */
+    public static function resolveDivisionData(?ComplyingOffice $office): array
+    {
+        if (!$office || blank($office->division_code)) {
+            return ['division_code' => null, 'division_name' => null];
+        }
+
+        $division = DB::connection('mysql2')
+            ->table('fms.divisions')
+            ->where('department_code', $office->department_code)
+            ->where('division_code', $office->division_code)
+            ->first();
+
+        return [
+            'division_code' => $office->division_code,
+            'division_name' => $division
+                ? $division->division_name1 . (!empty($division->division_short_name) ? " ({$division->division_short_name})" : '')
+                : $office->division_code,
+        ];
     }
 }
