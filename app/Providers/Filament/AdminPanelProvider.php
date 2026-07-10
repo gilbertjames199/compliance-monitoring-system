@@ -3,6 +3,7 @@
 namespace App\Providers\Filament;
 
 use App\Filament\Auth\CustomLogin;
+use App\Http\Middleware\EnsureDivisionIsSelected;
 use App\Models\Office;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use Filament\Actions\Action;
@@ -107,6 +108,7 @@ class AdminPanelProvider extends PanelProvider
         ])
             ->authMiddleware([
                 Authenticate::class,
+                EnsureDivisionIsSelected::class,
             ])
             ->unsavedChangesAlerts()
             ->globalSearchKeyBindings(['command+k', 'ctrl+k'])
