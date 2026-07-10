@@ -22,6 +22,7 @@ use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Livewire\Features\SupportFileUploads\TemporaryUploadedFile;
 
 class ComplyingOfficeForm
 {
@@ -491,6 +492,22 @@ class ComplyingOfficeForm
                                         }
                                     },
                                 ])
+                            // 🔐 Safe, unguessable, collision-free storage name
+                            ->getUploadedFileNameForStorageUsing(
+                                function (TemporaryUploadedFile $file): string {
+                                    $extension = strtolower($file->getClientOriginalExtension());
+
+                                    // Strip the extension off, sanitize what's left, cap length
+                                    $originalName = pathinfo($file->getClientOriginalName(), PATHINFO_FILENAME);
+                                    $safeBase = self::sanitizeFilename($originalName);
+
+                                    // Short random prefix: prevents overwrite collisions + guards
+                                    // against guessable/predictable filenames on a public disk
+                                    $prefix = now()->format('YmdHis') . '_' . Str::random(6);
+
+                                    return "{$prefix}_{$safeBase}.{$extension}";
+                                }
+                            )
                             ->afterStateUpdated(function ($state, $set, $get, $record) {
                                 $user = auth()->user();
                                 if (!empty($state)) {
@@ -729,5 +746,27 @@ class ComplyingOfficeForm
         }
 
         return 'user';
+    }
+
+    protected static function sanitizeFilename(string $name): string
+    {
+        // Collapse to just the basename — blocks ../ and similar traversal payloads
+        $name = basename($name);
+
+        // Strip control chars / null bytes
+        $name = preg_replace('/[\x00-\x1F\x7F]/u', '', $name) ?? $name;
+
+        // Allow only safe characters: letters, numbers, space, dash, underscore, dot
+        $name = preg_replace('/[^A-Za-z0-9 _\-\.]/', '', $name) ?? $name;
+
+        // Collapse whitespace, trim leading/trailing dots/dashes (dotfiles, edge cases)
+        $name = trim(preg_replace('/\s+/', ' ', $name), " .-");
+
+        // Fallback if sanitizing wiped it out entirely (e.g. all-emoji filename)
+        if ($name === '') {
+            $name = 'file';
+        }
+
+        return Str::limit($name, 100, '');
     }
 }
