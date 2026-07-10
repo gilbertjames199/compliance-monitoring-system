@@ -73,35 +73,37 @@ class RequiredDocumentsTable
                     $query->where('is_confidential', false);
                 }
 
-                // ✅ 4. Show documents where:
-                //    (a) user's office is the REQUIRING AGENCY, OR
-                //    (b) user's office is a COMPLYING OFFICE and passes division check
-                $query->where(function ($q) use ($user, $officeName, $userDivisionCode) {
+                // // ✅ 4. Show documents where:
+                // //    (a) user's office is the REQUIRING AGENCY, OR
+                // //    (b) user's office is a COMPLYING OFFICE and passes division check
+                // $query->where(function ($q) use ($user, $officeName, $userDivisionCode) {
 
-                    // (a) Requiring agency sees their own documents
-                    $q->where('agency_name', $officeName)
+                //     // (a) Requiring agency sees their own documents
+                //     $q->where('agency_name', $officeName)
 
-                    // (b) OR assigned as a complying office
-                    ->orWhere(function ($q2) use ($user, $userDivisionCode) {
-                        $q2->whereHas('complyingOffices', function ($coq) use ($user) {
-                            $coq->where('department_code', $user->department_code);
-                        })
-                        ->where(function ($divQ) use ($user, $userDivisionCode) {
-                            // No divisions specified for this office → whole office sees it
-                            $divQ->where(function ($noDiv) use ($user) {
-                                $noDiv->where('requires_division_tracking', false)
-                                    ->orWhereDoesntHave('requiredDocumentDivisions', function ($dq) use ($user) {
-                                        $dq->where('department_code', $user->department_code);
-                                    });
-                            })
-                            // OR divisions specified → user must be in one
-                            ->orWhereHas('requiredDocumentDivisions', function ($dq) use ($user, $userDivisionCode) {
-                                $dq->where('department_code', $user->department_code)
-                                ->where('division_code', $userDivisionCode);
-                            });
-                        });
-                    });
-                });
+                //     // (b) OR assigned as a complying office
+                //     ->orWhere(function ($q2) use ($user, $userDivisionCode) {
+                //         $q2->whereHas('complyingOffices', function ($coq) use ($user) {
+                //             $coq->where('department_code', $user->department_code);
+                //         })
+                //         ->where(function ($divQ) use ($user, $userDivisionCode) {
+                //             // No divisions specified for this office → whole office sees it
+                //             $divQ->where(function ($noDiv) use ($user) {
+                //                 $noDiv->where('requires_division_tracking', false)
+                //                     ->orWhereDoesntHave('requiredDocumentDivisions', function ($dq) use ($user) {
+                //                         $dq->where('department_code', $user->department_code);
+                //                     });
+                //             })
+                //             // OR divisions specified → user must be in one
+                //             ->orWhereHas('requiredDocumentDivisions', function ($dq) use ($user, $userDivisionCode) {
+                //                 $dq->where('department_code', $user->department_code)
+                //                 ->where('division_code', $userDivisionCode);
+                //             });
+                //         });
+                //     });
+                // });
+                // ✅ 4. Only show documents where user's office is the REQUIRING AGENCY
+                $query->where('agency_name', $officeName);
             })
             // ->defaultGroup('agency_name')
             // 🔹 Add grouping by requiring agency (optional but helpful)
