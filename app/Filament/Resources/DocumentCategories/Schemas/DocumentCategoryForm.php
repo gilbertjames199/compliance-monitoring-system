@@ -376,6 +376,20 @@ class DocumentCategoryForm
 
                                     $removedLocked = $lockedCodes->diff($state);
 
+                                    if ($removedLocked->isNotEmpty()) {
+                                        $names = Office::whereIn('department_code', $removedLocked)
+                                            ->pluck('office')
+                                            ->implode(', ');
+
+                                        Notification::make()
+                                            ->title('Cannot remove some complying offices')
+                                            ->body('Already complying/complied: ' . $names)
+                                            ->danger()
+                                            ->send();
+
+                                        $state = $state->merge($lockedCodes)->unique()->values();
+                                    }
+
                                     $toAdd = $state->diff($existingCodes);
                                     $toRemove = $existingCodes->diff($state);
 
@@ -393,6 +407,51 @@ class DocumentCategoryForm
                                             'status'                => -1,
                                         ]);
                                     }
+                                })
+                                ->dehydrateStateUsing(function ($state, $record) {
+                                    $user = auth()->user();
+
+                                    if ($user?->hasRole('super_admin')) {
+                                        return collect($state)->unique()->values()->toArray();
+                                    }
+
+                                    if (!$record?->exists) return $state;
+
+                                    $lockedOffices = $record->complyingOffices()->whereIn('status', [0, 1])->get();
+                                    $lockedCodes = $lockedOffices->pluck('department_code')->unique()->values()->toArray();
+                                    $removedLocked = array_diff($lockedCodes, $state ?? []);
+
+                                    if (!empty($removedLocked)) {
+                                        $removedRows = $lockedOffices->whereIn('department_code', $removedLocked);
+                                        $divisionRows = $removedRows->whereNotNull('division_code');
+                                        $officeRows   = $removedRows->whereNull('division_code');
+
+                                        $labels = collect();
+
+                                        foreach ($divisionRows as $row) {
+                                            $division = DB::connection('mysql2')
+                                                ->table('fms.divisions')
+                                                ->where('department_code', $row->department_code)
+                                                ->where('division_code', $row->division_code)
+                                                ->first();
+
+                                            $labels->push($division
+                                                ? $division->division_name1 . (!empty($division->division_short_name) ? " ({$division->division_short_name})" : '')
+                                                : "{$row->department_code}|{$row->division_code}");
+                                        }
+
+                                        foreach ($officeRows as $row) {
+                                            $labels->push($row->office?->office ?? $row->department_code);
+                                        }
+
+                                        Notification::make()
+                                            ->title($divisionRows->isNotEmpty() ? 'Cannot remove some divisions' : 'Cannot remove some offices')
+                                            ->body('Already complied: ' . $labels->unique()->implode(', '))
+                                            ->danger()
+                                            ->send();
+                                    }
+
+                                    return collect(array_merge($state ?? [], $lockedCodes))->unique()->values()->toArray();
                                 })
                                 ->suffixActions([
                                     Action::make('selectAll')
@@ -426,7 +485,27 @@ class DocumentCategoryForm
                                     $agencyDepartmentCode = Office::where('office', $record->agency_name)
                                         ->value('department_code');
 
-                                    return $user->department_code !== $agencyDepartmentCode;
+                                    if ($user->department_code !== $agencyDepartmentCode) {
+                                        return true;
+                                    }
+
+                                    // Lock the toggle if any division has already started complying
+                                    return $record->complyingOffices()
+                                        ->whereNotNull('division_code')
+                                        ->whereIn('status', [0, 1])
+                                        ->exists();
+                                })
+                                ->helperText(function ($record) {
+                                    if (!$record) return null;
+
+                                    if ($record->complyingOffices()
+                                        ->whereNotNull('division_code')
+                                        ->whereIn('status', [0, 1])
+                                        ->exists()) {
+                                        return 'This cannot be disabled because one or more divisions have already started complying.';
+                                    }
+
+                                    return null;
                                 }),
 
                             Select::make('required_divisions')
@@ -484,9 +563,37 @@ class DocumentCategoryForm
                                         ->map(fn ($co) => "{$co->department_code}|{$co->division_code}")
                                         ->toBase();
 
-                                    $removedLocked = $lockedKeys->diff($state);
+                                    // Guard: can't turn OFF division tracking while any division is locked
+                                    if (!$record->requires_division_tracking && $lockedKeys->isNotEmpty()) {
+                                        $names = $record->complyingOffices()
+                                            ->whereNotNull('division_code')
+                                            ->whereIn('status', [0, 1])
+                                            ->get()
+                                            ->map(function ($office) {
+                                                return DB::connection('mysql2')
+                                                    ->table('fms.divisions')
+                                                    ->where('department_code', $office->department_code)
+                                                    ->where('division_code', $office->division_code)
+                                                    ->value('division_name1')
+                                                    ?? "{$office->department_code}|{$office->division_code}";
+                                            })
+                                            ->unique()
+                                            ->implode(', ');
 
-                                    
+                                        Notification::make()
+                                            ->title('Cannot disable division tracking')
+                                            ->body('These divisions have already started complying: ' . $names)
+                                            ->danger()
+                                            ->send();
+
+                                        // Force the toggle back on since compliance already exists per-division
+                                        $record->requires_division_tracking = true;
+                                        $record->saveQuietly();
+
+                                        return;
+                                    }
+
+                                    $removedLocked = $lockedKeys->diff($state);
 
                                     if ($removedLocked->isNotEmpty()) {
 
@@ -499,25 +606,12 @@ class DocumentCategoryForm
 
                                                     $query->orWhere(function ($q) use ($deptCode, $divCode) {
                                                         $q->where('department_code', $deptCode)
-                                                        ->where('division_code', $divCode);
+                                                            ->where('division_code', $divCode);
                                                     });
                                                 }
                                             })
                                             ->get()
-                                            // ->map(function ($office) {
-                                            //     $division = Division::where('department_code', $office->department_code)
-                                            //         ->where('division_code', $office->division_code)
-                                            //         ->first();
-
-                                            //     return $division
-                                            //         ? $division->division_name1 .
-                                            //             ($division->division_short_name
-                                            //                 ? " ({$division->division_short_name})"
-                                            //                 : '')
-                                            //         : "{$office->department_code}|{$office->division_code}";
-                                            // })
                                             ->map(function ($office) {
-
                                                 return DB::connection('mysql2')
                                                     ->table('fms.divisions')
                                                     ->where('department_code', $office->department_code)

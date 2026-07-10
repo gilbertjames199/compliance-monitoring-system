@@ -7,6 +7,7 @@ use App\Models\RequiredDocumentDivision;
 use Filament\Actions\DeleteAction;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
+use Illuminate\Support\Facades\DB;
 
 class EditRequiredDocument extends EditRecord
 {
@@ -57,7 +58,42 @@ class EditRequiredDocument extends EditRecord
         $selected = $state['complying_offices'] ?? [];
         $record = $this->record;
 
-        if ($record->requires_division_tracking && !empty($this->pendingDivisions)) {
+        // 🔒 Guard: cannot disable division tracking while any division is locked
+        $lockedDivisionRows = $record->complyingOffices()
+            ->whereNotNull('division_code')
+            ->whereIn('status', [0, 1])
+            ->get();
+
+        
+         if (!$record->requires_division_tracking && $lockedDivisionRows->isNotEmpty()) {
+        $names = $lockedDivisionRows
+            ->map(function ($co) {
+                $division = DB::connection('mysql2')
+                    ->table('fms.divisions')
+                    ->where('department_code', $co->department_code)
+                    ->where('division_code', $co->division_code)
+                    ->first();
+
+                return $division
+                    ? $division->division_name1 . (!empty($division->division_short_name) ? " ({$division->division_short_name})" : '')
+                    : "{$co->department_code}|{$co->division_code}";
+            })
+            ->unique()
+            ->implode(', ');
+
+        Notification::make()
+            ->title('Cannot disable division tracking')
+            ->body('These divisions have already started complying: ' . $names)
+            ->danger()
+            ->send();
+
+        $record->requires_division_tracking = true;
+        $record->saveQuietly();
+
+        return; // stop here — don't run any office/division sync with a corrected-but-stale state
+    }
+
+    if ($record->requires_division_tracking && !empty($this->pendingDivisions)) {
 
             $expectedKeys = collect($this->pendingDivisions);
 
@@ -87,7 +123,7 @@ class EditRequiredDocument extends EditRecord
             foreach ($blockedRemovals as $entry) {
                 [$deptCode, $divCode] = explode('|', $entry);
 
-                $division = \Illuminate\Support\Facades\DB::connection('mysql2')
+                $division = DB::connection('mysql2')
                     ->table('fms.divisions')
                     ->where('department_code', $deptCode)
                     ->where('division_code', $divCode)

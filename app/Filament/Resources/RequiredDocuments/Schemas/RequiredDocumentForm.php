@@ -409,9 +409,27 @@ class RequiredDocumentForm
 
                         Toggle::make('requires_division_tracking')
                             ->label('Track by Division?')
-                            ->helperText('Enable if specific divisions within an office must comply separately.')
+                            ->helperText(function ($record) {
+                                if ($record?->complyingOffices()
+                                    ->whereNotNull('division_code')
+                                    ->whereIn('status', [0, 1])
+                                    ->exists()) {
+                                    return 'This cannot be disabled because one or more divisions have already started complying.';
+                                }
+
+                                return 'Enable if specific divisions within an office must comply separately.';
+                            })
                             ->reactive()
-                            ->disabled(fn ($record) => self::isNotRequiringAgency($record))
+                            ->disabled(function ($record) {
+                                if (self::isNotRequiringAgency($record)) {
+                                    return true;
+                                }
+
+                                return $record?->complyingOffices()
+                                    ->whereNotNull('division_code')
+                                    ->whereIn('status', [0, 1])
+                                    ->exists();
+                            })
                             ->afterStateUpdated(function ($state, Set $set) {
                                 if (!$state) {
                                     $set('required_divisions', []);
@@ -467,7 +485,8 @@ class RequiredDocumentForm
                                 $lockedDivisions = $record->complyingOffices()
                                     ->whereNotNull('division_code')
                                     ->whereIn('status', [0, 1])
-                                    ->get();
+                                    ->get()
+                                    ->toBase();   // ← convert to base Support Collection immediately
 
                                 $lockedKeys = $lockedDivisions
                                     ->map(fn ($co) => "{$co->department_code}|{$co->division_code}")
