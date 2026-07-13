@@ -2,16 +2,16 @@
 
 namespace App\Filament\Resources\ComplyingOffices\Schemas;
 
+use App\Models\AuditLog;
 use App\Models\ComplyingOffice;
-use App\Models\Office;
 use App\Models\RequiredDocument;
+use App\Models\User;
 use App\Support\FilamentAttachmentPreview;
 use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Hidden;
-use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -335,6 +335,54 @@ class ComplyingOfficeForm
                                             'viewStatesStatePath' => 'data.attachment_view_states',
                                             'draftLabel' => 'Your reply',
                                             'draftPlaceholder' => 'Reply to the requiring agency about this file.',
+                                        ]);
+                                    }),
+
+                                // Action::make('view_compliance_history')
+                                //     ->label('Compliance History')
+                                //     ->icon('heroicon-m-clock')
+                                //     ->button()
+                                //     ->color('gray')
+                                //     ->visible(fn ($record) => (bool) $record) // no history on create
+                                //     ->modalHeading('Compliance History')
+                                //     ->modalWidth('4xl')
+                                //     ->modalSubmitAction(false)
+                                //     ->modalCancelActionLabel('Close')
+                                //     ->modalContent(function ($record) {
+                                //         $logs = AuditLog::where('complying_office_id', $record->id)
+                                //             ->orderBy('action_at')
+                                //             ->get();
+
+                                //         $userIds = $logs->pluck('user_id')->filter()->unique();
+                                //         $users = User::whereIn('recid', $userIds)->get()->keyBy('recid');
+
+                                //         return view('filament.forms.components.compliance-history-modal', [
+                                //             'logs'  => $logs,
+                                //             'users' => $users,
+                                //         ]);
+                                //     }),
+
+                                Action::make('view_compliance_history')
+                                    ->label('Compliance History')
+                                    ->icon('heroicon-m-clock')
+                                    ->button()
+                                    ->color('gray')
+                                    ->visible(fn ($record) => (bool) $record)
+                                    ->modalHeading('Compliance History')
+                                    ->modalWidth('4xl')
+                                    ->modalSubmitAction(false)
+                                    ->modalCancelActionLabel('Close')
+                                    ->modalContent(function ($record) {
+                                        $logs = AuditLog::where('complying_office_id', $record->id)
+                                            ->orderByDesc('action_at')   // was ->orderBy('action_at')
+                                            ->get();
+
+                                        $userIds = $logs->pluck('user_id')->filter()->unique();
+                                        $users = User::whereIn('recid', $userIds)->get()->keyBy('recid');
+
+                                        return view('filament.forms.components.compliance-history-modal', [
+                                            'logs'  => $logs,
+                                            'users' => $users,
                                         ]);
                                     }),
                             ])
@@ -696,7 +744,7 @@ class ComplyingOfficeForm
                         //     ->columnSpan(1),
                         TextInput::make('submitted_by')
                             ->label('Submitted By')
-                            ->disabled(fn () => ! auth()->user()->hasRoleSafe('super_admin'))
+                            ->readOnly(fn () => ! auth()->user()->hasRoleSafe('super_admin'))
                             ->dehydrated()
                             ->reactive()
                             ->visible(fn ($get) => !empty($get('attachments')))
@@ -714,7 +762,8 @@ class ComplyingOfficeForm
                         //     ->columnSpan(1),
                         DateTimePicker::make('submitted_at')
                             ->label('Submission Date & Time')
-                            ->disabled(fn () => ! auth()->user()->hasRoleSafe('super_admin'))
+                            // ->disabled(fn () => ! auth()->user()->hasRoleSafe('super_admin'))
+                            ->readOnly(fn () => ! auth()->user()->hasRoleSafe('super_admin'))
                             ->dehydrated()
                             ->reactive()
                             ->displayFormat('m/d/Y h:i A')

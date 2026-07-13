@@ -5,6 +5,7 @@ namespace App\Filament\Resources\ComplyingOffices\Pages;
 use App\Filament\Resources\ComplyingOffices\ComplyingOfficeResource;
 use App\Models\Office;
 use App\Support\FilamentAttachmentPreview;
+use Carbon\Carbon;
 use Filament\Actions\Action;
 use Filament\Resources\Pages\EditRecord;
 use Filament\Support\Enums\Alignment;
@@ -257,15 +258,14 @@ The **Department Head may log in using their OPCR credentials** to complete this
                         : ($record->submitted_by ?? $user->name);
 
                     $data['submitted_at'] = filled($data['submitted_at'] ?? null)
-                        ? \Carbon\Carbon::parse($data['submitted_at'])
+                        ? Carbon::parse($data['submitted_at'])
                         : ($record->submitted_at ?? now());
 
                 } else {
 
                     // Preserve original submission date if already exists
-                    $data['submitted_by'] = $record->submitted_by ?? $user->name;
-
-                    $data['submitted_at'] = $record->submitted_at ?? now();
+                    $data['submitted_by'] = $user->name;
+                    $data['submitted_at'] = now();
                 }
 
                 $data['validation_status'] = 'pending_review';

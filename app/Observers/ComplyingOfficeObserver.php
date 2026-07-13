@@ -21,7 +21,8 @@ class ComplyingOfficeObserver
                     'status' => $office->status,
                     'validation_status' => $office->validation_status,
                 ],
-                $office->admin_remarks
+                // $office->admin_remarks
+                $office->submission_notes
             );
         } else {
             AuditLogger::log(
@@ -32,7 +33,7 @@ class ComplyingOfficeObserver
                     'status' => $office->status,
                     'validation_status' => $office->validation_status,
                 ],
-                $office->admin_remarks
+                null
             );
         }
     }
@@ -83,9 +84,20 @@ class ComplyingOfficeObserver
                 $office,
                 $old,
                 $new,
-                $office->admin_remarks
+                $this->resolveRemarksForEvent($eventName, $office)
             );
         }
+    }
+
+    private function resolveRemarksForEvent(string $eventName, ComplyingOffice $office): ?string
+    {
+        // Complying office talking → their submission notes
+        if (str_starts_with($eventName, 'submitted') || str_starts_with($eventName, 'resubmitted')) {
+            return $office->submission_notes;
+        }
+
+        // Requiring agency talking (returned/validated) → their remarks
+        return $office->admin_remarks;
     }
 
     public function deleted(ComplyingOffice $office): void

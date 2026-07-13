@@ -2,10 +2,10 @@
 
 namespace App\Filament\Resources\ComplyingOffices\Pages;
 
-use App\Models\Office;
-use App\Models\ComplyingOffice;
-use Filament\Resources\Pages\CreateRecord;
 use App\Filament\Resources\ComplyingOffices\ComplyingOfficeResource;
+use App\Models\Office;
+use Filament\Forms\Components\Select;
+use Filament\Resources\Pages\CreateRecord;
 
 class CreateComplyingOffice extends CreateRecord
 {
@@ -14,7 +14,7 @@ class CreateComplyingOffice extends CreateRecord
     protected function getFormSchema(): array
     {
         return [
-            \Filament\Forms\Components\Select::make('department_codes')
+            Select::make('department_codes')
                 ->label('Complying Offices')
                 ->multiple()
                 ->required()
