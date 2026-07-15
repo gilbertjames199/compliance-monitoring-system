@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use App\Models\ComplyingOffice;
 use App\Models\RequiredDocument;
 use App\Models\User;
+use App\Notifications\DocumentSubmitted;
 use App\Support\FilamentAttachmentPreview;
 use Carbon\Carbon;
 use Filament\Actions\Action;
@@ -575,7 +576,7 @@ class ComplyingOfficeForm
                                     
                                     // ✅ Notify requiring agency
                                     if ($record && $record->requiringAgency) {
-                                        $record->requiringAgency->notify(new \App\Notifications\DocumentSubmitted($record));
+                                        $record->requiringAgency->notify(new DocumentSubmitted($record));
                                     }
         
                                 } else {
