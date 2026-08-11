@@ -5,6 +5,7 @@ namespace App\Filament\Pages;
 use App\Models\Office;
 use App\Models\Pis\Division;
 use App\Models\UserDivision;
+use Filament\Forms\Components\Checkbox;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
@@ -23,6 +24,7 @@ class SelectDivision extends Page implements HasForms
 
     public ?string $department_code = null;
     public ?array $division_codes = [];
+    public bool $no_division = false;
 
     public function mount(): void
     {
@@ -87,9 +89,18 @@ class SelectDivision extends Page implements HasForms
                                 ]);
                         })
                         ->searchable()
-                        ->required()
                         ->native(false)
                         ->prefixIcon('heroicon-o-user-group')
+                        ->required(fn (Get $get) => ! $get('no_division'))
+                        ->visible(fn (Get $get) => ! $get('no_division'))
+                        ->dehydrated(fn (Get $get) => ! $get('no_division'))
+                        ->columnSpan(1),
+
+                    Checkbox::make('no_division')
+                        ->label("I don't belong to any specific division")
+                        ->helperText('Check this only if your role isn\'t tied to a specific division within your department.')
+                        ->live()
+                        ->afterStateUpdated(fn (callable $set, $state) => $state ? $set('division_codes', []) : null)
                         ->columnSpan(1),
                 ]),
         ];
@@ -101,13 +112,25 @@ class SelectDivision extends Page implements HasForms
         $user = auth()->user();
 
         $departmentCode = $data['department_code'] ?? $this->department_code;
+        $noDivision = $data['no_division'] ?? false;
+        $divisionCodes = $noDivision ? [] : ($data['division_codes'] ?? []);
 
-        foreach ($data['division_codes'] as $divisionCode) {
+        if (empty($divisionCodes)) {
+            // User has no division — record a placeholder row so mount()
+            // recognizes selection is complete and doesn't loop them back here.
             UserDivision::firstOrCreate([
                 'user_id' => $user->recid,
                 'department_code' => $departmentCode,
-                'division_code' => $divisionCode,
+                'division_code' => null,
             ]);
+        } else {
+            foreach ($divisionCodes as $divisionCode) {
+                UserDivision::firstOrCreate([
+                    'user_id' => $user->recid,
+                    'department_code' => $departmentCode,
+                    'division_code' => $divisionCode,
+                ]);
+            }
         }
 
         Notification::make()

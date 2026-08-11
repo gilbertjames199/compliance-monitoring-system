@@ -9,6 +9,7 @@
         "php": "^8.2",
         "bezhansalleh/filament-shield": "^4.0",
         "blade-ui-kit/blade-heroicons": "^2.6",
+        "doctrine/dbal": "^4.4",
         "filament/filament": "^4.0",
         "javarex/ddo-login": "^1.1",
         "laravel/framework": "^12.0",
